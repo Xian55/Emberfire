@@ -44,12 +44,15 @@ class ContentMgr
 		// There is also a limit to how many can be playing at once in SFML.
 		// The volume is a value between 0 (mute) and 1 (full volume).
 		shared_ptr<SfSoundSafe> playSound(const string& filename, const float volume = 1.f, sf::Vector2f screenPosition = { -1.f, -1.f });
+		shared_ptr<SfSoundSafe> playSound(const Assets::SfxId id, const float volume = 1.f, sf::Vector2f screenPosition = { -1.f, -1.f }) { return playSound(Assets::sfxFile(id), volume, screenPosition); }
 
 		void stopAllLoopSound();
 		void queueSound(const string& filename, const clock_t delayMiliseconds, const float vol = 1.f);
+		void queueSound(const Assets::SfxId id, const clock_t delayMiliseconds, const float vol = 1.f) { queueSound(Assets::sfxFile(id), delayMiliseconds, vol); }
 		void getFootstepsForTexture(const string& texture, vector<string>& soundEffects) const;
 		void setMusicPlaylist(const vector<string>& filenames);
 		void loopMusic(const string& filename, const bool refreshCurrent = true);
+		void loopMusic(const Assets::MusicId id, const bool refreshCurrent = true) { loopMusic(Assets::musicFile(id), refreshCurrent); }
 		void loopAmbience(const string& filename);
 		void queueMusicTransition(const string& filename);
 		void queueAmbienceTransition(const string& filename);
@@ -66,13 +69,15 @@ class ContentMgr
 
 		int getPortraitOffset(const Sprite& spr) const;
 		
-		auto& getBrightShader() { return m_brightShader; }
-		auto& getRecolorShader() { return m_recolorShader; }
+		sf::Shader& getShader(Assets::ShaderId id);
+		sf::Shader& getBrightShader() { return getShader(Assets::ShaderId::UnitBright); }
+		sf::Shader& getRecolorShader() { return getShader(Assets::ShaderId::UnitRecolor); }
 
 		shared_ptr<sf::Texture> getTexture(const string& filename);
 		shared_ptr<sf::Music> getMusic(const string& filename);
 		shared_ptr<sf::SoundBuffer> getSoundBuffer(const string& filename);
 		shared_ptr<sf::Font> getFont(const string& fontname);
+		shared_ptr<sf::Font> getFont(const Assets::FontId id) { return getFont(Assets::fontFile(id)); }
 		shared_ptr<SpriteScript> getSpriteRenderScript(const string& textureName) const;
 		shared_ptr<SpriteScript> ensureSpriteScript(const string& filename);
 		shared_ptr<Sprite> spawnSprite(const string& filename);
@@ -125,8 +130,7 @@ class ContentMgr
 		float m_transitionMusic{-1.f};
 		float m_transitionAmbience{-1.f};
 
-		sf::Shader m_brightShader;
-		sf::Shader m_recolorShader;
+		map<Assets::ShaderId, sf::Shader> m_shaders;
 				
 		mutex m_mutex;
 		thread m_loadingThread;

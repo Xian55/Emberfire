@@ -33,7 +33,7 @@ Inventory::Inventory(World& owner, const int id) :
 
 	attachAddObj(make_shared<Button>(*this, "sort_inventory", Interface::SortButton), sf::Vector2i{257, 390});
 
-	m_moneyDraw = make_unique<Text>(sContentMgr->getFont("Palatino Linotype Regular.ttf"));
+	m_moneyDraw = make_unique<Text>(sContentMgr->getFont(FontId::Palatino));
 	m_moneyDraw->setCharacterSize(15);
 	m_moneyDraw->setOriginalColor(sf::Color(255, 215, 0, 255));
 	m_moneyDraw->setOutlineThickness(2.f);
@@ -119,7 +119,7 @@ void Inventory::input()
 					if (Util::maskHas(attributes, SpellDefines::Attributes::TargetsItem))
 					{
 						world().setItemAction(rightClicked);
-						sContentMgr->playSound("alert_entry_a.ogg");
+						sContentMgr->playSound(SfxId::AlertEntry);
 					}
 					else
 					{						
@@ -202,7 +202,7 @@ void Inventory::input()
 					packet.m_itemId = m_destroyItemCache->getItemDef();
 					sConnector->sendPacket(packet.build(StlBuffer{}));
 					world().setGrabbedIcon(nullptr);
-					sContentMgr->queueSound("alert_delete_item_a.ogg", 200);
+					sContentMgr->queueSound(SfxId::AlertDeleteItem, 200);
 				}
 			}
 		}

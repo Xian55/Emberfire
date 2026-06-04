@@ -22,7 +22,7 @@ CharacterCreation::CharacterCreation(RenderObjectHolder& owner, const int id) :
 	RenderObjectHolder(&owner, id)
 {
 	setMultiInput(true);
-	sContentMgr->loopMusic("aion_creation.ogg", false);
+	sContentMgr->loopMusic(MusicId::AionCreation, false);
 
 	ASSERT(m_background = sContentMgr->spawnSprite("main_bg.jpg"));
 	ASSERT(m_backgroundGui = sContentMgr->spawnSprite("main_creation.png"));
@@ -33,7 +33,7 @@ CharacterCreation::CharacterCreation(RenderObjectHolder& owner, const int id) :
 	addRenderObject(attachObj(make_shared<Button>(*this, "cancel_back", Interface::CancelBack), sf::Vector2i(int(m_backgroundGui->vbounds().x), int(sApplication->sHf() - m_backgroundGui->getGlobalBounds().height) / 2)));
 	
 	// Character name prompt
-	m_namePrompt = make_shared<PromptBox>(*this, Interface::NamePrompt, "Palatino Linotype Regular.ttf", nullptr, sf::Vector2i{}, 200, sf::Color(157, 137, 119, 255), false);
+	m_namePrompt = make_shared<PromptBox>(*this, Interface::NamePrompt, FontId::Palatino, nullptr, sf::Vector2i{}, 200, sf::Color(157, 137, 119, 255), false);
 	m_namePrompt->setPromptCharacterSize(18);
 	m_namePrompt->setPromptMaxStrLen(CharacterDefines::Names::MaxLength);
 	m_namePrompt->setAsciiOnly(true);
@@ -64,37 +64,37 @@ CharacterCreation::CharacterCreation(RenderObjectHolder& owner, const int id) :
 
 	// Paladin tooltip
 	auto tooltipPaladin = make_shared<Tooltip>(*classIconPaladin, sf::Vector2i{});
-	tooltipPaladin->addLine("Helvetica 400.ttf", 15, PlayerFunctions::className(PlayerDefines::Classes::Paladin), sf::Color(PlayerFunctions::classColor(PlayerDefines::Classes::Paladin)));
-	tooltipPaladin->addLine("Helvetica 400.ttf", 15, "Divine warriors devoted to honor and piety. They live to defend, protect and serve all believers. Can use Shields and Melee weapons.");
-	tooltipPaladin->addLine("trebuc.ttf", 15, "Difficulty: ", sf::Color(240, 197, 2, 255), false);
-	tooltipPaladin->addLine("trebuc.ttf", 15, "Beginner", sf::Color(145, 233, 1, 255));
+	tooltipPaladin->addLine(FontId::Helvetica, 15, PlayerFunctions::className(PlayerDefines::Classes::Paladin), sf::Color(PlayerFunctions::classColor(PlayerDefines::Classes::Paladin)));
+	tooltipPaladin->addLine(FontId::Helvetica, 15, "Divine warriors devoted to honor and piety. They live to defend, protect and serve all believers. Can use Shields and Melee weapons.");
+	tooltipPaladin->addLine(FontId::Trebuchet, 15, "Difficulty: ", sf::Color(240, 197, 2, 255), false);
+	tooltipPaladin->addLine(FontId::Trebuchet, 15, "Beginner", sf::Color(145, 233, 1, 255));
 	attachObj(tooltipPaladin, classIconPaladin->getOffset() + sf::Vector2i(-20, 90));
 	static_pointer_cast<Button>(classIconPaladin)->setTooltip(tooltipPaladin);	
 
 	// Mage tooltip
 	auto tooltipMage = make_shared<Tooltip>(*classIconMage, sf::Vector2i{});
-	tooltipMage->addLine("Helvetica 400.ttf", 15, PlayerFunctions::className(PlayerDefines::Classes::Mage), sf::Color(PlayerFunctions::classColor(PlayerDefines::Classes::Mage)));
-	tooltipMage->addLine("Helvetica 400.ttf", 15, "Powerful arcane spellcasters born with magic in their blood who gradually learn to harness their innate abilities over time. Can use Staves and Wands.");
-	tooltipMage->addLine("trebuc.ttf", 15, "Difficulty: ", sf::Color(240, 197, 2, 255), false);
-	tooltipMage->addLine("trebuc.ttf", 15, "Advanced", sf::Color(215, 63, 19, 255));
+	tooltipMage->addLine(FontId::Helvetica, 15, PlayerFunctions::className(PlayerDefines::Classes::Mage), sf::Color(PlayerFunctions::classColor(PlayerDefines::Classes::Mage)));
+	tooltipMage->addLine(FontId::Helvetica, 15, "Powerful arcane spellcasters born with magic in their blood who gradually learn to harness their innate abilities over time. Can use Staves and Wands.");
+	tooltipMage->addLine(FontId::Trebuchet, 15, "Difficulty: ", sf::Color(240, 197, 2, 255), false);
+	tooltipMage->addLine(FontId::Trebuchet, 15, "Advanced", sf::Color(215, 63, 19, 255));
 	attachObj(tooltipMage, classIconPaladin->getOffset() + sf::Vector2i(-20, 90));
 	static_pointer_cast<Button>(classIconMage)->setTooltip(tooltipMage);
 
 	// Ranger tooltip
 	auto tooltipRanger = make_shared<Tooltip>(*classIconRanger, sf::Vector2i{});
-	tooltipRanger->addLine("Helvetica 400.ttf", 15, PlayerFunctions::className(PlayerDefines::Classes::Ranger), sf::Color(PlayerFunctions::classColor(PlayerDefines::Classes::Ranger)));
-	tooltipRanger->addLine("Helvetica 400.ttf", 15, "A wanderer in the wilds, their fierce independence makes them well suited to adventuring and mischief. Can use Bows and Daggers.");
-	tooltipRanger->addLine("trebuc.ttf", 15, "Difficulty: ", sf::Color(240, 197, 2, 255), false);
-	tooltipRanger->addLine("trebuc.ttf", 15, "Moderate", sf::Color(226, 218, 0, 255));
+	tooltipRanger->addLine(FontId::Helvetica, 15, PlayerFunctions::className(PlayerDefines::Classes::Ranger), sf::Color(PlayerFunctions::classColor(PlayerDefines::Classes::Ranger)));
+	tooltipRanger->addLine(FontId::Helvetica, 15, "A wanderer in the wilds, their fierce independence makes them well suited to adventuring and mischief. Can use Bows and Daggers.");
+	tooltipRanger->addLine(FontId::Trebuchet, 15, "Difficulty: ", sf::Color(240, 197, 2, 255), false);
+	tooltipRanger->addLine(FontId::Trebuchet, 15, "Moderate", sf::Color(226, 218, 0, 255));
 	attachObj(tooltipRanger, classIconPaladin->getOffset() + sf::Vector2i(-20, 90));
 	static_pointer_cast<Button>(classIconRanger)->setTooltip(tooltipRanger);
 
 	// Bishop tooltip
 	auto tooltipBishop = make_shared<Tooltip>(*classIconBishop, classIconBishop->getTopLeftCornerRef() + sf::Vector2i(-60, 90));
-	tooltipBishop->addLine("Helvetica 400.ttf", 15, PlayerFunctions::className(PlayerDefines::Classes::Bishop), sf::Color(PlayerFunctions::classColor(PlayerDefines::Classes::Bishop)));
-	tooltipBishop->addLine("Helvetica 400.ttf", 15, "Best known as healers, they are members of the divine faith who have the ability to cast priest spells from the gods they worship. Can use Shields, Staves and Maces.");
-	tooltipBishop->addLine("trebuc.ttf", 15, "Difficulty: ", sf::Color(240, 197, 2, 255), false);
-	tooltipBishop->addLine("trebuc.ttf", 15, "Moderate", sf::Color(226, 218, 0, 255));
+	tooltipBishop->addLine(FontId::Helvetica, 15, PlayerFunctions::className(PlayerDefines::Classes::Bishop), sf::Color(PlayerFunctions::classColor(PlayerDefines::Classes::Bishop)));
+	tooltipBishop->addLine(FontId::Helvetica, 15, "Best known as healers, they are members of the divine faith who have the ability to cast priest spells from the gods they worship. Can use Shields, Staves and Maces.");
+	tooltipBishop->addLine(FontId::Trebuchet, 15, "Difficulty: ", sf::Color(240, 197, 2, 255), false);
+	tooltipBishop->addLine(FontId::Trebuchet, 15, "Moderate", sf::Color(226, 218, 0, 255));
 	attachObj(tooltipBishop, classIconPaladin->getOffset() + sf::Vector2i(-20, 90));
 	static_pointer_cast<Button>(classIconBishop)->setTooltip(tooltipBishop);
 
@@ -114,7 +114,7 @@ void CharacterCreation::input()
 	__super::input();
 
 	if (m_classChoices->popChange())
-		sContentMgr->playSound("window_target_open_a.ogg");
+		sContentMgr->playSound(SfxId::WindowTargetOpen);
 
 	switch (popFirstButtonId())
 	{
@@ -136,7 +136,7 @@ void CharacterCreation::input()
 			{
 				m_gender = PlayerDefines::Male;
 				updatePortrait();
-				sContentMgr->playSound("window_target_open_a.ogg");				
+				sContentMgr->playSound(SfxId::WindowTargetOpen);				
 			}
 
 			break;
@@ -147,7 +147,7 @@ void CharacterCreation::input()
 			{
 				m_gender = PlayerDefines::Female;
 				updatePortrait();
-				sContentMgr->playSound("window_target_open_a.ogg");
+				sContentMgr->playSound(SfxId::WindowTargetOpen);
 			}
 
 			break;

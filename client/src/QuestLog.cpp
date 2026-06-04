@@ -97,7 +97,7 @@ void QuestLog::input()
 			if (clickedLine >= 0 && static_cast<size_t>(clickedLine) < m_questEntries.size())
 			{
 				selectQuestIndex(clickedLine);
-				sContentMgr->playSound("window_target_open_a.ogg");
+				sContentMgr->playSound(SfxId::WindowTargetOpen);
 			}
 		}
 	}
@@ -260,7 +260,7 @@ void QuestLog::init()
 		
 	for (int i = QuestTitle_1, counter = 0; i <= QuestTitle_10; ++i, ++counter)
 	{
-		auto label = make_shared<TextBoxRo>(*this, i, "Palatino Linotype Regular.ttf", 155, 15, TextBox::AlignLeft, false, 2.f);
+		auto label = make_shared<TextBoxRo>(*this, i, FontId::Palatino, 155, 15, TextBox::AlignLeft, false, 2.f);
 		attachObj(label, getTitleTopLeft(counter));
 		addRenderObject(label);
 	}
@@ -691,7 +691,7 @@ void QuestLog::selectQuestIndex(int idx)
 	m_world.formatQuestText(objectiveStr, entry);
 	
 	// Title
-	auto title = make_shared<TextBoxRo>(*this, Interface::QuestTitle, "Palatino Linotype Regular.ttf", 300, 16, TextBox::AlignLeft, false, 2.f);
+	auto title = make_shared<TextBoxRo>(*this, Interface::QuestTitle, FontId::Palatino, 300, 16, TextBox::AlignLeft, false, 2.f);
 	title->setAnchor(&getTopLeftCornerRef());
 	title->setOffset({ 300, 95 });
 	title->setString(titleStr, sf::Color(189, 166, 145, 255), sf::Color(0, 0, 0, 50));
@@ -699,7 +699,7 @@ void QuestLog::selectQuestIndex(int idx)
 	addRenderObject(title);
 
 	// Description
-	auto description = make_shared<TextBoxRo>(*this, Interface::QuestDescription, "Palatino Linotype Regular.ttf", 330, 12, TextBox::AlignLeft, false, 2.f);
+	auto description = make_shared<TextBoxRo>(*this, Interface::QuestDescription, FontId::Palatino, 330, 12, TextBox::AlignLeft, false, 2.f);
 	description->setAnchor(&getTopLeftCornerRef());
 	description->setOffset({ 277, 135 });
 	description->setString(descriptionStr, sf::Color(139, 116, 95, 255), sf::Color(0, 0, 0, 50), 6);
@@ -707,7 +707,7 @@ void QuestLog::selectQuestIndex(int idx)
 	addRenderObject(description);
 
 	// Objectives banner
-	auto objectiveBanner = make_shared<TextBoxRo>(*this, Interface::QuestObjectivesBanner, "Palatino Linotype Regular.ttf", 330, 16, TextBox::AlignLeft, false, 2.f);
+	auto objectiveBanner = make_shared<TextBoxRo>(*this, Interface::QuestObjectivesBanner, FontId::Palatino, 330, 16, TextBox::AlignLeft, false, 2.f);
 	objectiveBanner->setAnchor(&getTopLeftCornerRef());
 	objectiveBanner->setOffset({ 277, 135 + description->getTextRef().getHeight() + 20 });
 	objectiveBanner->setString("Objectives", sf::Color(189, 166, 145, 255), sf::Color(0, 0, 0, 50));
@@ -715,7 +715,7 @@ void QuestLog::selectQuestIndex(int idx)
 	addRenderObject(objectiveBanner);
 
 	// Objectives
-	auto objective = make_shared<TextBoxRo>(*this, Interface::QuestObjective, "Palatino Linotype Regular.ttf", 330, 14, TextBox::AlignLeft, false, 2.f);
+	auto objective = make_shared<TextBoxRo>(*this, Interface::QuestObjective, FontId::Palatino, 330, 14, TextBox::AlignLeft, false, 2.f);
 	objective->setAnchor(&getTopLeftCornerRef());
 	objective->setOffset({ 277, 135 + description->getTextRef().getHeight() + 45 });
 	objective->setString(objectiveStr, sf::Color(139, 116, 95, 255), sf::Color(0, 0, 0, 50));
@@ -754,7 +754,7 @@ void QuestLog::selectQuestEntry(const int entry)
 		if (m_questEntries[i].id == entry)
 		{
 			selectQuestIndex(i);
-			sContentMgr->playSound("window_target_open_a.ogg");
+			sContentMgr->playSound(SfxId::WindowTargetOpen);
 			refreshChosen();
 			return;
 		}
@@ -854,7 +854,7 @@ void QuestLog::notifyObjectiveValue(const int questId, map<int, map<int, Objecti
 			if (newValue > data.numDone)
 			{
 				if (!silent)
-					sContentMgr->playSound("alert_increased_a.ogg");
+					sContentMgr->playSound(SfxId::AlertIncreased);
 
 				changes.push_back(&data);
 			}

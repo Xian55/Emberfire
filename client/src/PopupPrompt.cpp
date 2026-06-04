@@ -17,7 +17,7 @@ PopupPrompt::PopupPrompt(RenderObject& owner, const int id, const string& titleS
 	m_code(code)
 {
 	setMultiInput(true);
-	sContentMgr->playSound("box_message_a.ogg");
+	sContentMgr->playSound(SfxId::BoxMessage);
 
 	// Background
 	ASSERT(m_bgSprite = sContentMgr->spawnSprite("error_popup.png"));
@@ -25,7 +25,7 @@ PopupPrompt::PopupPrompt(RenderObject& owner, const int id, const string& titleS
 	addRenderObject(attachObj(m_bg = make_shared<SpriteRo>(*this, m_bgSprite, Interface::Background), sf::Vector2i{}));
 
 	// Title
-	auto title = make_shared<TextBoxRo>(*this, Interface::Title, "Palatino Linotype Regular.ttf", 425, 15);
+	auto title = make_shared<TextBoxRo>(*this, Interface::Title, FontId::Palatino, 425, 15);
 	title->setString(titleStr);
 	addRenderObject(attachObj(title, sf::Vector2i(67, 35)));
 	
@@ -40,7 +40,7 @@ PopupPrompt::PopupPrompt(RenderObject& owner, const int id, const string& titleS
 	addRenderObject(attachObj(declineButton, sf::Vector2i(285, 125)));
 
 	// Prompt
-	m_promptBox = make_shared<PromptBox>(*this, Interface::Prompt, "Helvetica 400.ttf", nullptr, sf::Vector2i{}, 350, sf::Color::White);
+	m_promptBox = make_shared<PromptBox>(*this, Interface::Prompt, FontId::Helvetica, nullptr, sf::Vector2i{}, 350, sf::Color::White);
 	m_promptBox->setPromptCharacterSize(15);
 	m_promptBox->setPromptCharacterSize(12);
 	m_promptBox->setNumbersOnly(numbersOnly);

@@ -93,7 +93,7 @@ class GameIcon : public Button, public enable_shared_from_this<GameIcon>
 		string formTimeString(int timeMs, const vector<string>& dictionary, const bool allowFloat = true) const;
 		string formTimeSuffix(int timeMs, const vector<string>& dictionary) const;
 		string formTimePrefix(int timeMs) const;
-		string tooltipFont() const { return "trebuc.ttf"; }
+		string tooltipFont() const { return Assets::fontFile(Assets::FontId::Trebuchet); }
 
 		bool m_darken{0};
 		bool m_grabbed{0};

@@ -24,6 +24,8 @@ class Tooltip : public ExpandableWindow
 		void setMaxWidth(const int val) { m_maxWidth = val; }
 
 		int addLine(const string& fontname, const int characterSize, const string& str, const sf::Color color = sf::Color::White, const bool incrementHeight = true);
+		int addLine(const Assets::FontId fontId, const int characterSize, const string& str, const sf::Color color = sf::Color::White, const bool incrementHeight = true)
+			{ return addLine(Assets::fontFile(fontId), characterSize, str, color, incrementHeight); }
 
 		void setAllowMoreWidthIfLastLineIsUnderThisValue(const int val) { m_allowMoreWidthIfLastLineIsUnderThisValue = val; }
 

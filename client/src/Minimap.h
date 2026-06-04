@@ -78,7 +78,6 @@ class Minimap : public WorldChild
 		shared_ptr<Sprite> m_dotQuestEnd;
 		shared_ptr<Sprite> m_dotGossip;
 
-		sf::Shader m_saturateShader;
 		sf::RenderTexture m_renderTexture;
 
 		int m_cachedChannelSizes = 0;

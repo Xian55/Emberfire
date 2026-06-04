@@ -15,7 +15,7 @@ ToolbarXp::ToolbarXp(World& owner, const int id) :
 {
 	setMultiInput(true);
 	m_sprite = sContentMgr->spawnSprite("xp_bar.png");
-	m_text = make_unique<Text>(sContentMgr->getFont("Palatino Linotype Regular.ttf"));
+	m_text = make_unique<Text>(sContentMgr->getFont(FontId::Palatino));
 	m_text->setCharacterSize(12);
 	m_text->setShadowOffset(1);
 }

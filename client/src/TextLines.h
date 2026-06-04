@@ -47,6 +47,8 @@ class TextLines : public RenderObject
 	
 	public:
 		TextLines(RenderObject& owner, const int id, const string& fontName, const Util::GeoBox2d& box, const int fontSize = 12);
+		TextLines(RenderObject& owner, const int id, const Assets::FontId fontId, const Util::GeoBox2d& box, const int fontSize = 12)
+			: TextLines(owner, id, Assets::fontFile(fontId), box, fontSize) {}
 		virtual ~TextLines();
 		
 		void setBounds(const Util::GeoBox2d& box) { m_box = box; }

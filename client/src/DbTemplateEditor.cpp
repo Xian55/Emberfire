@@ -23,7 +23,7 @@ DbTemplateEditor::DbTemplateEditor(RenderObjectHolder& owner, const int id) :
 	RenderObjectHolder(&owner, id),
 	m_stage(RoEmpty)
 {
-	m_textLines = make_shared<TextLines>(owner, id, "Friz Quadrata Bold.ttf", Util::GeoBox2d(0, 0, 500, 1000), 18);
+	m_textLines = make_shared<TextLines>(owner, id, FontId::FrizBold, Util::GeoBox2d(0, 0, 500, 1000), 18);
 	m_textLines->setClickableLines(true);
 	m_textLines->setLeading(50);
 	m_textLines->setShadowOffset(1);
@@ -60,7 +60,7 @@ void DbTemplateEditor::input() /*final*/
 
 	if (!clickedLine.empty())
 	{
-		sContentMgr->playSound("alert_entry_a.ogg");
+		sContentMgr->playSound(SfxId::AlertEntry);
 
 		if (clickedLine == "<Map Editor>")
 			m_wantsClose = true;

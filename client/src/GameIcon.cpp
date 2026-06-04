@@ -24,16 +24,16 @@ GameIcon::GameIcon(RenderObject& owner, const int id, const string& frame, const
 	Button(owner, frame, id),
 	m_entry(entry)
 {
-	m_cooldownTxt = make_unique<Text>(sContentMgr->getFont("Cambria Regular.ttf"));
+	m_cooldownTxt = make_unique<Text>(sContentMgr->getFont(FontId::Cambria));
 	m_cooldownTxt->setCharacterSize(15);
 	m_cooldownTxt->setOutlineThickness(1.0f);
 	m_cooldownTxt->setOriginalColor(sf::Color::Red);
 
-	m_bindLabel = make_unique<Text>(sContentMgr->getFont("Helvetica 400.ttf"));
+	m_bindLabel = make_unique<Text>(sContentMgr->getFont(FontId::Helvetica));
 	m_bindLabel->setCharacterSize(12);
 	m_bindLabel->setOutlineThickness(1.0f);
 
-	m_stackLabel = make_unique<Text>(sContentMgr->getFont("Helvetica 400.ttf"));
+	m_stackLabel = make_unique<Text>(sContentMgr->getFont(FontId::Helvetica));
 	m_stackLabel->setCharacterSize(12);
 	m_stackLabel->setOutlineThickness(1.0f);
 

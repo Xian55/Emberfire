@@ -57,7 +57,7 @@ ConsoleWindow::ConsoleWindow(RenderObject& owner, const int id) :
 	enterButton->setOffset(sf::Vector2i(-87, -38));
 
 	// PromptBox class will destruct the ScrollBar for us, which destroys the two buttons
-	m_promptBox = make_shared<PromptBox>(*this, 0, "Helvetica 400.ttf", enterButton, sf::Vector2i(), 100, sf::Color::White);
+	m_promptBox = make_shared<PromptBox>(*this, 0, FontId::Helvetica, enterButton, sf::Vector2i(), 100, sf::Color::White);
 	m_promptBox->setDialogCharacterSize(14);
 	m_promptBox->setPromptCharacterSize(12);
 	m_promptBox->setScrollObject(scrollBar);

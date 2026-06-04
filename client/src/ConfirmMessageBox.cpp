@@ -16,7 +16,7 @@ ConfirmMessageBox::ConfirmMessageBox(RenderObject& owner, const int id, const in
 	m_msg(msg),
 	m_type(type)
 {
-	m_text = make_unique<TextBox>(sContentMgr->getFont("Palatino Linotype Regular.ttf"), 16);
+	m_text = make_unique<TextBox>(sContentMgr->getFont(FontId::Palatino), 16);
 	m_text->setColor(sf::Color(139, 116, 95, 255));
 
 	m_acceptButton = make_unique<Button>(*this, "yes_button", ConfirmBox_Yes);
@@ -24,7 +24,7 @@ ConfirmMessageBox::ConfirmMessageBox(RenderObject& owner, const int id, const in
 	if (m_type == ConfirmBox_YesNo)
 		m_declineButton = make_unique<Button>(*this, "no_button", ConfirmBox_No);
 	
-	sContentMgr->playSound("login_popup_open.ogg");
+	sContentMgr->playSound(SfxId::LoginPopupOpen);
 
 	ASSERT(m_text != nullptr);
 	ASSERT(m_spriteBackdrop != nullptr);

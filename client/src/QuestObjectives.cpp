@@ -102,7 +102,7 @@ void QuestObjectives::recalc()
 	addRenderObject(attachObj(make_shared<SpriteRo>(*this, m_bgSpr, Interface::BackgroundRo), sf::Vector2i{ -30, 0 }));
 
 	// Header/banner "Objectives"
-	auto banner = make_shared<TextBoxRo>(*this, Interface::BannerRo, "Ringbearer Medium.ttf", 330, 18, TextBox::AlignLeft, false, 2.f);
+	auto banner = make_shared<TextBoxRo>(*this, Interface::BannerRo, FontId::Ringbearer, 330, 18, TextBox::AlignLeft, false, 2.f);
 	banner->setString("Objectives", sf::Color(217, 194, 152, 255), sf::Color(0, 0, 0, 50));
 	banner->getTextRef().getTextRef().setShadowOffset(1);
 	addRenderObject(attachObj(banner, { 50, 15 }));
@@ -125,7 +125,7 @@ void QuestObjectives::recalc()
 		m_legend[Interface::QuestTitleStart + count] = questdata.id;
 
 		// Quest name
-		auto banner = make_shared<TextBoxRo>(*this, Interface::QuestTitleStart + count, "Palatino Linotype Bold.ttf", 365, 18, TextBox::AlignLeft, false, 2.f);
+		auto banner = make_shared<TextBoxRo>(*this, Interface::QuestTitleStart + count, FontId::PalatinoBold, 365, 18, TextBox::AlignLeft, false, 2.f);
 		banner->setAnchor(&getTopLeftCornerRef());
 		banner->setString(titleStr, sf::Color(217, 194, 152, 255), sf::Color(0, 0, 0, 50));
 		banner->getTextRef().getTextRef().setShadowOffset(1);
@@ -135,7 +135,7 @@ void QuestObjectives::recalc()
 		y += banner->getDrawnHeight() + 2;
 
 		// Objectives
-		auto objective = make_shared<TextBoxRo>(*this, Interface::QuestObjectivesStart + count, "Palatino Linotype Bold.ttf", 260, 15, TextBox::AlignLeft, false, 2.f);
+		auto objective = make_shared<TextBoxRo>(*this, Interface::QuestObjectivesStart + count, FontId::PalatinoBold, 260, 15, TextBox::AlignLeft, false, 2.f);
 		objective->setAnchor(&getTopLeftCornerRef());
 		objective->setString(questLog->getQuestObjectiveString(questdata.id), sf::Color(182, 173, 139, 255), sf::Color(0, 0, 0, 50));
 		objective->getTextRef().getTextRef().setShadowOffset(1);

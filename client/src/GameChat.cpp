@@ -50,7 +50,7 @@ GameChat::GameChat(RenderObjectHolder& owner, const int id, const sf::Vector2i& 
 	attachObj(m_promptEnterButton, sf::Vector2i(425, 145));
 
 	// PromptBox class will destruct the ScrollBar for us, which destroys the two buttons
-	m_promptBox = make_shared<PromptBox>(*this, Interface::RoPromptBox, "Helvetica 400.ttf", m_promptEnterButton, sf::Vector2i{}, 390, sf::Color(0xFFFFFFFF));
+	m_promptBox = make_shared<PromptBox>(*this, Interface::RoPromptBox, FontId::Helvetica, m_promptEnterButton, sf::Vector2i{}, 390, sf::Color(0xFFFFFFFF));
 	m_promptBox->setDialogCharacterSize(Defines::CharacterSize);
 	m_promptBox->setPromptCharacterSize(Defines::CharacterSize);
 	m_promptBox->setScrollObject(scrollBar);
@@ -231,7 +231,7 @@ void GameChat::input()
 			if (auto owner = dynamic_cast<World*>(getOwner()))
 			{
 				m_rightClickedName = msgSenderName;
-				sContentMgr->playSound("button_click_a.ogg");
+				sContentMgr->playSound(SfxId::ButtonClick);
 				setInUse(false);
 
 				owner->registerContextMenu(World::Interface::CtxMenuCurrent, getId(), sApplication->mousePos(),
@@ -251,7 +251,7 @@ void GameChat::input()
 
 		if (linkedItem != m_itemLinks.end())
 		{
-			sContentMgr->playSound("button_click_a.ogg");
+			sContentMgr->playSound(SfxId::ButtonClick);
 			m_clickedLinkedItem = linkedItem->second;
 		}
 	}
@@ -262,7 +262,7 @@ void GameChat::input()
 
 		if (m_closeLinkTooltipBtn->popActivated())
 		{
-			sContentMgr->playSound("window_target_close_a.ogg");
+			sContentMgr->playSound(SfxId::WindowTargetClose);
 			m_clickedLinkedItem = nullptr;
 		}
 	}

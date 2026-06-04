@@ -82,7 +82,7 @@ void ClientPlayer::setStandingWaypoint(ClientGameObj& gameObj)
 	m_waypointStandingGuid = gameObj.getGuid();
 
 	if (hasSpline())
-		sContentMgr->playSound("alert_cooltime_over_a.ogg");
+		sContentMgr->playSound(SfxId::AlertCooltimeOver);
 }
 
 void ClientPlayer::notifyVariableChange(const ObjDefines::Variable var, const int value) /*final*/
@@ -140,7 +140,7 @@ void ClientPlayer::notifyVariableChange(const ObjDefines::Variable var, const in
 					}
 				}
 
-				sContentMgr->queueSound("alert_mail_a.ogg", 2000);
+				sContentMgr->queueSound(SfxId::AlertMail, 2000);
 			}
 
 			break;

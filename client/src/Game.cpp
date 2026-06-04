@@ -175,9 +175,9 @@ void Game::toggleOptions(const bool v)
 	if (exists != v)
 	{
 		if (v)
-			sContentMgr->playSound("window_open_a.ogg");
+			sContentMgr->playSound(SfxId::WindowOpen);
 		else
-			sContentMgr->playSound("window_close_a.ogg");
+			sContentMgr->playSound(SfxId::WindowClose);
 	}
 
 	destroyObjectById(RoOptions);
@@ -419,7 +419,7 @@ void Game::processPacket_Server_CharacterList(StlBuffer& data)
 	if (getRenderObject(RoCharacterCreation) != nullptr)
 	{
 		setStage(RoCharacterSelection);
-		sContentMgr->playSound("alert_mission_get_a.ogg");
+		sContentMgr->playSound(SfxId::AlertMissionGet);
 	}
 
 	auto cselection = dynamic_pointer_cast<CharacterSelection>(getRenderObject(RoCharacterSelection));
@@ -559,7 +559,7 @@ void Game::processPacket_Server_RespawnResponse(StlBuffer& data)
 	if (pk.m_success)
 	{
 		sApplication->clearPopups();
-		sContentMgr->playSound("teleport.wav");
+		sContentMgr->playSound(SfxId::Teleport);
 	}
 }
 		
@@ -580,13 +580,13 @@ void Game::processPacket_Server_EmpowerResult(StlBuffer& data)
 
 	if (pk.m_success)
 	{
-		sContentMgr->playSound("sys_gathering_success.ogg");
+		sContentMgr->playSound(SfxId::SysGatheringSuccess);
 		world->myself()->playAnimation(UnitDefines::AnimId::Cast);
 		gameChat->addLine("You successfully empowered the item.", ChatDefines::Channels::System);
 	}
 	else
 	{
-		sContentMgr->playSound("alert_soulstone_empty_a.ogg");
+		sContentMgr->playSound(SfxId::AlertSoulstoneEmpty);
 		world->myself()->playAnimation(UnitDefines::AnimId::Hit);
 		gameChat->addLine("Your attempt to empower the item was unsuccessful.", ChatDefines::Channels::System);
 	}
@@ -609,13 +609,13 @@ void Game::processPacket_Server_SocketResult(StlBuffer& data)
 
 	if (pk.m_success)
 	{
-		sContentMgr->playSound("sys_gathering_success.ogg");
+		sContentMgr->playSound(SfxId::SysGatheringSuccess);
 		world->myself()->playAnimation(UnitDefines::AnimId::Cast);
 		gameChat->addLine("You successfully filled a socket.", ChatDefines::Channels::System);
 	}
 	else
 	{
-		sContentMgr->playSound("alert_soulstone_empty_a.ogg");
+		sContentMgr->playSound(SfxId::AlertSoulstoneEmpty);
 		world->myself()->playAnimation(UnitDefines::AnimId::Hit);
 		gameChat->addLine("Your attempt to fill a socket was unsuccessful.", ChatDefines::Channels::System);
 	}
@@ -674,7 +674,7 @@ void Game::processPacket_Server_ChatMsg(StlBuffer& data)
 	{
 		if (pk.m_channelId == ChatDefines::Channels::Whisper && pk.m_fromGuid != world->getMyselfGuid())
 		{
-			sContentMgr->playSound("alert_auction_complete_a.ogg", 0.75f);
+			sContentMgr->playSound(SfxId::AlertAuctionComplete, 0.75f);
 			lastWhisperSound = sApplication->timeNowMs();
 		}
 	}
@@ -840,7 +840,7 @@ void Game::processPacket_Server_PkNotify(StlBuffer& data)
 	sf::Vector2i pos3(sApplication->centerOfScreen());
 
 	world->pushCombatMessage("PK: " + pk.m_playerName, Util::randomChoice(pos1, pos2, pos3), sf::Color(141, 0, 135, 255), false, 0.75f);
-	sContentMgr->playSound("alert_increased_a.ogg");
+	sContentMgr->playSound(SfxId::AlertIncreased);
 }
 
 void Game::processPacket_Server_ExpNotify(StlBuffer& data)
@@ -883,8 +883,8 @@ void Game::processPacket_Server_ExpNotify(StlBuffer& data)
 		gameChat->addLine(Util::fmtStr("You've been promoted to %s!", rankName.c_str()), ChatDefines::Channels::System);
 		gameChat->addLine("Experience points are available to spend on stats and spells.", ChatDefines::Channels::System);
 
-		sContentMgr->queueSound("alert_levelup_a.ogg", 100);
-		sContentMgr->queueSound("alert_mission_reward_a.ogg", 400);
+		sContentMgr->queueSound(SfxId::AlertLevelup, 100);
+		sContentMgr->queueSound(SfxId::AlertMissionReward, 400);
 	}
 }
 
@@ -919,7 +919,7 @@ void Game::processPacket_Server_AbandonQuest(StlBuffer& data)
 	GP_Server_AbandonQuest pk;
 	pk.unpack(data);
 
-	sContentMgr->playSound("alert_quest_delete_a.ogg");
+	sContentMgr->playSound(SfxId::AlertQuestDelete);
 
 	string questName = sContentMgr->db("quest_template").data(pk.m_questId, "name");
 
@@ -943,7 +943,7 @@ void Game::processPacket_Server_RewardedQuest(StlBuffer& data)
 	GP_Server_RewardedQuest pk;
 	pk.unpack(data);
 
-	sContentMgr->playSound("alert_quest_reward_a.ogg");
+	sContentMgr->playSound(SfxId::AlertQuestReward);
 
 	string questName = sContentMgr->db("quest_template").data(pk.m_questId, "name");
 
@@ -991,9 +991,9 @@ void Game::processPacket_Server_ArenaQueued(StlBuffer& data)
 	pk.unpack(data);
 
 	if (pk.m_joined)
-		sContentMgr->playSound("chun_command_center_edit.ogg");
+		sContentMgr->playSound(SfxId::ChunCommandCenterEdit);
 	else
-		sContentMgr->playSound("alert_delete_item_a.ogg");
+		sContentMgr->playSound(SfxId::AlertDeleteItem);
 }
 
 void Game::processPacket_Server_ArenaStatus(StlBuffer& data)
@@ -1010,9 +1010,9 @@ void Game::processPacket_Server_ArenaStatus(StlBuffer& data)
 	pk.unpack(data);
 
 	if (pk.m_hasBegun)
-		sContentMgr->playSound("start_arena.ogg");
+		sContentMgr->playSound(SfxId::StartArena);
 	else
-		sContentMgr->playSound("enter_arena.ogg");
+		sContentMgr->playSound(SfxId::EnterArena);
 }
 
 void Game::processPacket_Server_ArenaOutcome(StlBuffer& data)
@@ -1029,9 +1029,9 @@ void Game::processPacket_Server_ArenaOutcome(StlBuffer& data)
 	pk.unpack(data);
 
 	if (pk.m_won)
-		sContentMgr->playSound("alert_score_victory_a.ogg");
+		sContentMgr->playSound(SfxId::AlertScoreVictory);
 	else
-		sContentMgr->playSound("alert_timer_fail_a.ogg");
+		sContentMgr->playSound(SfxId::AlertTimerFail);
 }
 
 void Game::processPacket_Server_ArenaReady(StlBuffer& data)
@@ -1089,7 +1089,7 @@ void Game::processPacket_Server_AcceptedQuest(StlBuffer& data)
 	GP_Server_AcceptedQuest pk;
 	pk.unpack(data);
 
-	sContentMgr->playSound("alert_quest_get.ogg");
+	sContentMgr->playSound(SfxId::AlertQuestGet);
 
 	string questName = sContentMgr->db("quest_template").data(pk.m_questId, "name");
 
@@ -1204,7 +1204,7 @@ void Game::processPacket_Server_QueryWaypointsResponse(StlBuffer& data)
 	world->closePanel(World::Interface::MapQuesterPanel, false);
 	world->openPanel(World::Interface::MapQuesterPanel, false);
 	
-	sContentMgr->playSound("social_critical2_a.ogg");
+	sContentMgr->playSound(SfxId::SocialCritical2);
 
 	auto mapQuester = dynamic_pointer_cast<MapQuester>(world->getRenderObject(World::Interface::MapQuesterPanel));
 	mapQuester->startWaypointSelection(pk.m_guids);
@@ -1382,7 +1382,7 @@ void Game::processPacket_Server_DiscoverWaypointNotify(StlBuffer& data)
 	GP_Server_DiscoverWaypointNotify pk;
 	pk.unpack(data);
 
-	sContentMgr->playSound("social_combo_a.ogg");
+	sContentMgr->playSound(SfxId::SocialCombo);
 	sApplication->spawnPopup("You've discovered a new waypoint!", ConfirmMessageBox::ConfirmBoxType::ConfirmBox_Ok, 0);
 }
 
@@ -1401,7 +1401,7 @@ void Game::processPacket_Server_RepairCost(StlBuffer& data)
 
 	if (pk.m_finished)
 	{
-		sContentMgr->playSound("block_metal_var01.wav");
+		sContentMgr->playSound(SfxId::BlockMetalVar01);
 		sContentMgr->queueSound(getItemSound(ItemDefines::StaticItems::GoldItem), 100);
 		return;
 	}
@@ -1662,7 +1662,7 @@ void Game::processPacket_Server_GuildOnlineStatus(StlBuffer& data)
 	if (pk.m_online)
 	{
 		gameChat->addLine(pk.m_playerName + " has come online.", ChatDefines::Channels::System);
-		sContentMgr->playSound("alert_rollover_a.ogg");
+		sContentMgr->playSound(SfxId::AlertRollover);
 	}
 	else
 	{
@@ -1810,7 +1810,7 @@ void Game::processPacket_Server_LvlResponse(StlBuffer& data)
 		dynamic_pointer_cast<Button>(equipment->getRenderObject(Equipment::Interface::LevelUp))->setExclaimNotice(false);
 		dynamic_pointer_cast<Button>(world->getRenderObject(World::Interface::EquipmentButton))->setExclaimNotice(false);
 
-		sContentMgr->playSound("alert_dp50_a.ogg");
+		sContentMgr->playSound(SfxId::AlertDp50);
 	}
 	else
 	{
@@ -2314,14 +2314,14 @@ void Game::processPacket_Server_CombatMsg(StlBuffer& data)
 			case SpellDefines::HitResult::Immune: 
 				textMsg = "Immune"; textColor = sf::Color::Magenta; 
 				baseScale /= someoneElse ? 1.f : 2.f;
-				victim->playSound("m_skill_darkball_ammo.wav");
+				victim->playSound(SfxId::SkillDarkballAmmo);
 				break;
 			case SpellDefines::HitResult::Absorb: 
 				textMsg = "Absorb"; textColor = sf::Color::Magenta; 
 				baseScale /= someoneElse ? 1.f : 2.f;
 
 				if (!incoming.m_periodic)
-					victim->playSound("m_skill_darkball_ammo.wav");
+					victim->playSound(SfxId::SkillDarkballAmmo);
 				break;
 			default: 
 				textMsg = to_string(abs(incoming.m_amount)); 
@@ -2617,7 +2617,7 @@ void Game::processPacket_Server_GuildAddMember(StlBuffer& data)
 	GP_Server_GuildAddMember incoming;
 	incoming.unpack(data);
 	gameChat->recvMsg(incoming.m_playerName + " has joined the guild.", "", ChatDefines::Guild);
-	sContentMgr->playSound("alert_rollover_a.ogg");
+	sContentMgr->playSound(SfxId::AlertRollover);
 }
 
 void Game::processPacket_Server_GuildRemoveMember(StlBuffer& data)

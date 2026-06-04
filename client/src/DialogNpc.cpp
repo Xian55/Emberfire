@@ -66,7 +66,7 @@ void DialogNpc::input()
 
 		if (clickedLine != -1)
 		{
-			sContentMgr->playSound("button_click_a.ogg");
+			sContentMgr->playSound(SfxId::ButtonClick);
 
 			auto itr = m_serverGossipMenu.find(clickedLine);
 
@@ -206,7 +206,7 @@ void DialogNpc::applyText(const int entry, const string& npcName)
 	int maxLines = 13 - (int)m_serverGossipMenu.size();
 
 	// Title
-	auto title = make_shared<TextBoxRo>(*this, Interface::NpcName, "Palatino Linotype Regular.ttf", 300, 16, TextBox::AlignLeft, false, 2.f);
+	auto title = make_shared<TextBoxRo>(*this, Interface::NpcName, FontId::Palatino, 300, 16, TextBox::AlignLeft, false, 2.f);
 	title->setAnchor(&getTopLeftCornerRef());
 	title->setOffset({ 90, 95 });
 	title->setString(npcName + " says:", sf::Color(189, 166, 145, 255), sf::Color(0, 0, 0, 50));
@@ -214,7 +214,7 @@ void DialogNpc::applyText(const int entry, const string& npcName)
 	addRenderObject(title);
 
 	// Description
-	m_description = make_shared<TextBoxRo>(*this, Interface::GossipText, "Palatino Linotype Regular.ttf", 330, 14, TextBox::AlignLeft, false, 2.f);
+	m_description = make_shared<TextBoxRo>(*this, Interface::GossipText, FontId::Palatino, 330, 14, TextBox::AlignLeft, false, 2.f);
 	m_description->setAnchor(&getTopLeftCornerRef());
 	m_description->setOffset({ 55, 135 });
 	m_description->setString(text, sf::Color(142, 119, 98, 255), sf::Color(0, 0, 0, 50), maxLines, true);
@@ -279,7 +279,7 @@ void DialogNpc::createGossipOptions()
 		yPos = description->getOffset().y + description->getDrawnHeight() + 20;
 
 	// Gossip options title
-	auto gossipOptionsTitle = make_shared<TextBoxRo>(*this, Interface::GossipOptionsTitle, "Palatino Linotype Regular.ttf", 330, 15, TextBox::AlignLeft, false, 2.f);
+	auto gossipOptionsTitle = make_shared<TextBoxRo>(*this, Interface::GossipOptionsTitle, FontId::Palatino, 330, 15, TextBox::AlignLeft, false, 2.f);
 	gossipOptionsTitle->setAnchor(&getTopLeftCornerRef());
 	gossipOptionsTitle->setOffset({ 55, yPos });
 	gossipOptionsTitle->setString("Options:", sf::Color(189, 166, 145, 255), sf::Color(0, 0, 0, 50));
@@ -287,7 +287,7 @@ void DialogNpc::createGossipOptions()
 	addRenderObject(gossipOptionsTitle);
 
 	// Gossip options
-	m_gossipOptions = make_shared<TextLines>(*this, Interface::GossipOptions, "Palatino Linotype Regular.ttf", Util::GeoBox2d(0, 0, 250, 250));
+	m_gossipOptions = make_shared<TextLines>(*this, Interface::GossipOptions, FontId::Palatino, Util::GeoBox2d(0, 0, 250, 250));
 	m_gossipOptions->setAnchor(&getTopLeftCornerRef());
 	m_gossipOptions->setOffset({ 55, yPos + 30 });
 	m_gossipOptions->setDialogCharacterSize(13);

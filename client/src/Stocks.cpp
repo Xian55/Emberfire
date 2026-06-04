@@ -29,25 +29,25 @@ Stocks::Stocks(RenderObjectHolder& owner, const int id) :
 	m_thread = thread(&Stocks::workerThread, this);
 		
 	// Symbols list	
-	m_textSymbols = make_shared<TextLines>(*this, 0, "arial.ttf", Util::GeoBox2d(90, 125, 350, 900));
+	m_textSymbols = make_shared<TextLines>(*this, 0, FontId::Arial, Util::GeoBox2d(90, 125, 350, 900));
 	m_textSymbols->setClickableLines(true);
 	m_textSymbols->setDialogCharacterSize(24);
 	m_textSymbols->setMaxLines(256);
 		
 	// Values list	
-	m_textValues = make_shared<TextLines>(*this, 0, "arial.ttf", Util::GeoBox2d(440, 125, 350, 900));
+	m_textValues = make_shared<TextLines>(*this, 0, FontId::Arial, Util::GeoBox2d(440, 125, 350, 900));
 	m_textValues->setClickableLines(true);
 	m_textValues->setDialogCharacterSize(24);
 	m_textValues->setMaxLines(256);
 		
 	// Cons list	
-	m_textCons = make_shared<TextLines>(*this, 0, "arial.ttf", Util::GeoBox2d(705, 125, 350, 900));
+	m_textCons = make_shared<TextLines>(*this, 0, FontId::Arial, Util::GeoBox2d(705, 125, 350, 900));
 	m_textCons->setClickableLines(true);
 	m_textCons->setDialogCharacterSize(24);
 	m_textCons->setMaxLines(256);
 		
 	// Cons list	
-	m_textOverall = make_shared<TextLines>(*this, 0, "arial.ttf", Util::GeoBox2d(945, 125, 350, 900));
+	m_textOverall = make_shared<TextLines>(*this, 0, FontId::Arial, Util::GeoBox2d(945, 125, 350, 900));
 	m_textOverall->setClickableLines(true);
 	m_textOverall->setDialogCharacterSize(24);
 	m_textOverall->setMaxLines(256);

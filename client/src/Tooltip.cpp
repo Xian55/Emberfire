@@ -83,7 +83,7 @@ void Tooltip::addGlyph(const shared_ptr<TooltipGlyph> glyph)
 
 	size_t idx = m_lines.size();
 	m_glyphs[idx] = glyph;
-	addLine("arial.ttf", glyph->getHeight(), TextBox::getStringKey(TextBox::Key_ReplaceSpaceToMaxWidth));
+	addLine(FontId::Arial, glyph->getHeight(), TextBox::getStringKey(TextBox::Key_ReplaceSpaceToMaxWidth));
 }
 
 int Tooltip::addLine(const string& fontname, const int characterSize, const string& str, const sf::Color color, const bool incrementHeight /*= true*/)

@@ -14,13 +14,13 @@
 CastBar::CastBar(RenderObject& owner, const int id, const sf::Vector2i& pos) :
 	RenderObject(&owner, id)
 {
-	m_timerTxt = make_shared<Text>(sContentMgr->getFont("Palatino Linotype Regular.ttf"));
+	m_timerTxt = make_shared<Text>(sContentMgr->getFont(FontId::Palatino));
 	m_timerTxt->setCharacterSize(11);
 	m_timerTxt->setOutlineThickness(2.f);
 	m_timerTxt->setColorIfNot(sf::Color(124, 106, 94, 255));
 	m_timerTxt->setOutlineColor(sf::Color(0, 0, 0, 100));
 
-	m_spellNameTxt = make_shared<Text>(sContentMgr->getFont("Palatino Linotype Regular.ttf"));
+	m_spellNameTxt = make_shared<Text>(sContentMgr->getFont(FontId::Palatino));
 	m_spellNameTxt->setCharacterSize(11);
 	m_spellNameTxt->setOutlineThickness(2.f);
 	m_spellNameTxt->setColorIfNot(sf::Color(124, 106, 94, 255));

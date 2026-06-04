@@ -246,10 +246,10 @@ void ClientUnit::useTooltip()
 	{
 		m_tooltip = make_shared<Tooltip>(*getWorld(), sf::Vector2i{});
 		m_tooltip->setShadowOffset(1);
-		m_tooltip->addLine("arial.ttf", 15, getName(), getNameColor());
+		m_tooltip->addLine(FontId::Arial, 15, getName(), getNameColor());
 
 		if (!getSubName().empty())
-			m_tooltip->addLine("arial.ttf", 15, getSubName());
+			m_tooltip->addLine(FontId::Arial, 15, getSubName());
 
 		string typeName;
 
@@ -259,7 +259,7 @@ void ClientUnit::useTooltip()
 			typeName = NpcFunctions::typeName(static_cast<NpcDefines::Type>(atoi(sContentMgr->db("npc_template").data(npc->getEntry(), "type").c_str())));
 		
 		string description = Util::fmtStr("Level %d %s", getLevel(), typeName.c_str());
-		m_tooltip->addLine("arial.ttf", 15, description);
+		m_tooltip->addLine(FontId::Arial, 15, description);
 	}
 
 	m_tooltip->moveTo(sf::Vector2i(sApplication->centerOfScreen().x + 400, sApplication->sH() - 180 - m_tooltip->getHeight()));

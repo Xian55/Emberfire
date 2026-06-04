@@ -123,7 +123,7 @@ void TableTemplateEditor::input()
 				resetCurrentPrompt();
 				prompt->setContent(fieldValue(int(i)));
 				m_chosenPrompt = prompt.get();
-				sContentMgr->playSound("button_change_a.ogg");
+				sContentMgr->playSound(SfxId::ButtonChange);
 			}
 			else if (sApplication->mouseUp(sf::Mouse::Right))
 			{
@@ -152,7 +152,7 @@ void TableTemplateEditor::input()
 
 					if (!options.empty())
 					{
-						sContentMgr->playSound("window_target_open_a.ogg");
+						sContentMgr->playSound(SfxId::WindowTargetOpen);
 					
 						if (RenderObjectHolder* owner = dynamic_cast<RenderObjectHolder*>(getOwner()))
 							owner->registerContextMenuEx(Interface::FieldCtxMenu + int(i), getId(), sApplication->mousePos(), options);
@@ -167,7 +167,7 @@ void TableTemplateEditor::input()
 				{
 					// Lazy/slow to generate these every frame but we can be lazy for editor tools
 					shared_ptr<Tooltip> tt = make_shared<Tooltip>(*sApplication, sf::Vector2i(1450, 25));
-					tt->addLine("arial.ttf", 14, description);
+					tt->addLine(FontId::Arial, 14, description);
 					sApplication->setTooltip(tt);
 				}
 			}

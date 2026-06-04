@@ -14,7 +14,7 @@ TimedMessageBox::TimedMessageBox(RenderObject& owner, const int id, const float 
 	m_timer(numSeconds),
 	m_msg(msg)
 {
-	m_text = make_shared<TextBox>(sContentMgr->getFont("Palatino Linotype Regular.ttf"), 16);
+	m_text = make_shared<TextBox>(sContentMgr->getFont(FontId::Palatino), 16);
 
 	ASSERT(dynamic_cast<RenderObjectHolder*>(getOwner()) != nullptr);
 }

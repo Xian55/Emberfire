@@ -25,7 +25,7 @@ Login::Login(RenderObjectHolder& owner, const int id) :
 	ASSERT(m_backgroundGui = sContentMgr->spawnSprite("main_login.png"));
 
 	setMultiInput(true);
-	sContentMgr->loopMusic("aion_creation.ogg", false);	
+	sContentMgr->loopMusic(MusicId::AionCreation, false);	
 	string defaultLogin = sConfig->getString("UI", "DefaultLogin", "");
 
 	if (defaultLogin.size() <= 1)
@@ -34,14 +34,14 @@ Login::Login(RenderObjectHolder& owner, const int id) :
 	addRenderObject(attachObj(make_shared<TickBox>(*this, Interface::RememberTickbox, "tick_box_empty", "tick_box_full", sf::Vector2i{}, true), sf::Vector2i(260, 580)));
 
 	// User prompt
-	auto promptBox = make_shared<PromptBox>(*this, Interface::UserPrompt, "Palatino Linotype Regular.ttf", nullptr, sf::Vector2i{}, 300, sf::Color(220, 194, 171, 255), false);
+	auto promptBox = make_shared<PromptBox>(*this, Interface::UserPrompt, FontId::Palatino, nullptr, sf::Vector2i{}, 300, sf::Color(220, 194, 171, 255), false);
 	promptBox->setContent(defaultLogin);
 	promptBox->setPromptCharacterSize(20);
 	promptBox->setPromptMaxStrLen(AccountDefines::MaxUserLength);
 	addRenderObject(attachObj(promptBox, sf::Vector2i(180, 400)));
 
 	// Password prompt
-	promptBox = make_shared<PromptBox>(*this, Interface::PassPrompt, "Palatino Linotype Regular.ttf", nullptr, sf::Vector2i{}, 400, sf::Color(157, 137, 119, 255), false);
+	promptBox = make_shared<PromptBox>(*this, Interface::PassPrompt, FontId::Palatino, nullptr, sf::Vector2i{}, 400, sf::Color(157, 137, 119, 255), false);
 	promptBox->setSafetyRender(true);
 	promptBox->setPromptCharacterSize(24);
 	promptBox->setPromptMaxStrLen(AccountDefines::MaxPassLength);

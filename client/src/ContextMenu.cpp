@@ -24,7 +24,7 @@ ContextMenu::ContextMenu(RenderObjectHolder& owner, const int id, const int repo
 	constexpr int fontSize = 15;
 
 	getTopLeftCornerRef() = topLeftCorner;
-	m_lines = make_unique<TextLines>(*this, 0, "Helvetica 400.ttf", Util::GeoBox2d(0, 0, Define::CtxWidth, Define::CtxHeight), fontSize);
+	m_lines = make_unique<TextLines>(*this, 0, FontId::Helvetica, Util::GeoBox2d(0, 0, Define::CtxWidth, Define::CtxHeight), fontSize);
 	m_lines->setClickableLines(true);
 	m_lines->setLeading(10);
 	m_lines->setAnchor(&getTopLeftCornerRef());
@@ -50,9 +50,9 @@ void ContextMenu::input() /*final*/
 		(sApplication->mouseUp(sf::Mouse::Left) && !MouseableNode::isMousedOver() && !scrollbarGrabbed))
 	{
 		if (!popResult.empty())
-			sContentMgr->playSound("button_click_a.ogg");
+			sContentMgr->playSound(SfxId::ButtonClick);
 		else
-			sContentMgr->playSound("window_target_close_a.ogg");
+			sContentMgr->playSound(SfxId::WindowTargetClose);
 
 		m_wasActivated = true;
 		sApplication->clearMouseUp();

@@ -111,7 +111,7 @@ void GuildRoster::input()
 				{
 					lines.push_back(ctxMenuOptionStr(CtxMenuOptions::DdoCancel));
 					owner->registerContextMenu(World::Interface::CtxMenuCurrent, getId(), sApplication->mousePos(), lines);
-					sContentMgr->playSound("button_click_a.ogg");
+					sContentMgr->playSound(SfxId::ButtonClick);
 					m_rightClickedName = clickedName;
 				}
 			}
@@ -198,19 +198,19 @@ void GuildRoster::setGuild(const string& guildname)
 	alterBackground("guildroster.png");
 
 	// todo: where to put this?
-	auto title = make_shared<TextBoxRo>(*this, Interface::GuildTitle, "Fontin-Regular.ttf", 100, 12, TextBox::Align::AlignCenterBounds, m_showOffline, 1.0f);
+	auto title = make_shared<TextBoxRo>(*this, Interface::GuildTitle, FontId::Fontin, 100, 12, TextBox::Align::AlignCenterBounds, m_showOffline, 1.0f);
 	title->setHidden(true);
 	addRenderObject(title);
 
 	// Message of the day
-	auto motd = make_shared<TextBoxRo>(*this, Interface::GuildMotd, "Helvetica 400.ttf", 240, 16);
+	auto motd = make_shared<TextBoxRo>(*this, Interface::GuildMotd, FontId::Helvetica, 240, 16);
 	motd->setString("No message currently set.");
 	motd->setAnchor(&getTopLeftCornerRef());
 	motd->setOffset({ 40, 475 });
 	addRenderObject(motd);
 
 	// Number of people online
-	auto onlineCount = make_shared<TextBoxRo>(*this, Interface::OnlineCount, "Ringbearer Medium.ttf", 100, 20);
+	auto onlineCount = make_shared<TextBoxRo>(*this, Interface::OnlineCount, FontId::Ringbearer, 100, 20);
 	onlineCount->setString(to_string(m_numOnline));
 	onlineCount->setAnchor(&getTopLeftCornerRef());
 	onlineCount->setOffset({ 311, 427 });
@@ -218,19 +218,19 @@ void GuildRoster::setGuild(const string& guildname)
 
 	// Roster
 	const int rosterY = 130;
-	auto listNames = make_shared<TextLines>(*this, Interface::ListNames, "Helvetica 400.ttf", Util::GeoBox2d(0, 0, 125, 285), 18);
+	auto listNames = make_shared<TextLines>(*this, Interface::ListNames, FontId::Helvetica, Util::GeoBox2d(0, 0, 125, 285), 18);
 	listNames->setAnchor(&getTopLeftCornerRef());
 	listNames->setOffset({ 35, rosterY });
 	listNames->setClickableLines(true);
 	listNames->setClickableMouseButton(sf::Mouse::Right);
 	addRenderObject(listNames);
 
-	auto listLevels = make_shared<TextLines>(*this, Interface::ListLevels, "Helvetica 400.ttf", Util::GeoBox2d(0, 0, 125, 285), 18);
+	auto listLevels = make_shared<TextLines>(*this, Interface::ListLevels, FontId::Helvetica, Util::GeoBox2d(0, 0, 125, 285), 18);
 	listLevels->setAnchor(&getTopLeftCornerRef());
 	listLevels->setOffset({ 183, rosterY });
 	addRenderObject(listLevels);
 
-	auto listClasses = make_shared<TextLines>(*this, Interface::ListClasses, "Helvetica 400.ttf", Util::GeoBox2d(0, 0, 125, 285), 18);
+	auto listClasses = make_shared<TextLines>(*this, Interface::ListClasses, FontId::Helvetica, Util::GeoBox2d(0, 0, 125, 285), 18);
 	listClasses->setAnchor(&getTopLeftCornerRef());
 	listClasses->setOffset({ 301, rosterY });
 	addRenderObject(listClasses);

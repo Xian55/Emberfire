@@ -447,7 +447,7 @@ void ItemIcon::fillTooltip() /*final*/
 		
 	if (int num_sockets = atoi(it.data(getEntry(), "num_sockets").c_str()))
 	{
-		tooltip->addLine("Friz Quadrata Regular.ttf", 12, "Magical gem sockets", sf::Color(240, 197, 2, 255));
+		tooltip->addLine(FontId::FrizRegular, 12, "Magical gem sockets", sf::Color(240, 197, 2, 255));
 
 		switch (num_sockets)
 		{

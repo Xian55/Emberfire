@@ -462,7 +462,7 @@ void Application::loadingSplash()
 {
 	sf::Texture texture;
 	
-	if (!texture.loadFromFile("content\\loading.png"))
+	if (!texture.loadFromFile(imageFile(ImageId::LoadingSplash)))
 		return;
 
 	sf::Sprite sprite;
@@ -793,7 +793,7 @@ void Application::createSfmlWindow()
 	m_window.getSystemHandle();
 
 	sf::Image image;
-	ASSERT(image.loadFromFile("content\\icon.png"));
+	ASSERT(image.loadFromFile(imageFile(ImageId::Icon)));
 	m_window.setIcon(image.getSize().x, image.getSize().y, image.getPixelsPtr());
 
 	loadingSplash();
@@ -862,7 +862,7 @@ void Application::setFullscreenBorderless(const bool val)
 	sKeybindHack->hook(m_window);
 
 	sf::Image image;
-	image.loadFromFile("content\\icon.png");
+	image.loadFromFile(imageFile(ImageId::Icon));
 	m_window.setIcon(image.getSize().x, image.getSize().y, image.getPixelsPtr());
 }
 

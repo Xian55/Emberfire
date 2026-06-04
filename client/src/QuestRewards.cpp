@@ -160,7 +160,7 @@ QuestRewards::QuestRewards(WorldPanel& owner, const int id, const int questId) :
 	}
 
 	// Rewards
-	auto rewardsText = make_shared<TextBoxRo>(*this, Interface::QuestRewardsText, "Palatino Linotype Regular.ttf", 225, 14, TextBox::AlignLeft, false, 2.f);
+	auto rewardsText = make_shared<TextBoxRo>(*this, Interface::QuestRewardsText, FontId::Palatino, 225, 14, TextBox::AlignLeft, false, 2.f);
 	rewardsText->setAnchor(&getTopLeftCornerRef());
 	rewardsText->setOffset({ 0, 5 });
 	rewardsText->setString(rewardsStr, sf::Color(139, 116, 95, 255), sf::Color(0, 0, 0, 50));
@@ -181,7 +181,7 @@ void QuestRewards::input() /*final*/
 	}
 	else if (m_choices->popChange())
 	{
-		sContentMgr->playSound("alert_entry_a.ogg");
+		sContentMgr->playSound(SfxId::AlertEntry);
 	}
 
 	__super::input();

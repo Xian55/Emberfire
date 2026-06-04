@@ -96,7 +96,7 @@ void Toolbar::input()
 	}	
 	else if (!__super::grabIcon() && __super::depositGrabbedIconToEmptySpace())
 	{
-		sContentMgr->playSound("window_target_close_a.ogg");
+		sContentMgr->playSound(SfxId::WindowTargetClose);
 		world().getGrabbedIcon()->changeEntry(0);
 		world().setGrabbedIcon(nullptr);
 		saveCache();
@@ -378,7 +378,7 @@ void Toolbar::givenGabbedIcon(shared_ptr<GameIcon> myIcon, shared_ptr<GameIcon> 
 	
 	createBaseIcon(static_cast<Interface>(myIcon->getId()), heldIcon->getType(), heldIcon->getEntry());
 	saveCache();
-	sContentMgr->playSound("window_target_open_a.ogg");
+	sContentMgr->playSound(SfxId::WindowTargetOpen);
 }
 
 string Toolbar::getCacheFilename() const

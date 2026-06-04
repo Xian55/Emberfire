@@ -23,12 +23,12 @@ ClientObjectOverhead::ClientObjectOverhead(ClientObject const& owner) :
 	m_killMarker = sContentMgr->spawnSprite("quest_kill_map.png");
 	m_killMarker->setHotspotEasy(true, true);
 
-	m_nameDraw = make_unique<Text>(sContentMgr->getFont("Helvetica 400.ttf"));
+	m_nameDraw = make_unique<Text>(sContentMgr->getFont(FontId::Helvetica));
 	m_nameDraw->setCharacterSize(16);
 	m_nameDraw->setOutlineThickness(1.f);
 	m_nameDraw->setShadowOffset(1);
 
-	m_subNameDraw = make_unique<Text>(sContentMgr->getFont("Helvetica 400.ttf"));
+	m_subNameDraw = make_unique<Text>(sContentMgr->getFont(FontId::Helvetica));
 	m_subNameDraw->setCharacterSize(16);
 	m_subNameDraw->setOutlineThickness(1.f);
 	m_subNameDraw->setShadowOffset(1);
@@ -263,6 +263,6 @@ void ClientObjectOverhead::setChatBubble(const string& str, const sf::Color colo
 {
 	m_chatBubble = make_unique<ChatBubble>(*sApplication, sf::Vector2i());
 	m_chatBubble->setMouseable(false);
-	m_chatBubble->setText("Helvetica 400.ttf", 12, str, colorInt);
+	m_chatBubble->setText(FontId::Helvetica, 12, str, colorInt);
 	m_chatBubbleEnd = time(nullptr) + max(3, int(str.size() / 10));
 }

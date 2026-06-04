@@ -98,7 +98,7 @@ void QuestComplete::setForQuest(const int questId)
 	m_world.formatQuestText(descriptionStr, questId);
 
 	// Title
-	auto title = make_shared<TextBoxRo>(*this, Interface::QuestTitle, "Palatino Linotype Regular.ttf", 300, 16, TextBox::AlignLeft, false, 2.f);
+	auto title = make_shared<TextBoxRo>(*this, Interface::QuestTitle, FontId::Palatino, 300, 16, TextBox::AlignLeft, false, 2.f);
 	title->setAnchor(&getTopLeftCornerRef());
 	title->setOffset({ 78, 95 });
 	title->setString(titleStr, sf::Color(189, 166, 145, 255), sf::Color(0, 0, 0, 50));
@@ -116,7 +116,7 @@ void QuestComplete::setForQuest(const int questId)
 	}*/
 
 	// Description
-	m_description = make_shared<TextBoxRo>(*this, Interface::QuestDescription, "Palatino Linotype Regular.ttf", 330, 14, TextBox::AlignLeft, false, 2.f);
+	m_description = make_shared<TextBoxRo>(*this, Interface::QuestDescription, FontId::Palatino, 330, 14, TextBox::AlignLeft, false, 2.f);
 	m_description->setAnchor(&getTopLeftCornerRef());
 	m_description->setOffset({ 55, 135 });
 	m_description->setString(descriptionStr, sf::Color(142, 119, 98, 255), sf::Color(0, 0, 0, 50), maxDescriptionLines, true);
@@ -132,7 +132,7 @@ void QuestComplete::setForQuest(const int questId)
 			int bannerY = min(305, 135 + (int)m_description->getTextRef().getTextRef().getGlobalBounds().height + 20);
 
 			// Required Items
-			auto objectiveBanner = make_shared<TextBoxRo>(*this, Interface::QuestObjectivesBanner, "Palatino Linotype Regular.ttf", 330, 15, TextBox::AlignLeft, false, 2.f);
+			auto objectiveBanner = make_shared<TextBoxRo>(*this, Interface::QuestObjectivesBanner, FontId::Palatino, 330, 15, TextBox::AlignLeft, false, 2.f);
 			objectiveBanner->setAnchor(&getTopLeftCornerRef());
 			objectiveBanner->setOffset({ 55, bannerY });
 			objectiveBanner->setString("Required Items", sf::Color(189, 166, 145, 255), sf::Color(0, 0, 0, 50));
@@ -140,7 +140,7 @@ void QuestComplete::setForQuest(const int questId)
 			addRenderObject(objectiveBanner);
 
 			// Items 5/5
-			auto objective = make_shared<TextBoxRo>(*this, Interface::QuestObjectives, "Palatino Linotype Regular.ttf", 300, 12, TextBox::AlignLeft, false, 2.f);
+			auto objective = make_shared<TextBoxRo>(*this, Interface::QuestObjectives, FontId::Palatino, 300, 12, TextBox::AlignLeft, false, 2.f);
 			objective->setAnchor(&getTopLeftCornerRef());
 			objective->setOffset({ 75, bannerY + 25  });
 			objective->setString(reqItems, sf::Color(139, 116, 95, 255), sf::Color(0, 0, 0, 50));

@@ -31,5 +31,6 @@
 
 using namespace std;
 
+#include "Assets.h"
 #include "SfExtensions.h"
 #include "../Logger.h"

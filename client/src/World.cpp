@@ -200,7 +200,7 @@ void World::input()
 		else if (getGrabbedIcon() != nullptr && (popEscapeKeyUp() || sApplication->mouseUp(sf::Mouse::Right)))
 		{
 			setGrabbedIcon(nullptr);
-			sContentMgr->playSound("window_target_close_a.ogg");
+			sContentMgr->playSound(SfxId::WindowTargetClose);
 			return;
 		}
 		else if (getSelectedGuid() != 0 && popEscapeKeyUp())
@@ -856,7 +856,7 @@ void World::openPanel(const Interface id, const bool playsound)
 		return;
 
 	if (playsound)
-		sContentMgr->playSound("window_open_a.ogg");
+		sContentMgr->playSound(SfxId::WindowOpen);
 
 	bool frontInsert = true;
 
@@ -896,7 +896,7 @@ void World::closePanel(const Interface id, const bool playsound)
 		return;
 
 	if (playsound)
-		sContentMgr->playSound("window_close_a.ogg");
+		sContentMgr->playSound(SfxId::WindowClose);
 
 	if (auto panel = dynamic_pointer_cast<WorldPanel>(getRenderObject(id)))
 	{
@@ -1426,7 +1426,7 @@ void World::pushCombatMessage(const string& str, const sf::Vector2i& pos, const 
 	msg.msg = str;
 	msg.textColor = color;
 	msg.sourceGuid = sourceGuid;
-	msg.txt = make_shared<Text>(sContentMgr->getFont("Friz Quadrata Regular.ttf"));
+	msg.txt = make_shared<Text>(sContentMgr->getFont(FontId::FrizRegular));
 	msg.decayRate = decayRate;
 	msg.txt->setShadowOffset(1);
 	msg.originalCamera = m_map->getCameraRef();
@@ -1550,7 +1550,7 @@ void World::pushScrollingMessage(const string& str, const sf::Color color /*= sf
 		m_topCenterMsgs.erase(m_topCenterMsgs.end() - 1);
 
 	ScrollingMsg msg;
-	msg.txt = make_shared<TextBox>(sContentMgr->getFont("Friz Quadrata Bold.ttf"), 16);
+	msg.txt = make_shared<TextBox>(sContentMgr->getFont(FontId::FrizBold), 16);
 	msg.txt->setData(0, 0, str, sApplication->sW(), TextBox::AlignCenterBounds, true);
 	msg.txt->setColor(color);
 	msg.txt->getTextRef().setShadowOffset(2);
@@ -1728,9 +1728,9 @@ void World::setSelectedGuid(const int guid)
 		unitFrame->setUnit(m_selectedUnit);
 
 		if (m_selectedUnit != nullptr)
-			sContentMgr->playSound("window_target_open_a.ogg");
+			sContentMgr->playSound(SfxId::WindowTargetOpen);
 		else
-			sContentMgr->playSound("window_target_close_a.ogg");
+			sContentMgr->playSound(SfxId::WindowTargetClose);
 		
 		GP_Client_SetSelected packet;
 		packet.m_guid = guid;
@@ -1997,15 +1997,15 @@ void World::setParty(const vector<int>& mbrs, const int leaderGuid)
 
 	// New party member
 	if (numAfter > numBefore)
-		sContentMgr->playSound("alert_party_a.ogg");
+		sContentMgr->playSound(SfxId::AlertParty);
 
 	// Removed party member
 	else if (numAfter < numBefore)
-		sContentMgr->playSound("item_gen_move.ogg");
+		sContentMgr->playSound(SfxId::ItemGenMove);
 
 	// New leader
 	else if (m_partyLeaderGuid != leaderGuid)
-		sContentMgr->playSound("alert_help_indicator_a.ogg");
+		sContentMgr->playSound(SfxId::AlertHelpIndicator);
 
 	m_partyMembers = mbrs;
 	m_partyLeaderGuid = leaderGuid;
@@ -2144,5 +2144,5 @@ void World::error(const int worldError)
 		default: pushScrollingMessage("Unknown Error", sf::Color(0x9f0c12ff)); break;
 	}
 
-	sContentMgr->playSound("alert_exchange_delete_a.ogg");
+	sContentMgr->playSound(SfxId::AlertExchangeDelete);
 }

@@ -56,7 +56,7 @@ void LootWindow::reset()
 		sf::Vector2i(0, 0),
 		"game_icon_list_fade",
 		43,
-		"arial.ttf",
+		fontFile(FontId::Arial),
 		14,
 		sf::Color::White,
 		sf::Color::Black,
@@ -112,7 +112,7 @@ void LootWindow::input()
 		{
 			if (auto gameChat = dynamic_pointer_cast<GameChat>(world().getRenderObject(World::GameChatBox)))
 			{
-				sContentMgr->playSound("button_click_a.ogg");
+				sContentMgr->playSound(SfxId::ButtonClick);
 				gameChat->promptLinkAnItem(itemIcon->getItemDef());
 			}
 		}
@@ -123,7 +123,7 @@ void LootWindow::input()
 			packet.m_itemId = itemIcon->getItemDef();
 			{ std::ofstream dbg("maploaddebug.txt", std::ios::app); dbg << "LOOTCLICK idx=" << clickedpair.second << " entry=" << packet.m_itemId.m_itemId << " affix=" << packet.m_itemId.m_affixId << " src=" << m_sourceGuid << "\n"; }
 			sConnector->sendPacket(packet.build(StlBuffer{}));
-			sContentMgr->playSound("alert_entry_a.ogg");
+			sContentMgr->playSound(SfxId::AlertEntry);
 		}
 	}
 

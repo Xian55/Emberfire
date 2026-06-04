@@ -194,7 +194,7 @@ void MapQuester::input() /*final*/
 			packet.m_targetWaypointGuid = m_clickedWaypointGuid;
 			sConnector->sendPacket(packet.build(StlBuffer{}));
 
-			sContentMgr->playSound("teleport.wav");
+			sContentMgr->playSound(SfxId::Teleport);
 			m_clickedWaypointGuid = 0;
 			m_world.closePanels({}, false);
 		}

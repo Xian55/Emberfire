@@ -43,14 +43,14 @@ bool WorldChild::grabIcon()
 				{
 					if (auto gameChat = dynamic_pointer_cast<GameChat>(world().getRenderObject(World::GameChatBox)))
 					{
-						sContentMgr->playSound("button_click_a.ogg");
+						sContentMgr->playSound(SfxId::ButtonClick);
 						gameChat->promptLinkAnItem(itemIcon->getItemDef());
 						return true;
 					}
 				}
 				else if (gameIcon->grab(m_world))
 				{
-					sContentMgr->playSound("alert_entry_a.ogg");
+					sContentMgr->playSound(SfxId::AlertEntry);
 					return true;
 				}
 			}

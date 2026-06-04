@@ -121,10 +121,10 @@ void ClientGameObj::useTooltip()
 	{
 		m_tooltip = make_shared<Tooltip>(*getWorld(), sf::Vector2i{});
 		m_tooltip->setShadowOffset(1);
-		m_tooltip->addLine("arial.ttf", 15, getName(), getNameColor());
+		m_tooltip->addLine(FontId::Arial, 15, getName(), getNameColor());
 
 		if (!getSubName().empty())
-			m_tooltip->addLine("arial.ttf", 15, getSubName());
+			m_tooltip->addLine(FontId::Arial, 15, getSubName());
 
 		if (Util::maskHas(getVariable(ObjDefines::Variable::GoFlags), GoDefines::Flags::Lockpicking))
 		{
@@ -141,7 +141,7 @@ void ClientGameObj::useTooltip()
 			else
 				col = sf::Color::Green;
 
-			m_tooltip->addLine("arial.ttf", 15, Util::fmtStr("Lockpicking (%d)", requiredSkill), col);
+			m_tooltip->addLine(FontId::Arial, 15, Util::fmtStr("Lockpicking (%d)", requiredSkill), col);
 		}
 		
 		int requiredItemId = atoi(sContentMgr->db("gameobject_template").data(getEntry(), "required_item").c_str());
@@ -155,7 +155,7 @@ void ClientGameObj::useTooltip()
 			if (!testStr.empty())
 				requiredItemName = testStr;
 
-			m_tooltip->addLine("arial.ttf", 15, Util::fmtStr("Requires [%s]", requiredItemName.c_str()), sf::Color::Yellow);
+			m_tooltip->addLine(FontId::Arial, 15, Util::fmtStr("Requires [%s]", requiredItemName.c_str()), sf::Color::Yellow);
 		}
 	}
 	

@@ -120,7 +120,7 @@ void TextLines::render()
 				if (ptr->m_tooltip == nullptr)
 				{
 					ptr->m_tooltip = make_shared<Tooltip>(*this, tooltipPosition);
-					ptr->m_tooltip->addLine("arial.ttf", 15, ptr->m_tooltipStr);
+					ptr->m_tooltip->addLine(FontId::Arial, 15, ptr->m_tooltipStr);
 				}
 				else
 				{

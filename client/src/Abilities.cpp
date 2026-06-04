@@ -31,7 +31,7 @@ Abilities::Abilities(World& owner, const int id) :
 		sf::Vector2i(18, 14),
 		"abilities_slot",
 		75,
-		"Ringbearer Medium.ttf",
+		fontFile(FontId::Ringbearer),
 		15,
 		sf::Color(168, 155, 137, 255),
 		sf::Color(0, 0, 0, 64),
@@ -39,7 +39,7 @@ Abilities::Abilities(World& owner, const int id) :
 		sf::Vector2i(52, -5));
 
 	m_gameIconList->setLowercaseText(true);
-	m_gameIconList->enableDescriptions("Palatino Linotype Regular.ttf", 12, sf::Color(111, 99, 79, 255), sf::Color(0, 0, 0, 60), 2.f, sf::Vector2i(52, 15), 300, 2);
+	m_gameIconList->enableDescriptions(fontFile(FontId::Palatino), 12, sf::Color(111, 99, 79, 255), sf::Color(0, 0, 0, 60), 2.f, sf::Vector2i(52, 15), 300, 2);
 	m_gameIconList->setAllowDraggingIcons(true);
 	attachObj(m_gameIconList, { 25, 126 });
 

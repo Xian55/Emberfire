@@ -25,7 +25,7 @@ VendorNpc::VendorNpc(World& owner, const int id) :
 {
 	setMultiInput(true);
 
-	addRenderObject(attachObj(m_localMoneyTxt = make_shared<TextBoxRo>(*this, Interface::LocalMoneyText, "Palatino Linotype Regular.ttf", 110, 14, TextBox::AlignLeft, false, 2.f), sf::Vector2i(325, 519)));
+	addRenderObject(attachObj(m_localMoneyTxt = make_shared<TextBoxRo>(*this, Interface::LocalMoneyText, FontId::Palatino, 110, 14, TextBox::AlignLeft, false, 2.f), sf::Vector2i(325, 519)));
 	addRenderObject(attachObj(make_shared<Button>(*this, "generic_highlight_medium", Interface::RepairButton), sf::Vector2i(35, 512)));
 	addRenderObject(attachObj(make_shared<Button>(*this, "undo_buyback", Interface::BuybackButton), sf::Vector2i(125, 521)));
 	addRenderObject(attachObj(make_shared<Button>(*this, "left_arrow", Interface::LeftBtn), sf::Vector2i(35, 478)));
@@ -60,7 +60,7 @@ void VendorNpc::input() /*final*/
 			{
 				if (auto gameChat = dynamic_pointer_cast<GameChat>(world().getRenderObject(World::GameChatBox)))
 				{
-					sContentMgr->playSound("button_click_a.ogg");
+					sContentMgr->playSound(SfxId::ButtonClick);
 					gameChat->promptLinkAnItem(itemInfo.m_itemId);
 				}
 			}
@@ -187,7 +187,7 @@ void VendorNpc::reset()
 
 	// Titles
 	for (int i = Interface::Title1; i <= Interface::Title12; ++i)
-		addRenderObject(attachTitle(make_shared<TextBoxRo>(*this, i, "Constantia Regular.ttf", 110, 12, TextBox::AlignLeft, false, 1.f)));
+		addRenderObject(attachTitle(make_shared<TextBoxRo>(*this, i, FontId::Constantia, 110, 12, TextBox::AlignLeft, false, 1.f)));
 
 	auto coldCoinSprite = sContentMgr->spawnSprite("vendor_gold_coin.png");
 
@@ -197,7 +197,7 @@ void VendorNpc::reset()
 	
 	// Cost
 	for (int i = Interface::Cost1; i <= Interface::Cost12; ++i)
-		addRenderObject(attachCost(make_shared<TextBoxRo>(*this, i, "Palatino Linotype Regular.ttf", 110, 14, TextBox::AlignLeft, false, 1.f)));
+		addRenderObject(attachCost(make_shared<TextBoxRo>(*this, i, FontId::Palatino, 110, 14, TextBox::AlignLeft, false, 1.f)));
 
 	// Icons
 	for (int i = Interface::IconSlot1; i <= Interface::IconSlot12; ++i)

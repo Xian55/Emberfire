@@ -24,8 +24,8 @@ ZoneNotifcation::ZoneNotifcation(World& owner, const int id) :
 {
 	m_frame = sContentMgr->spawnSprite("zone_notifaction.png");
 
-	m_title = make_shared<TextBox>(sContentMgr->getFont("Ringbearer Medium.ttf"), 36);
-	m_caption = make_shared<TextBox>(sContentMgr->getFont("Palatino Linotype Regular.ttf"), 18);
+	m_title = make_shared<TextBox>(sContentMgr->getFont(FontId::Ringbearer), 36);
+	m_caption = make_shared<TextBox>(sContentMgr->getFont(FontId::Palatino), 18);
 }
 
 ZoneNotifcation::~ZoneNotifcation()
@@ -167,7 +167,7 @@ void ZoneNotifcation::playZone(const int zoneId)
 			{
 				m_zoneTypeStr = "Friendly Territory";
 				m_territoryColor = sf::Color::Green;
-				sContentMgr->playSound("new_zone.ogg", 0.5f);
+				sContentMgr->playSound(SfxId::NewZone, 0.5f);
 				break;
 			}
 			case GameDefines::ZoneTypes::Neutral:
@@ -180,14 +180,14 @@ void ZoneNotifcation::playZone(const int zoneId)
 			{
 				m_zoneTypeStr = "Hostile Territory";
 				m_territoryColor = sf::Color::Red;
-				sContentMgr->playSound("power_zone_a.ogg", 0.5f);
+				sContentMgr->playSound(SfxId::PowerZone, 0.5f);
 				break;
 			}
 			case GameDefines::ZoneTypes::Contested:
 			{
 				m_zoneTypeStr = "Contested Territory (PvP)";
 				m_territoryColor = sf::Color(255, 165, 0);
-				sContentMgr->playSound("power_zone_a.ogg", 0.5f);
+				sContentMgr->playSound(SfxId::PowerZone, 0.5f);
 				break;
 			}
 			default:

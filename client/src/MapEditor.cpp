@@ -33,7 +33,7 @@ MapEditor::MapEditor(RenderObject& owner, const int id) :
 	RenderObjectHolder(&owner, id),
 	m_spriteSelectedTile(sContentMgr->spawnSprite("mapeditor_selected_tile.png")),
 	m_spriteSelectedTerrain(sContentMgr->spawnSprite("map_blank_terrain.png")),
-	m_font(sContentMgr->getFont("arial.ttf")),
+	m_font(sContentMgr->getFont(FontId::Arial)),
 	m_previewSpriteSpot(440.0f, 330.0f),
 	m_lastScale(1.f, 1.f)
 {
@@ -103,7 +103,7 @@ MapEditor::MapEditor(RenderObject& owner, const int id) :
 	addRenderObject(m_spriteBg);
 
 	// Texture browser
-	m_textureList = make_shared<TextLines>(*this, Interface::TextureBrowser, "arial.ttf", Util::GeoBox2d(22, 125, 245, 384));
+	m_textureList = make_shared<TextLines>(*this, Interface::TextureBrowser, FontId::Arial, Util::GeoBox2d(22, 125, 245, 384));
 	m_textureList->setClickableLines(true);
 	m_textureList->setDialogCharacterSize(12);
 	m_textureList->setMaxLines(4096);
@@ -206,21 +206,21 @@ void MapEditor::input()
 	if (sApplication->popKeyUp(sf::Keyboard::F1))
 	{
 		if (m_editingLayer != 0)
-			sContentMgr->playSound("button_change_a.ogg");
+			sContentMgr->playSound(SfxId::ButtonChange);
 
 		m_editingLayer = 0;
 	}
 	else if (sApplication->popKeyUp(sf::Keyboard::F2))
 	{
 		if (m_editingLayer != 1)
-			sContentMgr->playSound("button_change_a.ogg");
+			sContentMgr->playSound(SfxId::ButtonChange);
 
 		m_editingLayer = 1;
 	}
 	else if (sApplication->popKeyUp(sf::Keyboard::F3))
 	{
 		if (m_editingLayer != 2)
-			sContentMgr->playSound("button_change_a.ogg");
+			sContentMgr->playSound(SfxId::ButtonChange);
 
 		m_editingLayer = 2;
 	}
@@ -232,7 +232,7 @@ void MapEditor::input()
 		}
 		else
 		{
-			sContentMgr->playSound("button_change_a.ogg");
+			sContentMgr->playSound(SfxId::ButtonChange);
 			m_showMinimap = !m_showMinimap;
 		}
 	}
@@ -262,7 +262,7 @@ void MapEditor::input()
 			m_objPreview = createGameObj(atoi(clickedLine.c_str()));
 
 		m_textureList->setSelectedLine(clickedLine);
-		sContentMgr->playSound("button_change_a.ogg");
+		sContentMgr->playSound(SfxId::ButtonChange);
 	}
 
 	auto selectedScroll = [&](const int dir)
@@ -282,7 +282,7 @@ void MapEditor::input()
 				m_spritePreview = sContentMgr->spawnSprite(textureName(newLine));
 
 			m_textureList->getScrollObject()->setScrollOffset(m_textureList->getScrollOffset() + dir);
-			sContentMgr->playSound("button_change_a.ogg");
+			sContentMgr->playSound(SfxId::ButtonChange);
 		}
 	};
 
@@ -305,7 +305,7 @@ void MapEditor::input()
 		m_spriteGrabbed = sContentMgr->spawnSprite(textureName(line));
 		m_spritePreview = sContentMgr->spawnSprite(textureName(line));
 		m_textureList->setSelectedLine(line);
-		sContentMgr->playSound("button_change_a.ogg");
+		sContentMgr->playSound(SfxId::ButtonChange);
 
 		if (m_lastScale.x >= 0.4)
 			m_spriteGrabbed->setScale(m_lastScale);

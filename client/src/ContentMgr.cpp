@@ -124,9 +124,6 @@ void ContentMgr::reload()
 	loadFootsteps();
 	loadPortraitOffsets();
 	loadStatDescriptions();
-
-	m_brightShader.loadFromFile("scripts\\shaders\\unitbright.frag", sf::Shader::Fragment);
-	m_recolorShader.loadFromFile("scripts\\shaders\\unitrecolor.frag", sf::Shader::Fragment);
 }
 
 void ContentMgr::update()
@@ -570,7 +567,7 @@ void ContentMgr::loadStatDescriptions()
 		if (!txt.empty())
 		{
 			tooltip = make_shared<Tooltip>(*sApplication, sf::Vector2i(0, 0));
-			tooltip->addLine("arial.ttf", 15, txt);
+			tooltip->addLine(FontId::Arial, 15, txt);
 			tooltip->setShadowOffset(1);
 
 			vector<UnitDefines::Stat> modStats;
@@ -584,7 +581,7 @@ void ContentMgr::loadStatDescriptions()
 			if (!modifyStr.empty())
 			{
 				modifyStr.erase(modifyStr.begin());
-				tooltip->addLine("Friz Quadrata Regular.ttf", 15, "Modified By: " + modifyStr, sf::Color(240, 197, 2, 255));
+				tooltip->addLine(FontId::FrizRegular, 15, "Modified By: " + modifyStr, sf::Color(240, 197, 2, 255));
 			}
 
 			return tooltip;
@@ -756,7 +753,7 @@ bool ContentMgr::queueTextureLoad(const string& str)
 void ContentMgr::loadingThread()
 {
 	sf::Texture tex;
-	tex.loadFromFile("content\\icon.png");
+	tex.loadFromFile(imageFile(ImageId::Icon));
 
 	while (!m_done)
 	{
@@ -999,13 +996,26 @@ shared_ptr<sf::Font> ContentMgr::getFont(const string& fontname)
 
 	shared_ptr<sf::Font> f = make_shared<sf::Font>();
 
-	if (f->loadFromFile("content\\fonts\\" + fontname))
+	if (f->loadFromFile(Assets::kFontDir + fontname))
 	{
 		m_resourceFonts[fontname] = f;
 		return f;
 	}
 
 	return nullptr;
+}
+
+// Shaders are owned here (single source); loaded lazily on first use, path from the asset manifest.
+sf::Shader& ContentMgr::getShader(Assets::ShaderId id)
+{
+	auto itr = m_shaders.find(id);
+
+	if (itr != m_shaders.end())
+		return itr->second;
+
+	sf::Shader& shader = m_shaders[id];
+	ASSERT(shader.loadFromFile(Assets::kShaderDir + Assets::shaderFile(id), sf::Shader::Fragment));
+	return shader;
 }
 
 shared_ptr<SpriteScript> ContentMgr::ensureSpriteScript(const string& filename)

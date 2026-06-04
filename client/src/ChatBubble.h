@@ -17,6 +17,8 @@ class ChatBubble :	public ExpandableWindow
 
 		void draw();
 		void setText(const string& fontname, const int characterSize, const string& str, const sf::Color color = sf::Color::White);
+		void setText(const Assets::FontId fontId, const int characterSize, const string& str, const sf::Color color = sf::Color::White)
+			{ setText(Assets::fontFile(fontId), characterSize, str, color); }
 		void moveTo(const sf::Vector2i pos);
 		void refreshBounds();
 

@@ -34,7 +34,6 @@ ClientMap::ClientMap(RenderObject& owner, const int id) :
 	loadFoliageNames();
 	m_terrain.resize(getTerrainWidth() * getTerrainWidth());	
 
-	ASSERT(m_brightContrastShader.loadFromFile("scripts\\shaders\\brightcontrast.frag", sf::Shader::Fragment));
 	m_lightShader = sContentMgr->spawnSprite("shader_light.png");
 
 	m_emptyCellSprite = sContentMgr->spawnSprite("map_blank_cell.png");
@@ -123,7 +122,7 @@ void ClientMap::render()
 	// We're done drawing to the canvas
 	m_canvas.display();
 	sApplication->resetCanvas();
-	sApplication->canvas().draw(sf::Sprite(m_canvas.getTexture()), &m_brightContrastShader);
+	sApplication->canvas().draw(sf::Sprite(m_canvas.getTexture()), &sContentMgr->getShader(Assets::ShaderId::BrightContrast));
 
 	drawUnitOverheads();
 	drawTopmostSprAnims();
@@ -337,7 +336,7 @@ void ClientMap::drawCellIdOverlay(const RenderData& data, const Geo2d::Vector2& 
 {
 	if (!m_debugIdText)
 	{
-		m_debugIdText = make_shared<Text>(sContentMgr->getFont("Helvetica 400.ttf"));
+		m_debugIdText = make_shared<Text>(sContentMgr->getFont(FontId::Helvetica));
 		m_debugIdText->setCharacterSize(9);
 		m_debugIdText->setShadowOffset(1);
 	}

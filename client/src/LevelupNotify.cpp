@@ -22,7 +22,7 @@ LevelupNotify::LevelupNotify(World& owner, const int id) :
 {
 	m_frame = sContentMgr->spawnSprite("levelup_notify.png");
 
-	m_title = make_shared<TextBox>(sContentMgr->getFont("Ringbearer Medium.ttf"), 44);
+	m_title = make_shared<TextBox>(sContentMgr->getFont(FontId::Ringbearer), 44);
 }
 
 LevelupNotify::~LevelupNotify()

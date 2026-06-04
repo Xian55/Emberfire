@@ -27,7 +27,7 @@ CharacterSelection::CharacterSelection(RenderObjectHolder& owner, const int id) 
 	m_scrollOffset(0)
 {
 	setMultiInput(true);
-	sContentMgr->loopMusic("aion_creation.ogg", false);
+	sContentMgr->loopMusic(MusicId::AionCreation, false);
 
 	ASSERT(m_background = sContentMgr->spawnSprite("main_bg.jpg"));
 	ASSERT(m_backgroundGui = sContentMgr->spawnSprite("main_selection.png"));
@@ -38,7 +38,7 @@ CharacterSelection::CharacterSelection(RenderObjectHolder& owner, const int id) 
 	initButton({ Interface::CharacterSlot3,Interface::CharacterSlot3_Name,Interface::CharacterSlot3_Subtext,Interface::CharacterSlot3_Portrait }, sf::Vector2i(27, 125 + 180));
 
 	// < Page 1 >
-	m_pageTxt = make_shared<Text>(sContentMgr->getFont("Palatino Linotype Regular.ttf"));
+	m_pageTxt = make_shared<Text>(sContentMgr->getFont(FontId::Palatino));
 	m_pageTxt->setOriginalColor(sf::Color(136, 117, 102, 255));
 	m_pageTxt->setOutlineColor(sf::Color(0, 0, 0, 60));
 	m_pageTxt->setOutlineThickness(0.5f);
@@ -68,11 +68,11 @@ shared_ptr<Sprite> CharacterSelection::preparePortrait(shared_ptr<Sprite> ptr)
 
 void CharacterSelection::initButton(const ButtonData& buttondata, const sf::Vector2i& offset)
 {
-	auto textName = make_shared<TextBoxRo>(*this, buttondata.name, "Ringbearer Medium.ttf", 500, 22, TextBox::AlignLeft, false, 2.3f);
+	auto textName = make_shared<TextBoxRo>(*this, buttondata.name, FontId::Ringbearer, 500, 22, TextBox::AlignLeft, false, 2.3f);
 	attachObj(textName, offset + sf::Vector2i(88, 17));
 	textName->setMouseable(false);
 
-	auto textSubtext = make_shared<TextBoxRo>(*this, buttondata.subtext, "Cambria Regular.ttf", 500, 15, TextBox::AlignLeft, false, 3.f);
+	auto textSubtext = make_shared<TextBoxRo>(*this, buttondata.subtext, FontId::Cambria, 500, 15, TextBox::AlignLeft, false, 3.f);
 	attachObj(textSubtext, offset + sf::Vector2i(88, 45));
 	textSubtext->setMouseable(false);
 		
@@ -131,7 +131,7 @@ void CharacterSelection::spawnCtxMenuForCharacter(const int slot)
 
 	if (auto owner = dynamic_cast<Game*>(getOwner()))
 	{
-		sContentMgr->playSound("button_click_a.ogg");
+		sContentMgr->playSound(SfxId::ButtonClick);
 		owner->registerContextMenu(Game::Ro::CtxMenu_DeleteCharacter, getId(), sApplication->mousePos(),
 			{
 				{ "Delete " + m_chosenCharacter.name },

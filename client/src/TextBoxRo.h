@@ -8,6 +8,9 @@ class TextBoxRo :	public RenderObject
 	public:
 		TextBoxRo(RenderObject& owner, const int id, const string& fontName, const int w, const int characterSize,
 			const TextBox::Align algn = TextBox::AlignLeft, const bool centerHeight = false, const float thickness = 0.0f);
+		TextBoxRo(RenderObject& owner, const int id, const Assets::FontId fontId, const int w, const int characterSize,
+			const TextBox::Align algn = TextBox::AlignLeft, const bool centerHeight = false, const float thickness = 0.0f)
+			: TextBoxRo(owner, id, Assets::fontFile(fontId), w, characterSize, algn, centerHeight, thickness) {}
 		virtual ~TextBoxRo();
 
 		void setString(const string& str, const sf::Color color = sf::Color::White, const sf::Color outlineColor = sf::Color::White, const int maxLines = -1, const bool enableScroll = false);

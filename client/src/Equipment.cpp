@@ -24,8 +24,8 @@ Equipment::Equipment(World& owner, const int id) :
 	WorldPanel(owner, id, "equipment.png", sf::Vector2i(541, 28))
 {
 	// Name
-	addRenderObject(attachObj(make_shared<TextBoxRo>(*this, Interface::NameLabel, "Palatino Linotype Regular.ttf", 202, 15, TextBox::AlignCenterAbsolute), { 188, 121 }));
-	addRenderObject(attachObj(make_shared<TextBoxRo>(*this, Interface::SubnameLabel, "Palatino Linotype Regular.ttf", 202, 12, TextBox::AlignCenterAbsolute), { 188, 141 }));
+	addRenderObject(attachObj(make_shared<TextBoxRo>(*this, Interface::NameLabel, FontId::Palatino, 202, 15, TextBox::AlignCenterAbsolute), { 188, 121 }));
+	addRenderObject(attachObj(make_shared<TextBoxRo>(*this, Interface::SubnameLabel, FontId::Palatino, 202, 12, TextBox::AlignCenterAbsolute), { 188, 141 }));
 	
 	// Inventory
 	addRenderObject(attachObj(m_levelupButton = make_shared<Button>(*this, "level_up", Interface::LevelUp), sf::Vector2i(14, 527)));
@@ -89,9 +89,9 @@ void Equipment::input()
 	if (popButtonId(Interface::LevelUp) || popButtonId(Interface::LevelUpExclaim))
 	{
 		if (m_wasOpenedRecently)
-			sContentMgr->playSound("chun_command_center_edit.ogg");
+			sContentMgr->playSound(SfxId::ChunCommandCenterEdit);
 		else
-			sContentMgr->playSound("button_click_a.ogg");
+			sContentMgr->playSound(SfxId::ButtonClick);
 
 		m_wasOpenedRecently = false;
 		toggleSpendingPoints(true);
@@ -349,15 +349,15 @@ shared_ptr<Tooltip> Equipment::spawnUpgradeTooltip(const int totalInvest, const 
 	shared_ptr<Tooltip> tt = make_shared<Tooltip>(*sApplication, sf::Vector2i());
 	tt->setShadowOffset(1);
 	tt->setOffset(sf::Vector2i(65, -35));
-	tt->addLine("trebuc.ttf", 15, "+1 " + itemName + ": ", sf::Color(240, 197, 2, 255), false);
-	tt->addLine("trebuc.ttf", 15, Util::formatMoneyCommas(cost) + "xp", sf::Color(181, 0, 175, 255));
+	tt->addLine(FontId::Trebuchet, 15, "+1 " + itemName + ": ", sf::Color(240, 197, 2, 255), false);
+	tt->addLine(FontId::Trebuchet, 15, Util::formatMoneyCommas(cost) + "xp", sf::Color(181, 0, 175, 255));
 
 	if (totalInvest > 1)
-		tt->addLine("trebuc.ttf", 15, "You have invested " + to_string(totalInvest) + " " + pointName + "s.");
+		tt->addLine(FontId::Trebuchet, 15, "You have invested " + to_string(totalInvest) + " " + pointName + "s.");
 	else if (totalInvest > 0)
-		tt->addLine("trebuc.ttf", 15, "You have invested " + to_string(totalInvest) + " " + pointName + ".");
+		tt->addLine(FontId::Trebuchet, 15, "You have invested " + to_string(totalInvest) + " " + pointName + ".");
 	else
-		tt->addLine("trebuc.ttf", 15, "You haven't invested anything.");
+		tt->addLine(FontId::Trebuchet, 15, "You haven't invested anything.");
 
 	return tt;
 }
@@ -552,7 +552,7 @@ void Equipment::setStatView(const StatView view)
 
 shared_ptr<TextBoxRo> Equipment::attachLabel(const int var, const sf::Vector2i& offset)
 {
-	auto textRo = make_shared<TextBoxRo>(*this, Interface::LabelsKey + var, "Palatino Linotype Regular.ttf", 500, 14, TextBox::AlignLeft, true, 2.f);
+	auto textRo = make_shared<TextBoxRo>(*this, Interface::LabelsKey + var, FontId::Palatino, 500, 14, TextBox::AlignLeft, true, 2.f);
 
 	string labelStr;
 
@@ -582,7 +582,7 @@ shared_ptr<TextBoxRo> Equipment::attachLabel(const int var, const sf::Vector2i& 
 
 shared_ptr<TextBoxRo> Equipment::attachValue(const int var, const sf::Vector2i& offset, const int alignment, const bool spendButtons /*= true*/, const int spendVar /*= -1*/)
 {
-	auto textRo = make_shared<TextBoxRo>(*this, Interface::ValuesKey + var, "Palatino Linotype Regular.ttf", 500, 16, TextBox::Align(alignment), true, 2.f);
+	auto textRo = make_shared<TextBoxRo>(*this, Interface::ValuesKey + var, FontId::Palatino, 500, 16, TextBox::Align(alignment), true, 2.f);
 	textRo->setAnchor(&getTopLeftCornerRef());
 	textRo->setOffset(offset);
 	addRenderObject(textRo);

@@ -16,6 +16,8 @@ class PromptBox : public TextLines
 
 	public:
 		PromptBox(RenderObject& owner, const int id, const string& fontName, shared_ptr<Button> enterButton, const sf::Vector2i& renderPos, const int maxWidth, const sf::Color fontColor, const bool stringBeyondRender = true);
+		PromptBox(RenderObject& owner, const int id, const Assets::FontId fontId, shared_ptr<Button> enterButton, const sf::Vector2i& renderPos, const int maxWidth, const sf::Color fontColor, const bool stringBeyondRender = true)
+			: PromptBox(owner, id, Assets::fontFile(fontId), enterButton, renderPos, maxWidth, fontColor, stringBeyondRender) {}
 		virtual ~PromptBox();
 
 		void setMaxPromptString(const int val) { m_maxPromptStringLen = val; }

@@ -32,8 +32,8 @@ TradeWindow::TradeWindow(World& owner, const int id) :
 	m_remotePortraitPos = sf::Vector2i(253, 103);
 
 	// Name labels above/below portraits
-	addRenderObject(attachObj(m_localNameTxt = make_shared<TextBoxRo>(*this, Interface::LocalNameText, "Palatino Linotype Regular.ttf", 100, 14, TextBox::AlignLeft, false, 1.f), sf::Vector2i(107, 65)));
-	addRenderObject(attachObj(m_remoteNameTxt = make_shared<TextBoxRo>(*this, Interface::RemoteNameText, "Palatino Linotype Regular.ttf", 100, 14, TextBox::AlignLeft, false, 1.f), sf::Vector2i(300, 65)));
+	addRenderObject(attachObj(m_localNameTxt = make_shared<TextBoxRo>(*this, Interface::LocalNameText, FontId::Palatino, 100, 14, TextBox::AlignLeft, false, 1.f), sf::Vector2i(107, 65)));
+	addRenderObject(attachObj(m_remoteNameTxt = make_shared<TextBoxRo>(*this, Interface::RemoteNameText, FontId::Palatino, 100, 14, TextBox::AlignLeft, false, 1.f), sf::Vector2i(300, 65)));
 
 	// Trade and Cancel buttons at bottom
 	addRenderObject(attachObj(make_shared<Button>(*this, "generic_highlight_medium", Interface::TradeButton), sf::Vector2i(310, 514)));
@@ -42,8 +42,8 @@ TradeWindow::TradeWindow(World& owner, const int id) :
 	addRenderObject(attachObj(m_localGoldHighlight = make_shared<Button>(*this, "generic_highlight_small", Interface::LocalGoldHighlight), sf::Vector2i(45, 471)));
 
 	// Gold text displays
-	addRenderObject(attachObj(m_localGoldTxt = make_shared<TextBoxRo>(*this, Interface::LocalGoldText, "Constantia Regular.ttf", 80, 14, TextBox::AlignLeft, false, 1.f), sf::Vector2i(58, 469)));
-	addRenderObject(attachObj(m_remoteGoldTxt = make_shared<TextBoxRo>(*this, Interface::RemoteGoldText, "Constantia Regular.ttf", 80, 14, TextBox::AlignLeft, false, 1.f), sf::Vector2i(251, 469)));
+	addRenderObject(attachObj(m_localGoldTxt = make_shared<TextBoxRo>(*this, Interface::LocalGoldText, FontId::Constantia, 80, 14, TextBox::AlignLeft, false, 1.f), sf::Vector2i(58, 469)));
+	addRenderObject(attachObj(m_remoteGoldTxt = make_shared<TextBoxRo>(*this, Interface::RemoteGoldText, FontId::Constantia, 80, 14, TextBox::AlignLeft, false, 1.f), sf::Vector2i(251, 469)));
 
 	// Ready indicators (checkmarks or similar) near portraits
 	auto readySprite = sContentMgr->spawnSprite("trade_ready.png");
@@ -189,11 +189,11 @@ void TradeWindow::reset()
 
 	// Titles for local slots
 	for (int i = Interface::TitleLocal1; i <= Interface::TitleLocal5; ++i)
-		addRenderObject(attachTitle(make_shared<TextBoxRo>(*this, i, "Constantia Regular.ttf", 110, 12, TextBox::AlignLeft, false, 1.f), true));
+		addRenderObject(attachTitle(make_shared<TextBoxRo>(*this, i, FontId::Constantia, 110, 12, TextBox::AlignLeft, false, 1.f), true));
 
 	// Titles for remote slots
 	for (int i = Interface::TitleRemote1; i <= Interface::TitleRemote5; ++i)
-		addRenderObject(attachTitle(make_shared<TextBoxRo>(*this, i, "Constantia Regular.ttf", 110, 12, TextBox::AlignLeft, false, 1.f), false));
+		addRenderObject(attachTitle(make_shared<TextBoxRo>(*this, i, FontId::Constantia, 110, 12, TextBox::AlignLeft, false, 1.f), false));
 
 	// Icons for local slots
 	for (int i = Interface::IconSlotLocal1; i <= Interface::IconSlotLocal5; ++i)
@@ -227,7 +227,7 @@ void TradeWindow::setRemotePlayer(shared_ptr<ClientPlayer> player)
 void TradeWindow::setLocalReady(const bool ready)
 {
 	if (ready && !m_localReady)
-		sContentMgr->playSound("alert_trade_confirm_a.ogg");
+		sContentMgr->playSound(SfxId::AlertTradeConfirm);
 
 	m_localReady = ready;
 }
@@ -235,7 +235,7 @@ void TradeWindow::setLocalReady(const bool ready)
 void TradeWindow::setRemoteReady(const bool ready)
 {
 	if (ready && !m_remoteReady)
-		sContentMgr->playSound("alert_trade_confirm_a.ogg");
+		sContentMgr->playSound(SfxId::AlertTradeConfirm);
 
 	m_remoteReady = ready;
 }

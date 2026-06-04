@@ -27,14 +27,14 @@ Minimap::Minimap(World& owner, const int id) :
 	m_mapDecal = sContentMgr->getTexture("miniamp_decal.png");
 	
 	// Label
-	m_label = make_shared<Text>(sContentMgr->getFont("Ringbearer Medium.ttf"));
+	m_label = make_shared<Text>(sContentMgr->getFont(FontId::Ringbearer));
 	m_label->setOutlineColor(sf::Color(0, 0, 0, 125));
 	m_label->setOutlineThickness(2.f);
 	m_label->setOriginalColor(sf::Color(201, 179, 149));
 	m_label->setCharacterSize(18);
 
 	// Label
-	m_channelLabel = make_shared<Text>(sContentMgr->getFont("Ringbearer Medium.ttf"));
+	m_channelLabel = make_shared<Text>(sContentMgr->getFont(FontId::Ringbearer));
 	m_channelLabel->setOutlineColor(sf::Color(0, 0, 0, 125));
 	m_channelLabel->setOutlineThickness(2.f);
 	m_channelLabel->setOriginalColor(sf::Color(201, 179, 149));
@@ -45,9 +45,6 @@ Minimap::Minimap(World& owner, const int id) :
 	m_mailLootButton = static_pointer_cast<Button>(attachObj(make_shared<Button>(*this, "gold_pouch", Interface::RoLootbutton), sf::Vector2i(-5, 240)));
 	m_mailLootButton->setHidden(true);
 
-	// Shader to make the minimap slightly desaturated
-	ASSERT(m_saturateShader.loadFromFile("scripts\\shaders\\minimap.frag", sf::Shader::Fragment));
-	
 	// Cache dots
 	m_dotEnemy = sContentMgr->spawnSprite("minimap_enemy.png");
 	m_dotEnemy->setHotspotEasy(true, true);
@@ -147,7 +144,7 @@ void Minimap::render() /*final*/
 		overlaySprite.setScale({4.f, 4.f});
 		overlaySprite.setPosition(sf::Vector2f(-maptexLoc.x * 4, -maptexLoc.y * 4));
 		overlaySprite.setColor(sf::Color(255, 255, 255, 230));
-		m_renderTexture.draw(overlaySprite, sf::RenderStates(&m_saturateShader));
+		m_renderTexture.draw(overlaySprite, sf::RenderStates(&sContentMgr->getShader(Assets::ShaderId::Minimap)));
 
 		// Dots
 		for (auto& itr : m_dots)

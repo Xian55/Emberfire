@@ -31,7 +31,7 @@ Options::Options(RenderObjectHolder& owner, const int id) :
 	m_keybind_clicked_2_A = -1;
 	m_keybind_clicked_2_B = -1;
 
-	m_windowModeTxt = make_unique<Text>(sContentMgr->getFont("Palatino Linotype Regular.ttf"));
+	m_windowModeTxt = make_unique<Text>(sContentMgr->getFont(FontId::Palatino));
 	m_windowModeTxt->setCharacterSize(14);
 	m_windowModeTxt->setColorIfNot(sf::Color(78, 63, 52, 255));
 
@@ -137,7 +137,7 @@ void Options::input()
 				string keybindName;
 
 				if (keyDown->code == sf::Keyboard::Escape)
-					sContentMgr->playSound("window_target_close_a.ogg");
+					sContentMgr->playSound(SfxId::WindowTargetClose);
 
 				// Fetch the label
 				if (m_keybind_clicked_1_A != -1)
@@ -169,7 +169,7 @@ void Options::input()
 					sConfig->setInt("KeyBind", keybindName.c_str(), keyDown->code);
 					sConfig->setInt("KeyBindModifier", keybindName.c_str(), modifier);
 
-					sContentMgr->playSound("box_message_a.ogg");
+					sContentMgr->playSound(SfxId::BoxMessage);
 				}
 
 				sKeybinds->loadKeybind(keybindName);
@@ -204,25 +204,25 @@ void Options::input()
 			if (m_keybind_clicked_1_A != -1)
 			{
 				lines_1_B->getLine(m_keybind_clicked_1_A)->setTextStr("____");
-				sContentMgr->playSound("window_target_open_a.ogg");
+				sContentMgr->playSound(SfxId::WindowTargetOpen);
 			}
 
 			if (m_keybind_clicked_1_B != -1)
 			{
 				lines_1_B->getLine(m_keybind_clicked_1_B)->setTextStr("____");
-				sContentMgr->playSound("window_target_open_a.ogg");
+				sContentMgr->playSound(SfxId::WindowTargetOpen);
 			}
 
 			if (m_keybind_clicked_2_A != -1)
 			{
 				lines_2_B->getLine(m_keybind_clicked_2_A)->setTextStr("____");
-				sContentMgr->playSound("window_target_open_a.ogg");
+				sContentMgr->playSound(SfxId::WindowTargetOpen);
 			}
 
 			if (m_keybind_clicked_2_B != -1)
 			{
 				lines_2_B->getLine(m_keybind_clicked_2_B)->setTextStr("____");
-				sContentMgr->playSound("window_target_open_a.ogg");
+				sContentMgr->playSound(SfxId::WindowTargetOpen);
 			}
 
 			if (sApplication->popKeyDown(sf::Keyboard::Escape))
@@ -371,12 +371,12 @@ void Options::setStage(const Stage stage)
 			// Left
 			{
 				// Binds List
-				auto bindList = make_shared<TextLines>(*this, Interface::Keybinds_List_1_A, "Palatino Linotype Regular.ttf", Util::GeoBox2d(0, 0, 500, 370));
+				auto bindList = make_shared<TextLines>(*this, Interface::Keybinds_List_1_A, FontId::Palatino, Util::GeoBox2d(0, 0, 500, 370));
 				bindList->setClickableLines(true);
 				bindList->setDialogCharacterSize(20);
 				attachAddObj(bindList, sf::Vector2i(80, 155));
 
-				auto bindValueList = make_shared<TextLines>(*this, Interface::Keybinds_List_1_B, "Palatino Linotype Regular.ttf", Util::GeoBox2d(0, 0, 150, 370));
+				auto bindValueList = make_shared<TextLines>(*this, Interface::Keybinds_List_1_B, FontId::Palatino, Util::GeoBox2d(0, 0, 150, 370));
 				bindValueList->setClickableLines(true);
 				bindValueList->setDialogCharacterSize(20);
 				attachAddObj(bindValueList, sf::Vector2i(350, 155));
@@ -404,12 +404,12 @@ void Options::setStage(const Stage stage)
 			// Right
 			{
 				// Binds List
-				auto bindList = make_shared<TextLines>(*this, Interface::Keybinds_List_2_A, "Palatino Linotype Regular.ttf", Util::GeoBox2d(0, 0, 500, 370));
+				auto bindList = make_shared<TextLines>(*this, Interface::Keybinds_List_2_A, FontId::Palatino, Util::GeoBox2d(0, 0, 500, 370));
 				bindList->setClickableLines(true);
 				bindList->setDialogCharacterSize(20);
 				attachAddObj(bindList, sf::Vector2i(555, 155));
 
-				auto bindValueList = make_shared<TextLines>(*this, Interface::Keybinds_List_2_B, "Palatino Linotype Regular.ttf", Util::GeoBox2d(0, 0, 150, 370));
+				auto bindValueList = make_shared<TextLines>(*this, Interface::Keybinds_List_2_B, FontId::Palatino, Util::GeoBox2d(0, 0, 150, 370));
 				bindValueList->setClickableLines(true);
 				bindValueList->setDialogCharacterSize(20);
 				attachAddObj(bindValueList, sf::Vector2i(835, 155));

@@ -180,7 +180,6 @@ class ClientMap : public GameMap, public RenderObject, public DraggableNode
 
 		sf::RenderTexture m_canvas;
 		sf::RenderTexture m_lightingOverlay;
-		sf::Shader m_brightContrastShader;
 		sf::Vector2u m_lastScreenSize;
 		
 		recursive_mutex m_mutexRender;

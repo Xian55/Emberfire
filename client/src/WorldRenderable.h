@@ -27,6 +27,8 @@ class WorldRenderable
 		void setDone(const bool v) { m_done = v; }
 		void setCameraPtr(Geo2d::Vector2 const* ptr);
 		void playSound(const string& soundname, const float distanceModifier = 1.f, const float volume = 1.f, const int delayms = 0);
+		void playSound(const Assets::SfxId id, const float distanceModifier = 1.f, const float volume = 1.f, const int delayms = 0)
+			{ playSound(Assets::sfxFile(id), distanceModifier, volume, delayms); }
 
 		bool done() { return m_done; }
 

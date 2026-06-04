@@ -37,40 +37,40 @@ UnitFrame::UnitFrame(RenderObject& owner, const int id, const sf::Vector2i pos) 
 
 	m_topLeftCorner = pos;
 
-	m_lvlTxt = make_unique<TextBox>(sContentMgr->getFont("Palatino Linotype Regular.ttf"), 12);
+	m_lvlTxt = make_unique<TextBox>(sContentMgr->getFont(FontId::Palatino), 12);
 	m_lvlTxt->setColor(sf::Color(132, 116, 89, 255));
 
-	m_nameTxt = make_unique<Text>(sContentMgr->getFont("Palatino Linotype Bold.ttf"));
+	m_nameTxt = make_unique<Text>(sContentMgr->getFont(FontId::PalatinoBold));
 	m_nameTxt->setCharacterSize(14);
 	//m_nameTxt->setOriginalColor(sf::Color(134, 115, 92, 255));
 	m_nameTxt->setOutlineThickness(2.0f);
 	m_nameTxt->setOutlineColor(sf::Color(0, 0, 0, 63));
 
-	m_manaTxt = make_unique<Text>(sContentMgr->getFont("Palatino Linotype Regular.ttf"));
+	m_manaTxt = make_unique<Text>(sContentMgr->getFont(FontId::Palatino));
 	m_manaTxt->setCharacterSize(12);
 	m_manaTxt->setOriginalColor(sf::Color(147, 129, 114, 255));
 	m_manaTxt->setOutlineThickness(2.0f);
 	m_manaTxt->setOutlineColor(sf::Color(0, 0, 0, 63));
 
-	m_hpTxt = make_unique<Text>(sContentMgr->getFont("Palatino Linotype Regular.ttf"));
+	m_hpTxt = make_unique<Text>(sContentMgr->getFont(FontId::Palatino));
 	m_hpTxt->setCharacterSize(12);
 	m_hpTxt->setOriginalColor(sf::Color(147, 129, 114, 255));
 	m_hpTxt->setOutlineThickness(2.0f);
 	m_hpTxt->setOutlineColor(sf::Color(0, 0, 0, 63));
 
-	m_hpPctTxt = make_unique<Text>(sContentMgr->getFont("Palatino Linotype Regular.ttf"));
+	m_hpPctTxt = make_unique<Text>(sContentMgr->getFont(FontId::Palatino));
 	m_hpPctTxt->setCharacterSize(12);
 	m_hpPctTxt->setOriginalColor(sf::Color(147, 129, 114, 255));
 	m_hpPctTxt->setOutlineThickness(2.0f);
 	m_hpPctTxt->setOutlineColor(sf::Color(0, 0, 0, 63));
 
-	m_manaPctTxt = make_unique<Text>(sContentMgr->getFont("Palatino Linotype Regular.ttf"));
+	m_manaPctTxt = make_unique<Text>(sContentMgr->getFont(FontId::Palatino));
 	m_manaPctTxt->setCharacterSize(12);
 	m_manaPctTxt->setOriginalColor(sf::Color(147, 129, 114, 255));
 	m_manaPctTxt->setOutlineThickness(2.0f);
 	m_manaPctTxt->setOutlineColor(sf::Color(0, 0, 0, 63));
 
-	m_combatMsgTxt = make_unique<Text>(sContentMgr->getFont("Ringbearer Medium.ttf"));
+	m_combatMsgTxt = make_unique<Text>(sContentMgr->getFont(FontId::Ringbearer));
 	m_combatMsgTxt->setCharacterSize(56);
 	m_combatMsgTxt->setShadowOffset(1);
 
@@ -178,7 +178,7 @@ void UnitFrame::input()
 
 			if (!ctxLines.empty())
 			{
-				sContentMgr->playSound("button_click_a.ogg");
+				sContentMgr->playSound(SfxId::ButtonClick);
 				ctxLines.push_back(ctxMenuOptionStr(CtxMenuOptions::DdoCancel));
 				owner->registerContextMenu(World::Interface::CtxMenuCurrent, getId(), sApplication->mousePos(), ctxLines);
 			}		
@@ -350,7 +350,7 @@ void UnitFrame::render()
 	{
 		if (!m_hasBrokenIcon || m_criticalStatusSprite == nullptr)
 		{
-			sContentMgr->playSound("alert_soulstone_empty_a.ogg");
+			sContentMgr->playSound(SfxId::AlertSoulstoneEmpty);
 			m_criticalStatusSprite = sContentMgr->spawnSprite("broken_item_uframe_icon.png");
 			m_criticalStatusSprite->setHotspotEasy(true, true);
 		}

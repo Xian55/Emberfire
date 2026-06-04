@@ -169,12 +169,12 @@ void MultiTableEditor::setEntry(const int spellId)
 			const int yVal = yPos + (count * 20);
 			const auto field = Field(i);
 
-			auto text = make_shared<TextBoxRo>(*this, TableTemplateEditor::LabelsBegin + i, "Friz Quadrata Regular.ttf", 400, charactersize);
+			auto text = make_shared<TextBoxRo>(*this, TableTemplateEditor::LabelsBegin + i, FontId::FrizRegular, 400, charactersize);
 			text->setString(fieldName(field), getLabelColor(field));
 			text->updateTopLeftCorner(sf::Vector2i(xPos, yVal));
 			addRenderObject(text);
 
-			auto promptBox = make_shared<PromptBox>(*this, TableTemplateEditor::PromptBoxBegin + i, "arial.ttf", nullptr, sf::Vector2i(xPos + space, yVal), width, sf::Color::White);
+			auto promptBox = make_shared<PromptBox>(*this, TableTemplateEditor::PromptBoxBegin + i, FontId::Arial, nullptr, sf::Vector2i(xPos + space, yVal), width, sf::Color::White);
 			promptBox->setPromptCharacterSize(charactersize);
 			promptBox->setMaxPromptString(1024);
 			promptBox->setContent(fieldValueToHumandReadable(GTF_key, to_string(m_entry)));
