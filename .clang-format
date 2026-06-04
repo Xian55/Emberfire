@@ -1,0 +1,11 @@
+# Matches the existing client/shared style (tabs, Allman braces). New code only —
+# do NOT bulk-reformat the imported client sources (it would create huge noise diffs).
+BasedOnStyle: LLVM
+UseTab: ForIndentation
+TabWidth: 4
+IndentWidth: 4
+BreakBeforeBraces: Allman
+ColumnLimit: 0
+AccessModifierOffset: -4
+PointerAlignment: Left
+SortIncludes: false

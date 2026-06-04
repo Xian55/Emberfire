@@ -1,0 +1,16 @@
+{
+  "name": "emberfire-auth-server",
+  "version": "1.0.0",
+  "description": "Emberfire fake auth server (LAN-only)",
+  "main": "auth_server.js",
+  "scripts": {
+    "start": "bun auth_server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mysql2": "^3.18.0"
+  },
+  "bin": {
+    "auth-server": "./auth_server.js"
+  }
+}

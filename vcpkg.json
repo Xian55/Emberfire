@@ -1,0 +1,14 @@
+{
+  "$comment": "OPT-IN alternate dependency source. The default build references prebuilt deps via EMBERFIRE_DEPS_DIR (the verified SFML 2.6.1 x86 + zip ABI). Switch to vcpkg only after re-verifying the zip/SFML ABI.",
+  "name": "emberfire",
+  "version": "0.1.0",
+  "dependencies": [
+    "sfml",
+    "sqlite3",
+    "libzip"
+  ],
+  "builtin-baseline": "",
+  "overrides": [
+    { "name": "sfml", "version": "2.6.1" }
+  ]
+}

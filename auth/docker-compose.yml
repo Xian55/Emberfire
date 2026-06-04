@@ -1,0 +1,24 @@
+# Emberfire MySQL — Portainer Stack
+# Deploy on your Docker host (Portainer > Stacks > Add stack > paste this).
+# Reads MYSQL_ROOT_PASSWORD from a local .env (see .env.example) — never hardcode it here.
+# Schema (db_init.sql) auto-loads on FIRST init from <host>/initdb (see DEPLOY_DB.md).
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: emberfire-mysql
+    restart: unless-stopped
+    command:
+      - --default-authentication-plugin=mysql_native_password   # old libmysql.dll client compat
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"   # from local .env (gitignored)
+      MYSQL_ROOT_HOST: "%"          # allow root to connect from the LAN game host
+      MYSQL_DATABASE: "${DB_NAME:-dreadmyst}"
+    ports:
+      - "3310:3306"   # host 3306 already used by another mariadb; publish on 3310
+    volumes:
+      - emberfire_mysql_data:/var/lib/mysql
+      - /opt/emberfire-mysql/initdb:/docker-entrypoint-initdb.d:ro
+volumes:
+  emberfire_mysql_data:

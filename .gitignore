@@ -1,0 +1,59 @@
+# ---- secrets / local config (NEVER commit) ----
+.env
+*.env
+!.env.example
+**/node_modules/
+
+# ---- build output ----
+/build/
+/out/
+**/CMakeUserPresets.json
+**/*.user
+CMakeCache.txt
+CMakeFiles/
+
+# ---- the Shared junction (recreated at configure; canonical headers live in shared/) ----
+/client/Shared
+
+# ---- leaked runtime + local-only assets (not redistributed) ----
+/run/
+/vendor/
+content/
+maps/
+scripts/
+cache/
+
+# ---- binaries / archives / databases ----
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.exp
+*.obj
+*.zip
+*.7z
+*.db
+*.sqlite
+
+# keep the hand-made zip import lib (vendored dep we DO track)
+!client/deps/zip/zip.lib
+
+# ---- capture logs (LAN game traffic — tooling is tracked, logs are not) ----
+*.ndjson
+*.log
+*.decoded.log
+
+# ---- Ghidra / RE dumps (derived from proprietary binaries — local only) ----
+*.gpr
+*.rep/
+decompiled.c
+dump/
+dump_client/
+
+# ---- editor / OS ----
+.vs/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
