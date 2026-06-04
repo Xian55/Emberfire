@@ -116,7 +116,8 @@ const C2S = {
     14: { name: 'UnequipItem', decode: r => `eqSlot=${r.u8(0)} invDst=${r.u8(1)}` },
     15: { name: 'Move', quiet: true, decode: r => `x=${r.f32(0)} y=${r.f32(4)} wasd=${r.u8(8)}` },
     16: { name: 'Stop' },
-    17: { name: 'Chat', decode: r => `channel=${r.u8(0)} text=${r.cstr(1)}` },
+    17: { name: 'Chat', decode: r => { const te = r.strEnd(1); return `channel=${r.u8(0)} text=${r.cstr(1)} target=${r.cstr(te + 1)} [+12B itemLink]`; } }, // trailing 12-byte item-link blob (zeroed=no link); omitting it -> server underflow -> drop
+
     18: { name: 'GuildMotd', decode: r => `motd=${r.cstr(0)}` },
     19: { name: 'AbandonQuest', decode: D.questId },          // CONFIRMED (GHIDRA FUN_0048a140): one int = questId.
     21: { name: 'YieldDuel' },

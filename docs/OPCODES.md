@@ -114,7 +114,10 @@ duel/party/trade/guild/ignore/roll builders.
 Players: "Trade" (guid 4), "Baday" (guid 1). All payloads below are post-opcode body.
 
 Chat:
-- **C2S Chat (17)**: `channel:u8, text:cstr [, targetName:cstr]` (target present only for whisper).
+- **C2S Chat (17)**: `channel:u8, text:cstr, targetName:cstr, itemLink[12]` — targetName empty for non-whisper;
+  itemLink is a 12-byte blob, all-zero when no item is linked (internal layout TBD, needs a capture with a
+  linked item). Confirmed from steam capture `session-2026-06-04T...-conn2-v1189` (op17 "gooday" body = 23B).
+  **Omitting the 12-byte itemLink makes the packet 12B short → server underflows → drops the connection.**
 - **S2C ChatMsg (91)**: `senderGuid:u32, channel:u8, text:cstr, senderName:cstr`.
 - **ChatChannel** (observed): **Whisper=2, Party=4**; 9=system/exp-notice ("Light party, kill XP… reduced").
   → corrects reconstructed ChatDefines (had Party=3/Guild=4). Say/Yell/Guild/Global still need capture.

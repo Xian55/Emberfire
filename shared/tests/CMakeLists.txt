@@ -4,6 +4,7 @@ add_executable(emberfire_shared_tests
     test_attributes.cpp
     test_item.cpp
     test_opcodes.cpp
+    test_chat.cpp
 )
 target_link_libraries(emberfire_shared_tests PRIVATE emberfire::shared GTest::gtest_main)
 # Same defs the client builds the shared headers with.

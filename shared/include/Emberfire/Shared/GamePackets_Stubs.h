@@ -248,10 +248,18 @@ struct GP_Client_LootItem : GamePacket {
 // ---- Chat / social -----------------------------------------------------------
 struct GP_Client_ChatMsg : GamePacket {
     int m_channelId = 0; std::string m_text, m_targetName; ItemDef m_itemId;
-    // Wire CONFIRMED from steam capture (op17): channel:u8, text:cstr, [targetName:cstr for whisper].
-    // channel is u8 (was sent as int/u32 -> 3 junk bytes into text); no trailing item blob. targetName
-    // is harmlessly sent for all channels (server only reads it for whisper; trailing NUL ignored otherwise).
-    StlBuffer& build(StlBuffer&& b) { b << std::uint16_t(Client_ChatMsg) << std::uint8_t(m_channelId) << m_text << m_targetName; m_buf = std::move(b); return m_buf; }
+    // Wire CONFIRMED from steam capture (op17, session conn2-v1189): channel:u8, text:cstr, targetName:cstr,
+    // then a 12-byte item-link blob (all-zero when no item is linked). channel is u8 (was sent as int/u32 ->
+    // 3 junk bytes into text). targetName is empty for non-whisper. OMITTING the 12-byte blob made the packet
+    // 12 bytes short -> the server underflowed reading the link and DROPPED THE CONNECTION (every chat send).
+    // The blob's internal field layout is unknown (no capture with a linked item yet), so emit 12 zero bytes;
+    // linking an item into chat (shift-click) is a separate follow-up. For non-whisper channels these bytes
+    // are byte-identical to the original capture.
+    StlBuffer& build(StlBuffer&& b) {
+        b << std::uint16_t(Client_ChatMsg) << std::uint8_t(m_channelId) << m_text << m_targetName;
+        b << std::uint32_t(0) << std::uint32_t(0) << std::uint32_t(0); // 12-byte item-link blob (zeroed = no link)
+        m_buf = std::move(b); return m_buf;
+    }
     StlBuffer m_buf;
 };
 struct GP_Client_SetIgnorePlayer : GamePacket {
