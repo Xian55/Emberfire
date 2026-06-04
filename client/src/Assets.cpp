@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "Assets.h"
 
+#include <cassert>   // the ASSERT macro (stdafx.h) expands to assert(0); this TU includes little else
+
 // Filename tables. The strings here are the verbatim filenames the client loaded before centralisation —
 // do not "tidy" them (they must match the actual asset files on disk / in the content zip).
 

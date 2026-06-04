@@ -25,6 +25,7 @@ class ConsoleWindow : public ExpandableWindow, protected Commands
 
 		void error(const string& txt) final;
 		void warning(const string& txt) final;
+		void print(const string& txt);
 
 		void setHidden(const bool b) final;
 
@@ -48,6 +49,8 @@ class ConsoleWindow : public ExpandableWindow, protected Commands
 		static bool handleReloadContentMgr(const char* args, Commands* thisptr);
 		static bool handleDumpTextures(const char* args, Commands* thisptr);
 		static bool handleDeltaCommand(const char* args, Commands* thisptr);
+		static bool handleLuaExec(const char* args, Commands* thisptr);
+		static bool handleLuaSelfTest(const char* args, Commands* thisptr);
 
 	private:
 		CCommand* getCommandTable();

@@ -14,6 +14,7 @@
 #include "DbTemplateEditor.h"
 #include "MapCellClient.h"
 #include "Sprite.h"
+#include "lua/LuaEngine.h"
 
 #include "..\Files.h"
 #include "..\StringHelpers.h"
@@ -62,6 +63,9 @@ ConsoleWindow::ConsoleWindow(RenderObject& owner, const int id) :
 	m_promptBox->setPromptCharacterSize(12);
 	m_promptBox->setScrollObject(scrollBar);
 	m_promptBox->setLeading(2);
+
+	// Echo Lua print()/errors into this console.
+	sLua->setOutputSink([this](const string& s) { print(s); });
 
 	executeFile("autoexec.conf");
 }
@@ -129,6 +133,11 @@ void ConsoleWindow::warning(const string& txt) /*final*/
 	m_promptBox->addLine(txt.c_str(), sf::Color(ConsoleColors::WarningYellow));
 }
 
+void ConsoleWindow::print(const string& txt)
+{
+	m_promptBox->addLine(txt.c_str());
+}
+
 void ConsoleWindow::executeFile(const string& filename)
 {
 	blog(Logger::LOG_INFO, "Executing %s.", filename.c_str());
@@ -190,6 +199,8 @@ CCommand* ConsoleWindow::getCommandTable()
 		{ "reload",			nullptr,										reloadTable },
 		{ "dump",			nullptr,										dumpTable },
 		{ "delta",			&ConsoleWindow::handleDeltaCommand,				nullptr },
+		{ "lua",			&ConsoleWindow::handleLuaExec,					nullptr },
+		{ "luatest",		&ConsoleWindow::handleLuaSelfTest,				nullptr },
 		{ nullptr,          nullptr,										nullptr }
 	};
 
@@ -199,6 +210,24 @@ CCommand* ConsoleWindow::getCommandTable()
 bool ConsoleWindow::handleQuitCmd(const char* args, Commands* thisptr)
 {
 	sApplication->cancel();
+	return true;
+}
+
+bool ConsoleWindow::handleLuaExec(const char* args, Commands* thisptr)
+{
+	if (!args || !*args)
+	{
+		static_cast<ConsoleWindow*>(thisptr)->print("usage: lua <code>");
+		return true;
+	}
+
+	sLua->consoleExec(args);
+	return true;
+}
+
+bool ConsoleWindow::handleLuaSelfTest(const char* args, Commands* thisptr)
+{
+	sLua->selfTest();
 	return true;
 }
 
