@@ -73,7 +73,12 @@ local function buildLevel(f, fw, L, mirror, st)
 end
 
 local function buildName(f, fw, L, mirror, st)
-	st.name = fontString(f, mpoint(fw, L.name[1], mirror), L.name[2], 14, { 255, 255, 255 }, 'PalatinoBold')
+	-- sit just above the HP bar, left-aligned; anchored to the bar so it mirrors with the layout and never
+	-- runs onto the portrait (point-mirroring an absolute x put it off the right edge on the target frame).
+	st.name = f:CreateFontString()
+	st.name:SetFont('PalatinoBold'); st.name:SetFontSize(14)
+	st.name:SetTextColor(255, 255, 255, 255)
+	st.name:SetPoint('BOTTOM', st.hp, 'TOP', 0, -14)
 end
 
 local function buildIcons(f, fw, L, mirror, show, st)
