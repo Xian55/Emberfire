@@ -181,6 +181,7 @@ CCommand* ConsoleWindow::getCommandTable()
 	static CCommand reloadTable[] =
 	{
 		{ "contentmgr",		&ConsoleWindow::handleReloadContentMgr,			nullptr },
+		{ "addons",			&ConsoleWindow::handleReloadAddons,				nullptr },
 		{ nullptr,          nullptr,										nullptr }
 	};
 
@@ -228,6 +229,13 @@ bool ConsoleWindow::handleLuaExec(const char* args, Commands* thisptr)
 bool ConsoleWindow::handleLuaSelfTest(const char* args, Commands* thisptr)
 {
 	sLua->selfTest();
+	return true;
+}
+
+bool ConsoleWindow::handleReloadAddons(const char* args, Commands* thisptr)
+{
+	sLua->requestReload();
+	static_cast<ConsoleWindow*>(thisptr)->print("addon reload queued");
 	return true;
 }
 

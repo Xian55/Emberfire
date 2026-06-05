@@ -98,6 +98,7 @@ class LuaFrameManager : public RenderObjectHolder
 		void setText(int handle, const std::string& text);
 		void setTexture(int handle, const std::string& textureName);
 		void show(int handle, bool shown);
+		void clearAll();   // destroy every Lua frame + reset the handle registry
 		bool valid(int handle) const { return lookup(handle) != nullptr; }
 
 		RenderObject* lookup(int handle) const;

@@ -51,6 +51,7 @@ class ConsoleWindow : public ExpandableWindow, protected Commands
 		static bool handleDeltaCommand(const char* args, Commands* thisptr);
 		static bool handleLuaExec(const char* args, Commands* thisptr);
 		static bool handleLuaSelfTest(const char* args, Commands* thisptr);
+		static bool handleReloadAddons(const char* args, Commands* thisptr);
 
 	private:
 		CCommand* getCommandTable();

@@ -294,6 +294,13 @@ void LuaFrameManager::show(int handle, bool shown)
 		o->setHidden(!shown);
 }
 
+void LuaFrameManager::clearAll()
+{
+	clearNow();              // remove + destroy all child render objects (RenderObjectHolder)
+	m_objects.clear();
+	m_nextHandle = 100000;
+}
+
 // ---------------------------------------------------------------- LuaUI:: (sol-free backend)
 
 namespace LuaUI
@@ -326,6 +333,12 @@ namespace LuaUI
 	{
 		auto* m = LuaFrameManager::instance();
 		return m ? m->popClickedHandle() : 0;
+	}
+
+	void clearAllFrames()
+	{
+		if (auto* m = LuaFrameManager::instance())
+			m->clearAll();
 	}
 
 	void setPoint(int handle, int point, int relHandle, int relPoint, float xOfs, float yOfs)

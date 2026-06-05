@@ -10,6 +10,7 @@
 #include "Connector.h"
 #include "Text.h"
 #include "World.h"
+#include "lua/LuaEngine.h"
 #include "ContextMenu.h"
 #include "GuildRoster.h"
 #include "ClientPlayer.h"
@@ -490,6 +491,13 @@ void GameChat::printHelp()
 
 bool GameChat::processServerCommand(string enteredTxt)
 {
+	if (enteredTxt.find("/reloadui") == 0 || enteredTxt.find("/reload") == 0)
+	{
+		sLua->requestReload();
+		recvMsg("Reloading addons...", "", ChatDefines::Channels::System);
+		return true;
+	}
+
 	if (enteredTxt.find("/mall") == 0)
 	{
 		m_muteAllChate = true;

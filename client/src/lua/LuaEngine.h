@@ -37,6 +37,14 @@ class LuaEngine
 		// on (re)create/destroy so stale handles from a previous World don't linger or collide.
 		void clearFrames();
 
+		// Addon layer (M5). loadAddons: enumerate addons/<Name>/, parse .toc, run each in a sandboxed
+		// per-addon env (SavedVariables injected). saveAddons: persist every addon's SavedVariables table.
+		// reloadAddons: save -> tear down frames+handlers -> reload from disk (hot reload, /reload).
+		void loadAddons();
+		void saveAddons();
+		void reloadAddons();
+		void requestReload();   // defer a reload to the next frame boundary (/reload command)
+
 		// M1 sandbox proof: asserts io/os.execute/require/load/dofile/debug/package absent, safe libs present,
 		// and that an infinite loop is killed by the watchdog without hanging the client.
 		void selfTest();

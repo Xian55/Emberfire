@@ -23,6 +23,7 @@ namespace LuaUI
 	void setText(int handle, const std::string& text);
 	void setTexture(int handle, const std::string& textureName);
 	void show(int handle, bool shown);
+	void clearAllFrames();   // destroy every Lua-created frame (used by /reload)
 
 	bool valid(int handle);
 

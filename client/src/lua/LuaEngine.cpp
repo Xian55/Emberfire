@@ -20,9 +20,13 @@
 #include <map>
 #include <set>
 #include <vector>
+#include <string>
 #include <ctime>
 #include <cstdlib>
 #include <cassert>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 namespace
 {
@@ -45,6 +49,17 @@ namespace
 		if (p == "BOTTOMRIGHT") return LuaUI::BottomRight;
 		return LuaUI::TopLeft;
 	}
+
+	// A loaded addon: its sandbox env + metadata from the .toc.
+	struct AddonInfo
+	{
+		std::string name;
+		std::string savedVar;                 // ## SavedVariables: <name>  (empty if none)
+		std::vector<std::string> files;       // ordered .lua files
+		bool enabled = true;
+		bool broken  = false;
+		sol::environment env;                 // per-addon _ENV (falls back to the shared sandbox)
+	};
 }
 
 // All sol2 / Lua state lives here so it never leaks into the header.
@@ -61,6 +76,8 @@ struct LuaEngineImpl
 	std::map<int, sol::protected_function> onEvent;      // handle -> OnEvent(self, event, arg)
 	std::map<std::string, std::set<int>>   eventSubs;    // eventName -> subscribed handles
 
+	std::vector<AddonInfo> addons;                       // loaded addons (M5)
+
 	size_t memUsed = 0;
 	size_t memCap  = kMemCap;
 
@@ -69,6 +86,7 @@ struct LuaEngineImpl
 	long long instrBudget = kInstrBudget;
 
 	std::thread::id mainThreadId;
+	bool reloadRequested = false;        // /reload sets this; onFrame performs it at a frame boundary
 };
 
 // --- custom allocator: enforce a global memory cap (refusing => Lua raises "not enough memory") ---
@@ -167,6 +185,267 @@ void LuaEngine::clearFrames()
 	m_impl->onClick.clear();
 	m_impl->onEvent.clear();
 	m_impl->eventSubs.clear();
+}
+
+// ---------------------------------------------------------------- addon loader (M5)
+
+namespace
+{
+	bool readWholeFile(const std::filesystem::path& p, std::string& out)
+	{
+		std::ifstream f(p, std::ios::binary);
+		if (!f) return false;
+		std::ostringstream ss;
+		ss << f.rdbuf();
+		out = ss.str();
+		return true;
+	}
+
+	std::string trimWs(const std::string& s)
+	{
+		const size_t a = s.find_first_not_of(" \t\r\n");
+		if (a == std::string::npos) return "";
+		const size_t b = s.find_last_not_of(" \t\r\n");
+		return s.substr(a, b - a + 1);
+	}
+
+	// .toc = "## Key: Value" metadata lines + bare lines = ordered .lua files.
+	bool parseToc(const std::filesystem::path& tocPath, AddonInfo& info)
+	{
+		std::string content;
+		if (!readWholeFile(tocPath, content)) return false;
+
+		std::istringstream in(content);
+		std::string line;
+		while (std::getline(in, line))
+		{
+			const std::string t = trimWs(line);
+			if (t.empty()) continue;
+
+			if (t.rfind("##", 0) == 0)
+			{
+				const std::string rest = trimWs(t.substr(2));
+				const size_t colon = rest.find(':');
+				if (colon == std::string::npos) continue;
+				const std::string key = trimWs(rest.substr(0, colon));
+				const std::string val = trimWs(rest.substr(colon + 1));
+				if (key == "SavedVariables") info.savedVar = val;
+				else if (key == "Enabled")   info.enabled  = !(val == "0" || val == "false");
+				// Title / Version / Dependencies: ignored in v1
+			}
+			else if (t[0] != '#')
+			{
+				info.files.push_back(t);
+			}
+		}
+		return true;
+	}
+
+	std::string luaQuote(const std::string& s)
+	{
+		std::string out = "\"";
+		for (char c : s)
+		{
+			switch (c)
+			{
+				case '"':  out += "\\\""; break;
+				case '\\': out += "\\\\"; break;
+				case '\n': out += "\\n";  break;
+				case '\r': out += "\\r";  break;
+				case '\t': out += "\\t";  break;
+				default:   out += c;      break;
+			}
+		}
+		out += "\"";
+		return out;
+	}
+
+	void serializeValue(const sol::object& v, std::ostream& os, int depth);
+
+	void serializeTable(const sol::table& t, std::ostream& os, int depth)
+	{
+		if (depth > 16) { os << "nil"; return; }   // cycle / over-deep guard
+		os << "{";
+		bool first = true;
+		for (const auto& kv : t)
+		{
+			const sol::object key = kv.first;
+			const sol::object val = kv.second;
+			const sol::type vt = val.get_type();
+			if (vt == sol::type::function || vt == sol::type::userdata || vt == sol::type::lightuserdata || vt == sol::type::thread)
+				continue;
+			if (!first) os << ",";
+			first = false;
+			if (key.get_type() == sol::type::string)
+				os << "[" << luaQuote(key.as<std::string>()) << "]=";
+			else if (key.get_type() == sol::type::number)
+				os << "[" << static_cast<long long>(key.as<double>()) << "]=";
+			else
+				continue;
+			serializeValue(val, os, depth);
+		}
+		os << "}";
+	}
+
+	void serializeValue(const sol::object& v, std::ostream& os, int depth)
+	{
+		switch (v.get_type())
+		{
+			case sol::type::string:  os << luaQuote(v.as<std::string>()); break;
+			case sol::type::number:
+			{
+				const double d = v.as<double>();
+				const long long i = static_cast<long long>(d);
+				if (static_cast<double>(i) == d) os << i; else os << d;
+				break;
+			}
+			case sol::type::boolean: os << (v.as<bool>() ? "true" : "false"); break;
+			case sol::type::table:   serializeTable(v.as<sol::table>(), os, depth + 1); break;
+			default:                 os << "nil"; break;
+		}
+	}
+
+	bool runChunkInEnv(LuaEngine* self, LuaEngineImpl* impl, const std::string& name, const std::string& src, sol::environment& env)
+	{
+		if (!src.empty() && static_cast<unsigned char>(src[0]) == 0x1B)
+		{ self->hostPrint("addon " + name + ": bytecode rejected"); return false; }
+
+		sol::state_view lua(impl->L);
+		sol::load_result chunk = lua.load_buffer(src.data(), src.size(), ("=" + name).c_str(), sol::load_mode::text);
+		if (!chunk.valid()) { sol::error e = chunk; self->hostPrint("addon " + name + " compile: " + e.what()); return false; }
+
+		sol::protected_function fn = chunk;
+		sol::set_environment(env, fn);
+
+		impl->instrArmed = true;
+		impl->instrCount = 0;
+		sol::protected_function_result r = fn();
+		impl->instrArmed = false;
+		if (!r.valid()) { sol::error e = r; self->hostPrint("addon " + name + ": " + e.what()); return false; }
+		return true;
+	}
+}
+
+void LuaEngine::loadAddons()
+{
+	if (!m_impl->L)
+		init();
+
+	m_impl->addons.clear();   // fresh load (re-entering the world reloads; save happens on leave/reload)
+
+	namespace fs = std::filesystem;
+	std::error_code ec;
+	const fs::path root = "addons";   // relative to the runtime cwd (the provisioned build/.../client dir)
+	if (!fs::is_directory(root, ec))
+		return;
+
+	sol::state_view lua(m_impl->L);
+
+	for (const auto& entry : fs::directory_iterator(root, ec))
+	{
+		if (!entry.is_directory())
+			continue;
+		const fs::path dir = entry.path();
+		const std::string name = dir.filename().string();
+
+		fs::path toc = dir / (name + ".toc");
+		if (!fs::exists(toc))
+			for (const auto& f : fs::directory_iterator(dir, ec))
+				if (f.path().extension() == ".toc") { toc = f.path(); break; }
+		if (!fs::exists(toc))
+			continue;
+
+		AddonInfo info;
+		info.name = name;
+		if (!parseToc(toc, info))
+			continue;
+		if (!info.enabled)
+		{
+			blog(Logger::LOG_INFO, "[lua] addon '%s' disabled", name.c_str());
+			continue;
+		}
+
+		// Per-addon env: reads fall through to the shared sandbox; the addon's own globals stay local.
+		info.env = sol::environment(lua, sol::create, m_impl->sandbox);
+		info.env["addon"] = lua.create_table_with("name", name);
+
+		// SavedVariables: load the declared table (or start empty) into the env.
+		if (!info.savedVar.empty())
+		{
+			sol::table sv = lua.create_table();
+			std::string svContent;
+			if (readWholeFile(dir / "SavedVariables.lua", svContent) && !svContent.empty())
+			{
+				sol::environment tmp(lua, sol::create, m_impl->sandbox);
+				if (runChunkInEnv(this, m_impl.get(), name + ":SV", svContent, tmp))
+				{
+					sol::object loaded = tmp[info.savedVar];
+					if (loaded.get_type() == sol::type::table)
+						sv = loaded.as<sol::table>();
+				}
+			}
+			info.env[info.savedVar] = sv;
+		}
+
+		bool ok = true;
+		for (const auto& file : info.files)
+		{
+			std::string src;
+			if (!readWholeFile(dir / file, src))
+			{
+				hostPrint("addon " + name + ": missing file " + file);
+				ok = false;
+				break;
+			}
+			if (!runChunkInEnv(this, m_impl.get(), name + "/" + file, src, info.env))
+			{
+				ok = false;   // broken addon: stop loading it, keep the others
+				break;
+			}
+		}
+
+		info.broken = !ok;
+		blog(Logger::LOG_INFO, "[lua] addon '%s' %s", name.c_str(), ok ? "loaded" : "DISABLED (error)");
+		m_impl->addons.push_back(std::move(info));
+	}
+
+	fire("ADDON_LOADED", "");
+	fire("PLAYER_LOGIN", "");
+}
+
+void LuaEngine::saveAddons()
+{
+	if (!m_impl->L)
+		return;
+
+	namespace fs = std::filesystem;
+	for (auto& a : m_impl->addons)
+	{
+		if (a.savedVar.empty() || a.broken)
+			continue;
+		sol::object v = a.env[a.savedVar];
+		if (v.get_type() != sol::type::table)
+			continue;
+
+		std::ostringstream os;
+		os << a.savedVar << " = ";
+		serializeTable(v.as<sol::table>(), os, 0);
+		os << "\n";
+
+		std::ofstream out(fs::path("addons") / a.name / "SavedVariables.lua", std::ios::binary | std::ios::trunc);
+		if (out)
+			out << os.str();
+	}
+}
+
+void LuaEngine::reloadAddons()
+{
+	saveAddons();
+	LuaUI::clearAllFrames();   // destroy Lua-created frames (manager side)
+	clearFrames();             // drop OnUpdate/OnClick/OnEvent handlers (engine side)
+	m_impl->addons.clear();    // release per-addon envs
+	loadAddons();
+	hostPrint("addons reloaded");
 }
 
 void LuaEngine::buildSandbox()
@@ -320,12 +599,24 @@ void LuaEngine::fire(const std::string& event, const std::string& arg)
 	}
 }
 
+void LuaEngine::requestReload()
+{
+	m_impl->reloadRequested = true;
+}
+
 void LuaEngine::onFrame(float dt)
 {
 	if (!m_impl->L)
 		return;
 
 	assert(std::this_thread::get_id() == m_impl->mainThreadId);
+
+	// Perform a requested /reload at this safe frame boundary (never mid-handler).
+	if (m_impl->reloadRequested)
+	{
+		m_impl->reloadRequested = false;
+		reloadAddons();
+	}
 
 	// OnUpdate(self, dt) for every frame that registered one (snapshot so handlers may mutate the set).
 	std::vector<std::pair<int, sol::protected_function>> updates(m_impl->onUpdate.begin(), m_impl->onUpdate.end());

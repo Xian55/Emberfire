@@ -10,6 +10,7 @@
 #include "Equipment.h"
 #include "Game.h"
 #include "lua/LuaFrameManager.h"
+#include "lua/LuaEngine.h"
 #include "ItemIcon.h"
 #include "SpellIcon.h"
 #include "GuildRoster.h"
@@ -179,12 +180,15 @@ World::World(Game& owner, const int id) :
 	// Lua addon layer: root holder for Lua-created frames. World is multi-input, so Lua frames coexist
 	// with the game UI and receive input; added late => high Z (renders above the game UI).
 	addRenderObject(make_shared<LuaFrameManager>(*this, Interface::LuaFrameRoot));
+	sLua->loadAddons();   // load addons/ now that the frame manager exists
 
 	//togglePanel(Interface::BankPanel);
 }
 
 World::~World()
 {
+	sLua->saveAddons();   // persist addon SavedVariables before leaving the world
+
 	if (sApplication->getWindow().isOpen())
 		sContentMgr->stopAmbience();
 }
