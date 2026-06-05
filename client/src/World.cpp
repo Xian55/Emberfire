@@ -11,6 +11,7 @@
 #include "Game.h"
 #include "lua/LuaFrameManager.h"
 #include "lua/LuaEngine.h"
+#include "lua/LuaEvents.h"
 #include "ItemIcon.h"
 #include "SpellIcon.h"
 #include "GuildRoster.h"
@@ -179,8 +180,9 @@ World::World(Game& owner, const int id) :
 
 	// Lua addon layer: root holder for Lua-created frames. World is multi-input, so Lua frames coexist
 	// with the game UI and receive input; added late => high Z (renders above the game UI).
+	// Note: the default UI + addons are loaded by Game::setStage AFTER this World is registered (so the
+	// Lua getters/commands can resolve currentWorld() during load), not here.
 	addRenderObject(make_shared<LuaFrameManager>(*this, Interface::LuaFrameRoot));
-	sLua->loadAddons();   // load addons/ now that the frame manager exists
 
 	//togglePanel(Interface::BankPanel);
 }
@@ -1745,6 +1747,8 @@ void World::setSelectedGuid(const int guid)
 		packet.m_guid = guid;
 		sConnector->sendPacket(packet.build(StlBuffer{}));
 	}
+
+	sLua->fire(LuaEvents::PLAYER_TARGET_CHANGED, "");
 }
 
 int World::getSelectedGuid() const

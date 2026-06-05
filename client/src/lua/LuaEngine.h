@@ -63,6 +63,7 @@ class LuaEngine
 
 		void buildSandbox();
 		void bindUI();        // registers CreateFrame + the Frame handle methods (M2)
+		void loadDefaultUI(); // loads the built-in ui/ default UI before addons
 
 		std::unique_ptr<LuaEngineImpl> m_impl;
 };

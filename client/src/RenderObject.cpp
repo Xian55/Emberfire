@@ -42,7 +42,7 @@ void RenderObject::attemptRender()
 
 	updateAnchoredPosition();
 
-	if (!isHidden())
+	if (!isHidden() && !m_forceHidden)
 	{
 		// The last object to call this function wins
 		if (m_mouseable && MouseableNode::isMousedOver(true))
@@ -80,7 +80,7 @@ bool RenderObject::isChildOf(RenderObject& obj)
 
 bool RenderObject::mayInput() const
 {
-	if (isHidden())
+	if (isHidden() || m_forceHidden)
 		return false;
 
 	RenderObject const* myself = this;

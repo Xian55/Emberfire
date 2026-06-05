@@ -11,6 +11,7 @@
 
 #include "LuaEngine.h"
 #include "LuaUI.h"           // sol-free handle boundary to the widget adapters
+#include "LuaEvents.h"       // single source of truth for fired event names
 #include "../../Logger.h"   // header-only blog(); no std/byte usage
 
 #include <string>
@@ -77,6 +78,7 @@ struct LuaEngineImpl
 	std::map<std::string, std::set<int>>   eventSubs;    // eventName -> subscribed handles
 
 	std::vector<AddonInfo> addons;                       // loaded addons (M5)
+	sol::environment       defaultUiEnv;                 // shared env for the built-in Lua default UI (ui/)
 
 	size_t memUsed = 0;
 	size_t memCap  = kMemCap;
@@ -173,8 +175,9 @@ void LuaEngine::shutdown()
 		return;
 
 	// Drop sol handles that reference L BEFORE closing the state.
-	m_impl->sandbox  = sol::environment();
-	m_impl->tostring = sol::protected_function();
+	m_impl->sandbox      = sol::environment();
+	m_impl->defaultUiEnv = sol::environment();
+	m_impl->tostring     = sol::protected_function();
 	lua_close(m_impl->L);
 	m_impl->L = nullptr;
 }
@@ -326,10 +329,46 @@ namespace
 	}
 }
 
+// The built-in default UI: a shipped Lua "FrameXML" in ui/, loaded BEFORE user addons in one shared env so
+// its files can share helpers. Absent ui/ => skip (the C++ HUD stays). Users override it (its frames are
+// globals an addon can Hide()) or disable it (remove ui/).
+void LuaEngine::loadDefaultUI()
+{
+	namespace fs = std::filesystem;
+	std::error_code ec;
+	const fs::path root = "ui";
+	const fs::path toc  = root / "EmberUI.toc";
+	if (!fs::is_directory(root, ec) || !fs::exists(toc))
+		return;
+
+	AddonInfo info;
+	info.name = "ui";
+	if (!parseToc(toc, info))
+		return;
+
+	sol::state_view lua(m_impl->L);
+	m_impl->defaultUiEnv = sol::environment(lua, sol::create, m_impl->sandbox);   // shared, falls back to sandbox
+
+	for (const auto& file : info.files)
+	{
+		std::string src;
+		if (!readWholeFile(root / file, src))
+		{
+			hostPrint("default UI: missing file " + file);
+			continue;
+		}
+		if (!runChunkInEnv(this, m_impl.get(), "ui/" + file, src, m_impl->defaultUiEnv))
+			break;   // a default-UI error stops loading the rest of it
+	}
+	blog(Logger::LOG_INFO, "[lua] default UI loaded");
+}
+
 void LuaEngine::loadAddons()
 {
 	if (!m_impl->L)
 		init();
+
+	loadDefaultUI();          // the built-in default UI loads first, so user addons can override it
 
 	m_impl->addons.clear();   // fresh load (re-entering the world reloads; save happens on leave/reload)
 
@@ -409,8 +448,8 @@ void LuaEngine::loadAddons()
 		m_impl->addons.push_back(std::move(info));
 	}
 
-	fire("ADDON_LOADED", "");
-	fire("PLAYER_LOGIN", "");
+	fire(LuaEvents::ADDON_LOADED, "");
+	fire(LuaEvents::PLAYER_LOGIN, "");
 }
 
 void LuaEngine::saveAddons()
@@ -580,10 +619,30 @@ void LuaEngine::bindUI()
 		return FrameHandle{ h };
 	};
 
-	// Game-state getters (M4).
+	// Game-state getters.
 	m_impl->sandbox["UnitHealth"]    = [](std::string token) { return LuaUI::unitHealth(token); };
 	m_impl->sandbox["UnitHealthMax"] = [](std::string token) { return LuaUI::unitHealthMax(token); };
 	m_impl->sandbox["UnitLevel"]     = [](std::string token) { return LuaUI::unitLevel(token); };
+	m_impl->sandbox["UnitPower"]     = [](std::string token) { return LuaUI::unitPower(token); };
+	m_impl->sandbox["UnitPowerMax"]  = [](std::string token) { return LuaUI::unitPowerMax(token); };
+	m_impl->sandbox["UnitName"]      = [](std::string token) { return LuaUI::unitName(token); };
+	m_impl->sandbox["UnitExists"]    = [](std::string token) { return LuaUI::unitExists(token); };
+	m_impl->sandbox["GetXP"]         = []() { return LuaUI::playerXP(); };
+	m_impl->sandbox["GetMaxXP"]      = []() { return LuaUI::playerMaxXP(); };
+
+	// Commands.
+	m_impl->sandbox["TargetUnit"]    = [](std::string token) { LuaUI::targetUnit(token); };
+	m_impl->sandbox["ClearTarget"]   = []() { LuaUI::clearTarget(); };
+
+	// Hide/show a C++ window that a Lua view replaces.
+	m_impl->sandbox["SetGameFrameShown"] = [](std::string name, bool shown) { LuaUI::setGameFrameShown(name, shown); };
+
+	// Expose the event names to Lua as Events.UNIT_HEALTH etc. (same single source as the C++ fire sites).
+	sol::table events = lua.create_table();
+#define X(name) events[#name] = std::string(LuaEvents::name);
+	LUA_EVENT_LIST(X)
+#undef X
+	m_impl->sandbox["Events"] = events;
 }
 
 void LuaEngine::fire(const std::string& event, const std::string& arg)

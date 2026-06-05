@@ -32,8 +32,21 @@ namespace LuaUI
 
 	bool valid(int handle);
 
-	// ---- game-state getters exposed to Lua (M4). token: "player" (others later). 0 if unavailable. ----
+	// ---- game-state getters exposed to Lua. token: "player" | "target". 0/"" if unavailable. ----
 	int unitHealth(const std::string& token);
 	int unitHealthMax(const std::string& token);
 	int unitLevel(const std::string& token);
+	int unitPower(const std::string& token);
+	int unitPowerMax(const std::string& token);
+	std::string unitName(const std::string& token);
+	bool unitExists(const std::string& token);
+	int playerXP();
+	int playerMaxXP();
+
+	// ---- commands ----
+	void targetUnit(const std::string& token);
+	void clearTarget();
+
+	// ---- hide/show the C++ windows a Lua view replaces ("PlayerFrame"|"TargetFrame"|"XPBar") ----
+	void setGameFrameShown(const std::string& name, bool shown);
 }

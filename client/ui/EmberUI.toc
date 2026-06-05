@@ -1,0 +1,5 @@
+## Title: Emberfire Default UI
+## Notes: Built-in FrameXML-style HUD written in Lua (player/target unit frames + XP bar).
+EmberUI.lua
+UnitFrames.lua
+XPBar.lua

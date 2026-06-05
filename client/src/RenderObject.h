@@ -23,6 +23,11 @@ class RenderObject : public MouseableNode, public AnchoredPosition
 
 		virtual void resetActivated() { }
 		virtual void setHidden(const bool b) { m_isHidden = b; }
+		// Force-hide overrides the object's own setHidden() bookkeeping: a window that
+		// re-shows itself every frame (e.g. UnitFrame when it has a unit) stays suppressed.
+		// Used by the Lua UI layer to retire a C++ window in favour of a Lua replacement.
+		void setForceHidden(const bool b) { m_forceHidden = b; }
+		bool isForceHidden() const { return m_forceHidden; }
 		virtual void notifyCtxMenuClicked(const int id, const string& lineClicked) {}
 
 		virtual bool isMousedOver(const bool useRealPosition = false) override;
@@ -48,6 +53,7 @@ class RenderObject : public MouseableNode, public AnchoredPosition
 		int m_lastInputFrame{0};
 
 		bool m_isHidden;
+		bool m_forceHidden{false};
 		bool m_mouseable;
 
 		RenderObject* m_owner;

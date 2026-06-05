@@ -11,6 +11,7 @@
 #include "World.h"
 #include "ClientPlayer.h"
 #include "lua/LuaEngine.h"
+#include "lua/LuaEvents.h"
 #include "Inventory.h"
 #include "ItemIcon.h"
 #include "Equipment.h"
@@ -216,7 +217,10 @@ void Game::setStage(const Ro stage, const bool overrideDuplicate /*= false*/)
 	else if (stage == RoCharacterCreation)
 		addRenderObject(make_shared<CharacterCreation>(*this, m_stage));
 	else if (stage == RoWorld)
+	{
 		addRenderObject(make_shared<World>(*this, m_stage));
+		sLua->loadAddons();   // World (+ its Lua frame manager) is now registered, so currentWorld() resolves
+	}
 	else
 		ASSERT(0);
 
@@ -887,6 +891,8 @@ void Game::processPacket_Server_ExpNotify(StlBuffer& data)
 		sContentMgr->queueSound(SfxId::AlertLevelup, 100);
 		sContentMgr->queueSound(SfxId::AlertMissionReward, 400);
 	}
+
+	sLua->fire(LuaEvents::PLAYER_XP_UPDATE, "");
 }
 
 void Game::processPacket_Server_SpentGold(StlBuffer& data)
@@ -1868,10 +1874,29 @@ void Game::processPacket_Server_ObjectVariable(StlBuffer& data)
 	{
 		object->setVariable(static_cast<ObjDefines::Variable>(pk.m_variableId), pk.m_value);
 
-		// Lua addon layer: fire UNIT_HEALTH when the local player's health changes.
-		if (world->myself() && pk.m_guid == world->myself()->getGuid()
-			&& static_cast<ObjDefines::Variable>(pk.m_variableId) == ObjDefines::Variable::Health)
-			sLua->fire("UNIT_HEALTH", "player");
+		// Lua addon layer: fire the matching unit event for player/target variable changes.
+		const bool isPlayer = world->myself() && pk.m_guid == world->myself()->getGuid();
+		const char* token = isPlayer ? "player" : (pk.m_guid == world->getSelectedGuid() ? "target" : nullptr);
+
+		if (token)
+		{
+			const int maxPowerVar = static_cast<int>(ObjDefines::Variable::StatsStart) + static_cast<int>(UnitDefines::Stat::Mana);
+			const char* ev = nullptr;
+			switch (static_cast<ObjDefines::Variable>(pk.m_variableId))
+			{
+				case ObjDefines::Variable::Health:    ev = LuaEvents::UNIT_HEALTH;    break;
+				case ObjDefines::Variable::MaxHealth: ev = LuaEvents::UNIT_MAXHEALTH; break;
+				case ObjDefines::Variable::Mana:      ev = LuaEvents::UNIT_POWER;     break;
+				case ObjDefines::Variable::Level:     ev = LuaEvents::UNIT_LEVEL;     break;
+				default: if (pk.m_variableId == maxPowerVar) ev = LuaEvents::UNIT_MAXPOWER; break;
+			}
+			if (ev)
+				sLua->fire(ev, token);
+		}
+
+		// XP progression (local player only).
+		if (isPlayer && static_cast<ObjDefines::Variable>(pk.m_variableId) == ObjDefines::Variable::Progression)
+			sLua->fire(LuaEvents::PLAYER_XP_UPDATE, "");
 	}
 }
 

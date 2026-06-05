@@ -10,6 +10,7 @@
 #include "Game.h"
 #include "World.h"
 #include "ClientPlayer.h"
+#include "..\..\SqlConnector\QueryResult.h"
 
 #include <assert.h>
 
@@ -472,17 +473,60 @@ namespace LuaUI
 		return dynamic_pointer_cast<World>(game->getRenderObject(Game::RoWorld)).get();
 	}
 
-	static ClientPlayer* resolveUnit(const std::string& token)
+	static ClientUnit* resolveUnit(const std::string& token)
 	{
 		auto* w = currentWorld();
 		if (!w)
 			return nullptr;
 		if (token == "player")
 			return w->myself();
-		return nullptr;   // "target"/party tokens: later
+		if (token == "target")
+			return w->selectedUnit();
+		return nullptr;
 	}
 
 	int unitHealth(const std::string& token)    { auto* u = resolveUnit(token); return u ? u->getHealth() : 0; }
 	int unitHealthMax(const std::string& token) { auto* u = resolveUnit(token); return u ? u->getMaxHealth() : 0; }
 	int unitLevel(const std::string& token)     { auto* u = resolveUnit(token); return u ? u->getLevel() : 0; }
+	int unitPower(const std::string& token)     { auto* u = resolveUnit(token); return u ? u->getMana() : 0; }
+	int unitPowerMax(const std::string& token)  { auto* u = resolveUnit(token); return u ? u->getMaxMana() : 0; }
+	std::string unitName(const std::string& token) { auto* u = resolveUnit(token); return u ? u->getName() : std::string(); }
+	bool unitExists(const std::string& token)   { return resolveUnit(token) != nullptr; }
+
+	int playerXP()
+	{
+		auto* w = currentWorld();
+		return (w && w->myself()) ? w->myself()->getVariable(ObjDefines::Variable::Progression) : 0;
+	}
+
+	int playerMaxXP()
+	{
+		auto* w = currentWorld();
+		if (!w || !w->myself())
+			return 0;
+		const int req = atoi(sContentMgr->db("player_exp_levels").data(w->myself()->getLevel() + 1, "exp").c_str());
+		return req > 0 ? req : 0;
+	}
+
+	void targetUnit(const std::string& token)
+	{
+		auto* w = currentWorld();
+		if (!w) return;
+		auto* u = resolveUnit(token);
+		w->setSelectedGuid(u ? u->getGuid() : 0);
+	}
+
+	void clearTarget() { if (auto* w = currentWorld()) w->setSelectedGuid(0); }
+
+	void setGameFrameShown(const std::string& name, bool shown)
+	{
+		auto* w = currentWorld();
+		if (!w) return;
+		const int id = (name == "PlayerFrame") ? World::PlayerUnitFrame
+		             : (name == "TargetFrame") ? World::TargetUnitFrame
+		             : (name == "XPBar")       ? World::ToolbarXpObj : 0;
+		if (!id) return;
+		if (auto ro = w->getRenderObject(id))
+			ro->setForceHidden(!shown);   // survives the window re-showing itself each frame
+	}
 }
