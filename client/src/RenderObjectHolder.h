@@ -15,6 +15,9 @@ class RenderObjectHolder : public RenderObject
 		virtual ~RenderObjectHolder();
 
 		void requestMoveToTop(const int id) { m_queueToBringToTop = id; }
+		void raiseChild(const int id);   // bump child above all siblings (WoW Raise)
+		void lowerChild(const int id);   // drop child below all siblings (WoW Lower)
+		void sortByZLevel();             // stable-reorder children by getZLevel() (low=bottom, high=top)
 		void setMultiInput(const bool v) { m_multiInput = v; }
 		void addRenderObject(shared_ptr<RenderObject> ro);
 		void setConfirmBoxDone(const int id);

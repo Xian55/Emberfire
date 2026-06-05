@@ -1,5 +1,9 @@
 ## Title: Emberfire Default UI
-## Notes: Built-in FrameXML-style HUD written in Lua (player/target unit frames + XP bar).
+## Notes: Built-in FrameXML-style UI written in Lua (login screen + HUD).
 EmberUI.lua
+LoginScreen.lua
 UnitFrames.lua
 XPBar.lua
+ZoneNotification.lua
+Popups.lua
+LoadingScreen.lua

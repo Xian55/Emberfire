@@ -138,43 +138,22 @@ void Login::render()
 
 	if (m_loginAttemptAt && ::clock() > m_loginAttemptAt)
 	{
-		string userStr = dynamic_pointer_cast<PromptBox>(getRenderObject(Interface::UserPrompt))->getContent();
-		string passwordStr = dynamic_pointer_cast<PromptBox>(getRenderObject(Interface::PassPrompt))->getContent();
+		const string userStr = dynamic_pointer_cast<PromptBox>(getRenderObject(Interface::UserPrompt))->getContent();
+		const string passwordStr = dynamic_pointer_cast<PromptBox>(getRenderObject(Interface::PassPrompt))->getContent();
+		const bool remember = dynamic_pointer_cast<TickBox>(getRenderObject(Interface::RememberTickbox))->ticked();
+
 		string error;
-		string token;
-
-		// Auth host/port/scheme from config ([Auth] Host/Port/Secure); defaults to local node auth 127.0.0.1:80 HTTP.
-		std::wstring authHost = Util::toUtf16(sConfig->getString("Auth", "Host", "127.0.0.1"));
-		if (!sConnector->attemptAuth(authHost.c_str(), L"/auth/auth.php", userStr, passwordStr, token, error))
+		if (!performLogin(userStr, passwordStr, remember, error))
 		{
-			sApplication->spawnTimedPopup("Authentication failed: " + error, 3.0f);
+			if (error.rfind("Authentication failed", 0) == 0)
+				sApplication->spawnTimedPopup(error, 3.0f);
+			else
+				sApplication->spawnPopup(error, ConfirmMessageBox::ConfirmBox_Ok, 0);
 		}
-
 		else
 		{
-			// We now have a temporary token, try to connect to the game server with it if that passed
-			// Grace period for the server
-			if (const int graceMs = sConfig->getInt("Debug", "ServerGraceMs", 0)) Sleep(static_cast<DWORD>(graceMs)); // was hard Sleep(2000); default 0 = no artificial login wait (bump if a local token race appears)
-
-			if (!sConnector->connect())
-			{
-				sApplication->spawnPopup("Failed to reach game server", ConfirmMessageBox::ConfirmBox_Ok, 0);
-			}
-			else
-			{
-				GP_Client_Authenticate packet;
-				packet.m_userToken = token;
-				packet.m_build = DYMST_VERSION;
-				packet.m_fingerprint = sApplication->getMachineFingerprint();
-
-				sConnector->sendPacket(packet.build(StlBuffer{}));
-
-				if (dynamic_pointer_cast<TickBox>(getRenderObject(Interface::RememberTickbox))->ticked())
-					sConfig->setString("UI", "DefaultLogin", userStr.c_str());
-
-				sApplication->clearPopups();
-				sApplication->spawnTimedPopup("Connecting...", 1.0f);
-			}
+			sApplication->clearPopups();
+			sApplication->spawnTimedPopup("Connecting...", 1.0f);
 		}
 
 		m_loginAttemptAt = 0;
@@ -185,4 +164,38 @@ void Login::render()
 	m_background->renderStretch({ 0, 0 }, { sApplication->sWf(), sApplication->sHf() });
 	m_backgroundGui->render(sf::Vector2f(m_topLeftCorner));
 	__super::render();
+}
+
+bool Login::performLogin(const string& userStr, const string& passwordStr, const bool remember, string& errorOut)
+{
+	string token;
+	string error;
+
+	// Auth host/port/scheme from config ([Auth] Host/Port/Secure); defaults to local node auth 127.0.0.1:80 HTTP.
+	std::wstring authHost = Util::toUtf16(sConfig->getString("Auth", "Host", "127.0.0.1"));
+	if (!sConnector->attemptAuth(authHost.c_str(), L"/auth/auth.php", userStr, passwordStr, token, error))
+	{
+		errorOut = "Authentication failed: " + error;
+		return false;
+	}
+
+	// We now have a temporary token; connect to the game server with it. Optional grace period for the server.
+	if (const int graceMs = sConfig->getInt("Debug", "ServerGraceMs", 0)) Sleep(static_cast<DWORD>(graceMs));
+
+	if (!sConnector->connect())
+	{
+		errorOut = "Failed to reach game server";
+		return false;
+	}
+
+	GP_Client_Authenticate packet;
+	packet.m_userToken = token;
+	packet.m_build = DYMST_VERSION;
+	packet.m_fingerprint = sApplication->getMachineFingerprint();
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+
+	if (remember)
+		sConfig->setString("UI", "DefaultLogin", userStr.c_str());
+
+	return true;
 }

@@ -6,6 +6,7 @@
 
 class Sprite;
 class Text;
+class PromptBox;
 
 // ---- Lua-created widget adapters (each is a RenderObject in the existing holder tree) ----
 
@@ -32,6 +33,7 @@ class LuaTexture : public RenderObject
 
 		void setTexture(const std::string& textureName);
 		void setScaleSize(const int w, const int h);
+		void setColor(const int r, const int g, const int b, const int a);   // tint + alpha
 		sf::Vector2i naturalSize() const;
 
 	private:
@@ -50,6 +52,9 @@ class LuaFontString : public RenderObject
 		LuaFontString(RenderObject& owner, const int id);
 
 		void setText(const std::string& str);
+		void setFontSize(const int n);
+		void setColor(const int r, const int g, const int b, const int a);
+		void setFont(const std::string& fontName);   // "Ringbearer", "Palatino", ...
 		sf::Vector2i textSize() const;
 
 	private:
@@ -68,6 +73,7 @@ class LuaButton : public RenderObjectHolder
 		LuaButton(RenderObject& owner, const int id);
 
 		void setTexture(const std::string& textureName);
+		void setHoverTexture(const std::string& textureName);
 		void setHitSize(const int w, const int h) { m_w = w; m_h = h; }
 		sf::Vector2i hitSize() const { return { m_w, m_h }; }
 		bool popClicked();
@@ -77,6 +83,7 @@ class LuaButton : public RenderObjectHolder
 		void render() final;
 
 		shared_ptr<Sprite> m_sprite;
+		shared_ptr<Sprite> m_hoverSprite;
 		int m_w{0};
 		int m_h{0};
 		bool m_clicked{false};
@@ -107,6 +114,36 @@ class LuaStatusBar : public RenderObject
 		float m_value{0.f};
 };
 
+// A single-line text input: wraps a C++ PromptBox child. Click focuses it (setCurrentPrompt),
+// type to edit, Enter submits (drained into OnEnter). Password masking + max length supported.
+class LuaEditBox : public RenderObjectHolder
+{
+	public:
+		LuaEditBox(RenderObject& owner, const int id);
+		~LuaEditBox();
+
+		void setText(const std::string& str);
+		std::string getText() const;
+		void setMaxLetters(const int n);
+		void setPassword(const bool masked);
+		void setNumeric(const bool v);
+		void setFontSize(const int n);
+		void setTextColor(const int r, const int g, const int b, const int a);
+		void setBoxSize(const int w, const int h);
+		sf::Vector2i boxSize() const { return { m_w, m_h }; }
+		bool popSubmitted();
+
+	private:
+		void input() final;
+		void render() final;
+
+		shared_ptr<PromptBox> m_prompt;
+		sf::Color m_textColor{ 220, 194, 171, 255 };   // base text color; brightened on hover
+		int m_w{0};
+		int m_h{0};
+		bool m_submitted{false};
+};
+
 // ---- Manager: root holder for all Lua frames + the handle registry behind LuaUI:: ----
 class LuaFrameManager : public RenderObjectHolder
 {
@@ -120,7 +157,17 @@ class LuaFrameManager : public RenderObjectHolder
 		int  createStatusBar(int parentHandle);
 		int  createTexture(int frameHandle);
 		int  createFontString(int frameHandle);
+		int  createEditBox(int parentHandle);
 		int  popClickedHandle();
+		int  popSubmittedHandle();
+		std::string getText(int handle) const;
+		void setEditBoxPassword(int handle, bool masked);
+		void setEditBoxMaxLen(int handle, int n);
+		void setEditBoxNumeric(int handle, bool v);
+		void setEditBoxFontSize(int handle, int n);
+		void setEditBoxColor(int handle, int r, int g, int b, int a);
+		void setVertexColor(int handle, int r, int g, int b, int a);   // texture tint + alpha
+		void setFont(int handle, const std::string& fontName);          // fontstring font face
 		void setMinMax(int handle, float mn, float mx);
 		void setValue(int handle, float v);
 		void setColor(int handle, int r, int g, int b, int a);
@@ -128,6 +175,7 @@ class LuaFrameManager : public RenderObjectHolder
 		void setSize(int handle, float w, float h);
 		void setText(int handle, const std::string& text);
 		void setTexture(int handle, const std::string& textureName);
+		void setHoverTexture(int handle, const std::string& textureName);
 		void show(int handle, bool shown);
 		void clearAll();   // destroy every Lua frame + reset the handle registry
 		bool valid(int handle) const { return lookup(handle) != nullptr; }
@@ -135,8 +183,11 @@ class LuaFrameManager : public RenderObjectHolder
 		RenderObject* lookup(int handle) const;
 
 		static LuaFrameManager* instance() { return s_instance; }
+		static void debugDumpBounds();   // log every visible widget's type/pos/size (layout debug)
 
 	private:
+		void dumpBounds() const;
+
 		// Attach `child` under `parent` (anchored to parent's top-left + offset), register its handle.
 		void attachChild(RenderObjectHolder& parent, shared_ptr<RenderObject> child, int handle);
 		sf::Vector2i sizeOf(RenderObject* o) const;

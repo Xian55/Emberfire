@@ -17,7 +17,11 @@ class Game : public RenderObjectHolder
 			RoWorld,
 			RoOptions,
 
-			CtxMenu_DeleteCharacter
+			CtxMenu_DeleteCharacter,
+
+			// Persistent Lua UI frame manager — a non-stage child that survives setStage (which only
+			// destroys the active stage id), so the Lua UI covers every screen (login..world).
+			RoLuaRoot
 		};
 
 	public:

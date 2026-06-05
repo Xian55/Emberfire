@@ -7,6 +7,7 @@
 #include "ContextMenu.h"
 
 #include <assert.h>
+#include <algorithm>
 
 RenderObjectHolder::RenderObjectHolder(RenderObject* owner, const int id /*= 0*/) :
 	RenderObject(owner, id),
@@ -156,6 +157,39 @@ void RenderObjectHolder::moveObjectToTop(const int id)
 	shared_ptr<RenderObject> obj = *itr;
 	m_renderObjects.erase(itr);
 	m_renderObjects.push_back(obj);
+}
+
+void RenderObjectHolder::sortByZLevel()
+{
+	// Stable so siblings with equal level keep their creation/insertion order. Low level = bottom.
+	std::stable_sort(m_renderObjects.begin(), m_renderObjects.end(),
+		[](const shared_ptr<RenderObject>& a, const shared_ptr<RenderObject>& b) {
+			return a->getZLevel() < b->getZLevel();
+		});
+}
+
+void RenderObjectHolder::raiseChild(const int id)
+{
+	auto child = getRenderObject(id);
+	if (!child)
+		return;
+	int top = child->getZLevel();
+	for (auto& o : m_renderObjects)
+		top = max(top, o->getZLevel());
+	child->setZLevel(top + 1);
+	sortByZLevel();
+}
+
+void RenderObjectHolder::lowerChild(const int id)
+{
+	auto child = getRenderObject(id);
+	if (!child)
+		return;
+	int bottom = child->getZLevel();
+	for (auto& o : m_renderObjects)
+		bottom = min(bottom, o->getZLevel());
+	child->setZLevel(bottom - 1);
+	sortByZLevel();
 }
 
 bool RenderObjectHolder::isMousedOver(const bool useRealPosition /*= false*/)

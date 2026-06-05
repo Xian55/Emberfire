@@ -143,6 +143,7 @@ class World : public BuffDebuffRenderer, public CooldownHolder
 		                     std::vector<std::pair<std::uint8_t, std::int32_t>> vars;
 		                     std::vector<PendingEquip> equipment; };
 		static PendingSelf s_pendingSelf;
+		static clock_t s_enterStartClock;   // set when EnterWorld is sent; used for entry-timing logs
 		void setGrabbedIcon(shared_ptr<GameIcon> icon);
 		void setSelectedGuid(const int guid);
 		void addWorldSpellAnimation(shared_ptr<WorldSpellAnimation> ptr);
@@ -243,6 +244,7 @@ class World : public BuffDebuffRenderer, public CooldownHolder
 		int m_partyLeaderGuid{0};
 
 		float m_introAlpha;
+		clock_t m_introEndClock{0};   // real-time deadline for "world ready" -> PLAYER_LOGIN (FPS-independent)
 
 		bool m_emptyToolbars{false};
 		bool m_recalcObjectives{false};

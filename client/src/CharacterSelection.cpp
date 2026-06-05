@@ -228,6 +228,7 @@ void CharacterSelection::input()
 					GP_Client_EnterWorld packet;
 					packet.m_playerGuid = m_chosenCharacter.guid;
 					sConnector->sendPacket(packet.build(StlBuffer{}));
+					World::s_enterStartClock = std::clock();   // entry-timing anchor
 
 					// Stash the entering character so World::setController can spawn the
 					// ClientPlayer (NewWorld carries pos+vars but not class/gender/portrait).
@@ -278,6 +279,7 @@ void CharacterSelection::render()
 		GP_Client_EnterWorld packet;
 		packet.m_playerGuid = m_chosenCharacter.guid;
 		sConnector->sendPacket(packet.build(StlBuffer{}));
+		World::s_enterStartClock = std::clock();   // entry-timing anchor
 		World::s_pendingSelf = {};
 		World::s_pendingSelf.guid     = m_chosenCharacter.guid;
 		World::s_pendingSelf.classId  = static_cast<int>(m_chosenCharacter.classId);

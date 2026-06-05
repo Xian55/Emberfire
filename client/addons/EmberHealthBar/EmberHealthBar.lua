@@ -43,5 +43,17 @@ f:SetScript('OnUpdate', function(self, dt)
 	if acc >= 0.5 then acc = 0; refresh() end
 end)
 
-refresh()
+-- Only show once the player is actually in the world — there is no player on the login / character
+-- screens or during the loading screen, so the bar would otherwise sit at "HP 0 / 1". Show on
+-- PLAYER_LOGIN (loading done), hide on the glue stages.
+f:Hide()
+local stage = CreateFrame('Frame', nil, nil)
+stage:SetScript('OnEvent', function(_, event)
+	if event == Events.PLAYER_LOGIN then f:Show(); refresh() else f:Hide() end
+end)
+stage:RegisterEvent(Events.PLAYER_LOGIN)
+stage:RegisterEvent(Events.LOGIN_SHOWN)
+stage:RegisterEvent(Events.CHARSELECT_SHOWN)
+stage:RegisterEvent(Events.CHARCREATE_SHOWN)
+
 print('EmberHealthBar loaded')

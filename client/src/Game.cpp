@@ -12,6 +12,7 @@
 #include "ClientPlayer.h"
 #include "lua/LuaEngine.h"
 #include "lua/LuaEvents.h"
+#include "lua/LuaFrameManager.h"
 #include "Inventory.h"
 #include "ItemIcon.h"
 #include "Equipment.h"
@@ -62,7 +63,13 @@ Game::Game(RenderObjectHolder& owner, const int id) :
 	m_serverTime(0),
 	m_guildInviteId(0)
 {
+	// Multi-input so the active stage AND the persistent Lua UI both receive input.
+	setMultiInput(true);
 
+	// One persistent Lua frame manager for every screen (login..world). It outlives stage switches
+	// (setStage only destroys the active stage id). Load the default UI + addons once, now.
+	addRenderObject(make_shared<LuaFrameManager>(*this, RoLuaRoot));
+	sLua->loadAddons();
 }
 
 Game::~Game()
@@ -211,18 +218,44 @@ void Game::setStage(const Ro stage, const bool overrideDuplicate /*= false*/)
 	m_stage = stage;
 
 	if (m_stage == RoLogin)
+	{
 		addRenderObject(make_shared<Login>(*this, m_stage));
+		sLua->fire(LuaEvents::LOGIN_SHOWN, "");
+
+		// Dev auto-login: submit configured creds immediately (the C++ Login's own AutoLogin can't run while
+		// it's force-hidden by the Lua login). CharacterSelection's AutoLogin then auto-enters the world.
+		if (sConfig->getInt("Debug", "AutoLogin", 0))
+		{
+			if (auto login = dynamic_pointer_cast<Login>(getRenderObject(RoLogin)))
+			{
+				string err;
+				login->performLogin(sConfig->getString("Debug", "AutoLoginUser", "test"),
+				                    sConfig->getString("Debug", "AutoLoginPass", "test"), false, err);
+				if (!err.empty())
+					blog(Logger::LOG_ERROR, "[autologin] %s", err.c_str());
+			}
+		}
+	}
 	else if (stage == RoCharacterSelection)
+	{
 		addRenderObject(make_shared<CharacterSelection>(*this, m_stage));
+		sLua->fire(LuaEvents::CHARSELECT_SHOWN, "");
+	}
 	else if (stage == RoCharacterCreation)
+	{
 		addRenderObject(make_shared<CharacterCreation>(*this, m_stage));
+		sLua->fire(LuaEvents::CHARCREATE_SHOWN, "");
+	}
 	else if (stage == RoWorld)
 	{
 		addRenderObject(make_shared<World>(*this, m_stage));
-		sLua->loadAddons();   // World (+ its Lua frame manager) is now registered, so currentWorld() resolves
+		sLua->fire(LuaEvents::WORLD_SHOWN, "");   // World registered => the HUD's currentWorld() resolves
 	}
 	else
 		ASSERT(0);
+
+	// Keep the persistent Lua UI rendering above the freshly-added stage (renders last == on top).
+	requestMoveToTop(RoLuaRoot);
 
 	toggleOptions(false);
 }
@@ -253,8 +286,10 @@ void Game::processPacket(StlBuffer& data)
 	// layout by matching known values (itemId from DB, guid, durability, etc.) instead of trusting the
 	// stripped decompile. Edit the watch set per investigation; remove the block when done.
 	{
+		static const bool kCaptureEnabled = false;   // dev RE capture; OFF by default (opens+writes pktlog.txt
+		                                              // per watched packet => heavy disk I/O during streaming).
 		static const std::set<int> kWatch = { 90, 103, 107, 111, 113, 127, 135 };
-		if (kWatch.count(opcode))
+		if (kCaptureEnabled && kWatch.count(opcode))
 		{
 			std::ofstream dbg("pktlog.txt", std::ios::app);
 			const auto& r = data.raw();
@@ -266,6 +301,7 @@ void Game::processPacket(StlBuffer& data)
 
 	try
 	{
+		const auto perfT0 = std::clock();   // PERF: time each packet handler, flag the slow ones
 		// Maybe set this up as an array of functions or something
 		switch (opcode)
 		{
@@ -344,6 +380,9 @@ void Game::processPacket(StlBuffer& data)
 			case Opcode::Server_ArenaStatus: processPacket_Server_ArenaStatus(data); break;
 			case Opcode::Server_PkNotify: processPacket_Server_PkNotify(data); break;
 		}
+
+		if (const long perfMs = long(std::clock() - perfT0); perfMs >= 3)
+			blog(Logger::LOG_INFO, "[perf] op=%d handler took %ldms", opcode, perfMs);
 	}
 	catch (invalid_argument& e)
 	{
@@ -389,24 +428,28 @@ void Game::processPacket_Server_Validate(StlBuffer& data)
 		{
 			sConnector->cancel();
 			sApplication->spawnPopup("Your game needs to be updated. Try restarting Steam or asking for help on our Discord.", ConfirmMessageBox::ConfirmBoxType::ConfirmBox_Ok, 0);
+			sLua->fire(LuaEvents::LOGIN_RESULT, "Your game needs to be updated.");
 			break;
 		}
 		case AccountDefines::AuthenticateResult::BadPassword:
 		{
 			sConnector->cancel();
 			sApplication->spawnTimedPopup("Failed to authenticate game server", 3.0f);
+			sLua->fire(LuaEvents::LOGIN_RESULT, "Failed to authenticate game server");
 			break;
 		}
 		case AccountDefines::AuthenticateResult::ServerFull:
 		{
 			sConnector->cancel();
 			sApplication->spawnPopup("The server is full. Try again?", ConfirmMessageBox::ConfirmBoxType::ConfirmBox_YesNo, ConfirmMessageBox::ConfirmBoxCodes::ConfirmCode_RetryLogin);
+			sLua->fire(LuaEvents::LOGIN_RESULT, "The server is full. Try again.");
 			break;
 		}
 		case AccountDefines::AuthenticateResult::Banned:
 		{
 			sConnector->cancel();
 			sApplication->spawnTimedPopup("Your account is suspended", 3.0f);
+			sLua->fire(LuaEvents::LOGIN_RESULT, "Your account is suspended");
 			break;
 		}
 		case AccountDefines::AuthenticateResult::Validated:
@@ -472,6 +515,8 @@ void Game::processPacket_Server_NewWorld(StlBuffer& data)
 	GP_Server_NewWorld pk;
 	pk.unpack(data);
 
+	blog(Logger::LOG_INFO, "[timing] +%4ldms  NewWorld received", long(std::clock() - World::s_enterStartClock));
+
 	// Stash the controlled player's spawn pos + var table + equipment (NewWorld has them;
 	// SetController spawns the ClientPlayer and applies them).
 	World::s_pendingSelf.x = pk.m_x;
@@ -486,6 +531,7 @@ void Game::processPacket_Server_NewWorld(StlBuffer& data)
 	{
 		setStage(RoWorld);
 		sContentMgr->stopMusic();
+		blog(Logger::LOG_INFO, "[timing] +%4ldms  setStage(RoWorld) done (World created)", long(std::clock() - World::s_enterStartClock));
 	}
 
 	if (auto world = dynamic_pointer_cast<World>(getRenderObject(RoWorld)))
@@ -509,12 +555,18 @@ void Game::processPacket_Server_SetController(StlBuffer& data)
 	GP_Server_SetController pk;
 	pk.unpack(data);
 
+	blog(Logger::LOG_INFO, "[timing] +%4ldms  SetController received (player spawned)", long(std::clock() - World::s_enterStartClock));
+
 	if (auto world = dynamic_pointer_cast<World>(getRenderObject(RoWorld)))
 		world->setController(pk.m_guid);
 
 	// Could maybe clear this once the map finishes loading, but
 	//  let's let the loading pop up hang until they're also in control and ready to play
 	sApplication->clearPopups();
+
+	// NOTE: PLAYER_LOGIN (the moment the Lua HUD reveals + the loading screen lifts) is NOT fired here.
+	// The map fades in over ~3s after this (World::m_introAlpha), so the world is still black. World::render
+	// fires PLAYER_LOGIN when that intro fade completes — see World.cpp.
 }
 
 void Game::processPacket_Server_Player(StlBuffer& data)

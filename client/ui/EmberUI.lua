@@ -5,6 +5,10 @@
 
 EmberUI = EmberUI or {}
 
+-- True only while the player is in the world (set by the stage events). The HUD modules gate their
+-- visibility on this, since the frame manager is now persistent across the login/character screens.
+EmberUI.inWorld = false
+
 -- bind(widget, setterName, getterFn, token, eventName): call widget:<setter>(getter(token)) on the event + now.
 function EmberUI.bind(widget, setter, getter, token, event)
 	local d = CreateFrame('Frame', nil, nil)

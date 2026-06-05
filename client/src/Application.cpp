@@ -394,6 +394,7 @@ void Application::clearPopups()
 {
 	destroyObjectById(RoPopup);
 	destroyObjectById(RoTimedMsg);
+	sLua->clearTimedPopups();   // timed toasts are rendered by the Lua default UI now
 }
 
 void Application::setTooltip(shared_ptr<Tooltip> t)
@@ -414,7 +415,8 @@ void Application::spawnTimedPopup(const string& str, const float numsecs)
 	if (numsecs >= 60.0f)
 		return;
 #endif
-	addRenderObject(make_shared<TimedMessageBox>(*this, RoTimedMsg, numsecs, str));
+	// Rendered by the Lua default UI (Popups.lua) instead of the C++ TimedMessageBox.
+	sLua->showTimedPopup(str, numsecs);
 }
 
 void Application::spawnPopup(const string& str, const int type, const int code)

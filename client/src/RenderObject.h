@@ -28,6 +28,10 @@ class RenderObject : public MouseableNode, public AnchoredPosition
 		// Used by the Lua UI layer to retire a C++ window in favour of a Lua replacement.
 		void setForceHidden(const bool b) { m_forceHidden = b; }
 		bool isForceHidden() const { return m_forceHidden; }
+		// Z-level within the parent holder: higher renders on top (WoW SetFrameLevel). Default 0; equal
+		// levels keep creation order. The parent re-sorts when a child's level changes.
+		void setZLevel(const int n) { m_zLevel = n; }
+		int  getZLevel() const { return m_zLevel; }
 		virtual void notifyCtxMenuClicked(const int id, const string& lineClicked) {}
 
 		virtual bool isMousedOver(const bool useRealPosition = false) override;
@@ -55,6 +59,7 @@ class RenderObject : public MouseableNode, public AnchoredPosition
 		bool m_isHidden;
 		bool m_forceHidden{false};
 		bool m_mouseable;
+		int  m_zLevel{0};
 
 		RenderObject* m_owner;
 };

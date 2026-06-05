@@ -83,6 +83,7 @@ void ClientMap::input()
 
 void ClientMap::render()
 {
+	const auto _mt0 = std::clock();   // PERF
 	m_bottomRightCorner = { sApplication->sW(), sApplication->sH() };
 
 	// DEBUG: F9 toggles the cell-FLAG explorer — labels each visible cell with its raw .map flag byte
@@ -115,10 +116,13 @@ void ClientMap::render()
 	m_canvas.clear();
 	sApplication->registerCanvas(&m_canvas);
 
+	const auto _mtPdr0 = std::clock();
 	processDataToRender();
+	const auto _mtPdr1 = std::clock();
 	updateProxmitySounds();
 	updateFoliage();
-	
+	const auto _mtFol = std::clock();
+
 	// We're done drawing to the canvas
 	m_canvas.display();
 	sApplication->resetCanvas();
@@ -135,6 +139,10 @@ void ClientMap::render()
 
 	m_cloudOffset.x += sApplication->delta() * 50;
 	m_cloudOffset.y += sApplication->delta() * 2;
+
+	if (const long _ms = long(std::clock() - _mt0); _ms > 30)
+		blog(Logger::LOG_INFO, "[perf-map] render=%ldms (processData=%ldms foliage+snd=%ldms)",
+			_ms, long(_mtPdr1 - _mtPdr0), long(_mtFol - _mtPdr1));
 }
 
 void ClientMap::processDataToRender()
@@ -399,8 +407,8 @@ void ClientMap::renderCalculationsThread()
 		const int cellSize = min(GameMap::Defines::BaseCellHeight, GameMap::Defines::BaseCellWidth);
 		const int terrainSize = cellSize * ClientMap::Defines::TerrainToCellRatio;
 
-		// Dynamic Radius + A fixed amount to allow big sprites to appear off screen		
-		const int cellSearchSize = ((screenSize / cellSize) / 2) + 14;
+		// Dynamic Radius + A fixed amount to allow big sprites to appear off screen
+		const int cellSearchSize = ((screenSize / cellSize) / 2) + 4;   // PERF: was +14 (radius 54 -> 44, ~33% fewer cells)
 		const int terrainSearchSize = ((screenSize / terrainSize) / 2) + 2;
 
 		vector<int> cells;
@@ -434,6 +442,9 @@ void ClientMap::renderCalculationsThread()
 
 		vector<RenderCell> everyLayerOne;
 
+		const clock_t _calcLoop0 = std::clock();   // PERF
+		int _spriteLoads = 0;                      // PERF
+
 		// We could cache these results but that would eat up a ton of memory on big maps where you have 1000 * 1000 cells
 		// This populateIndexiesToRender function should take about 50 ms on a slow machine (in release build), and it would be fine it took 500 ms
 		for (auto& cellId : cells)
@@ -448,6 +459,7 @@ void ClientMap::renderCalculationsThread()
 					{
 						cell->loadSprites();
 						loadedCells.insert(cellId);
+						++_spriteLoads;   // PERF
 					}
 				}
 
@@ -466,6 +478,10 @@ void ClientMap::renderCalculationsThread()
 					everyLayerOne.push_back({ cellId, baseRenderPos });
 			}
 		}
+
+		if (const long _ms = long(std::clock() - _calcLoop0); _ms > 100)   // PERF
+			blog(Logger::LOG_INFO, "[perf-calc] pass: %d cells, %d sprite-loads, %ldms",
+				int(cells.size()), _spriteLoads, _ms);
 
 		// Calculations complete, push to the map to be rendered
 		cacheCalcThreadCells(everyLayerOne);

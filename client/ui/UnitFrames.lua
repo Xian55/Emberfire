@@ -1,5 +1,7 @@
 -- Player + target unit frames: name, level, health bar, mana bar; click to target.
 -- Built entirely from the C++ API (getters + events + the TargetUnit command).
+-- The frame manager is now persistent across all screens, so these frames stay hidden until the player
+-- is in the world (WORLD_SHOWN) and hide again on the login / character screens.
 
 local function makeUnitFrame(token, x, y)
 	local f = CreateFrame('Button', 'EmberUI_' .. token .. 'Frame', nil)
@@ -20,8 +22,11 @@ local function makeUnitFrame(token, x, y)
 	-- One refresh updates everything; driven by the relevant events AND a 0.5s poll, so the frame fills in
 	-- as soon as the player's/target's data arrives (which can be after this UI loads).
 	local function refresh()
+		if not EmberUI.inWorld then f:Hide(); return end
 		if token == 'target' then
 			if UnitExists('target') then f:Show() else f:Hide(); return end
+		else
+			f:Show()
 		end
 		local hpmax = UnitHealthMax(token); if hpmax <= 0 then hpmax = 1 end
 		hp:SetMinMaxValues(0, hpmax); hp:SetValue(UnitHealth(token))
@@ -40,16 +45,37 @@ local function makeUnitFrame(token, x, y)
 	d:SetScript('OnUpdate', function(_, dt) acc = acc + dt; if acc >= 0.5 then acc = 0; refresh() end end)
 
 	f:SetScript('OnClick', function() TargetUnit(token) end)
-	refresh()
+	f:Hide()   -- hidden until WORLD_SHOWN
 	return { frame = f, hp = hp, mp = mp, name = name, lvl = lvl, refresh = refresh }
 end
 
 EmberUI.PlayerFrame = makeUnitFrame('player', 40, 20)
 EmberUI.TargetFrame = makeUnitFrame('target', 280, 20)
-EmberUI.TargetFrame.frame:Hide()   -- no target at start
 
--- Replace the C++ player/target unit frames with these Lua ones (hidden, not destroyed — rollback-safe).
-SetGameFrameShown('PlayerFrame', false)
-SetGameFrameShown('TargetFrame', false)
+-- HUD visibility:
+--  * WORLD_SHOWN  fires when the world stage is created (the "Loading" screen is up, player not spawned yet)
+--    -> retire the C++ frames now so nothing shows during loading, but keep the Lua HUD hidden too.
+--  * PLAYER_LOGIN fires when the player is actually in control (loading done) -> reveal the Lua HUD.
+--  * glue stages -> hide.
+local stage = CreateFrame('Frame', nil, nil)
+stage:SetScript('OnEvent', function(_, event)
+	if event == Events.WORLD_SHOWN then
+		SetGameFrameShown('PlayerFrame', false)
+		SetGameFrameShown('TargetFrame', false)
+	elseif event == Events.PLAYER_LOGIN then
+		EmberUI.inWorld = true
+		EmberUI.PlayerFrame.refresh()
+		EmberUI.TargetFrame.refresh()
+	else
+		EmberUI.inWorld = false
+		EmberUI.PlayerFrame.frame:Hide()
+		EmberUI.TargetFrame.frame:Hide()
+	end
+end)
+stage:RegisterEvent(Events.WORLD_SHOWN)
+stage:RegisterEvent(Events.PLAYER_LOGIN)
+stage:RegisterEvent(Events.LOGIN_SHOWN)
+stage:RegisterEvent(Events.CHARSELECT_SHOWN)
+stage:RegisterEvent(Events.CHARCREATE_SHOWN)
 
 print('EmberUI unit frames loaded')

@@ -16,8 +16,19 @@ namespace LuaUI
 	int  createStatusBar(int parentHandle);    // a fill-bar (SetMinMaxValues/SetValue)
 	int  createTexture(int frameHandle);       // a texture region owned by the frame
 	int  createFontString(int frameHandle);    // a text region owned by the frame
+	int  createEditBox(int parentHandle);      // a single-line text input (wraps PromptBox)
 
 	int  popClickedHandle();                   // drains the next clicked button handle (0 = none)
+	int  popSubmittedHandle();                 // drains the next Enter-submitted editbox handle (0 = none)
+
+	std::string getText(int handle);                       // editbox text (empty if not an editbox)
+	void setEditBoxPassword(int handle, bool masked);      // render typed text as asterisks
+	void setEditBoxMaxLen(int handle, int n);              // clamp max length
+	void setEditBoxNumeric(int handle, bool v);            // digits-only
+	void setEditBoxFontSize(int handle, int n);            // character size
+	void setEditBoxColor(int handle, int r, int g, int b, int a);   // editbox/fontstring text color
+	void setVertexColor(int handle, int r, int g, int b, int a);    // texture tint + alpha
+	void setFont(int handle, const std::string& fontName);          // fontstring font face
 
 	void setMinMax(int handle, float mn, float mx);
 	void setValue(int handle, float v);
@@ -27,6 +38,7 @@ namespace LuaUI
 	void setSize(int handle, float w, float h);
 	void setText(int handle, const std::string& text);
 	void setTexture(int handle, const std::string& textureName);
+	void setHoverTexture(int handle, const std::string& textureName);   // button: art shown on mouse-over
 	void show(int handle, bool shown);
 	void clearAllFrames();   // destroy every Lua-created frame (used by /reload)
 
@@ -47,6 +59,25 @@ namespace LuaUI
 	void targetUnit(const std::string& token);
 	void clearTarget();
 
-	// ---- hide/show the C++ windows a Lua view replaces ("PlayerFrame"|"TargetFrame"|"XPBar") ----
+	// ---- hide/show the C++ windows a Lua view replaces ----
+	// HUD: "PlayerFrame"|"TargetFrame"|"XPBar"; screens: "LoginScreen"|"CharSelectScreen"|"CharCreateScreen"
 	void setGameFrameShown(const std::string& name, bool shown);
+
+	// ---- login screen ----
+	void submitLogin(const std::string& user, const std::string& pass, bool remember);
+	std::string getSavedLogin();
+
+	// ---- screen metrics (for Lua layout) ----
+	int screenWidth();
+	int screenHeight();
+
+	// ---- z-order within the parent (WoW SetFrameLevel/GetFrameLevel/Raise/Lower) ----
+	void setFrameLevel(int handle, int level);
+	int  getFrameLevel(int handle);
+	void raiseFrame(int handle);
+	void lowerFrame(int handle);
+	void sortRootFrames();   // re-sort top-level frames by z-level (after addons load)
+
+	// ---- debug ----
+	void setDebugBounds(bool v);   // v=true: log every visible Lua widget's type/pos/size to the log
 }

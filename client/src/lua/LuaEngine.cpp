@@ -74,6 +74,7 @@ struct LuaEngineImpl
 
 	std::map<int, sol::protected_function> onUpdate;     // handle -> OnUpdate(self, dt)
 	std::map<int, sol::protected_function> onClick;      // handle -> OnClick(self, button)
+	std::map<int, sol::protected_function> onEnter;      // handle -> OnEnter(self) (editbox Enter)
 	std::map<int, sol::protected_function> onEvent;      // handle -> OnEvent(self, event, arg)
 	std::map<std::string, std::set<int>>   eventSubs;    // eventName -> subscribed handles
 
@@ -186,6 +187,7 @@ void LuaEngine::clearFrames()
 {
 	m_impl->onUpdate.clear();
 	m_impl->onClick.clear();
+	m_impl->onEnter.clear();
 	m_impl->onEvent.clear();
 	m_impl->eventSubs.clear();
 }
@@ -448,8 +450,13 @@ void LuaEngine::loadAddons()
 		m_impl->addons.push_back(std::move(info));
 	}
 
+	// Default UI + all addons are loaded; settle z-order so level-tagged frames (loading screen, popups)
+	// sit above default-level frames that addons appended.
+	LuaUI::sortRootFrames();
+
 	fire(LuaEvents::ADDON_LOADED, "");
-	fire(LuaEvents::PLAYER_LOGIN, "");
+	// PLAYER_LOGIN is fired later, from Game::processPacket_Server_SetController, when the player is
+	// actually in the world (loading done) — not here at addon-load time.
 }
 
 void LuaEngine::saveAddons()
@@ -579,7 +586,28 @@ void LuaEngine::bindUI()
 		},
 		"SetSize",          [](FrameHandle self, float w, float h) { LuaUI::setSize(self.h, w, h); },
 		"SetText",          [](FrameHandle self, std::string t)    { LuaUI::setText(self.h, t); },
+		"GetText",          [](FrameHandle self)                   { return LuaUI::getText(self.h); },
+		"SetPassword",      [](FrameHandle self, bool masked)      { LuaUI::setEditBoxPassword(self.h, masked); },
+		"SetMaxLetters",    [](FrameHandle self, int n)            { LuaUI::setEditBoxMaxLen(self.h, n); },
+		"SetNumeric",       [](FrameHandle self, bool v)           { LuaUI::setEditBoxNumeric(self.h, v); },
+		"SetFontSize",      [](FrameHandle self, int n)            { LuaUI::setEditBoxFontSize(self.h, n); },
+		"SetTextColor",     [](FrameHandle self, sol::variadic_args va) {
+			const int r = va.size() >= 1 ? va[0].as<int>() : 255;
+			const int g = va.size() >= 2 ? va[1].as<int>() : 255;
+			const int b = va.size() >= 3 ? va[2].as<int>() : 255;
+			const int a = va.size() >= 4 ? va[3].as<int>() : 255;
+			LuaUI::setEditBoxColor(self.h, r, g, b, a);
+		},
 		"SetTexture",       [](FrameHandle self, std::string t)    { LuaUI::setTexture(self.h, t); },
+		"SetHoverTexture",  [](FrameHandle self, std::string t)    { LuaUI::setHoverTexture(self.h, t); },
+		"SetFont",          [](FrameHandle self, std::string f)    { LuaUI::setFont(self.h, f); },
+		"SetVertexColor",   [](FrameHandle self, sol::variadic_args va) {
+			const int r = va.size() >= 1 ? va[0].as<int>() : 255;
+			const int g = va.size() >= 2 ? va[1].as<int>() : 255;
+			const int b = va.size() >= 3 ? va[2].as<int>() : 255;
+			const int a = va.size() >= 4 ? va[3].as<int>() : 255;
+			LuaUI::setVertexColor(self.h, r, g, b, a);
+		},
 		"SetStatusBarTexture", [](FrameHandle self, std::string t) { LuaUI::setTexture(self.h, t); },
 		"SetMinMaxValues",  [](FrameHandle self, float mn, float mx) { LuaUI::setMinMax(self.h, mn, mx); },
 		"SetValue",         [](FrameHandle self, float v)          { LuaUI::setValue(self.h, v); },
@@ -593,9 +621,14 @@ void LuaEngine::bindUI()
 		"Show",             [](FrameHandle self)                   { LuaUI::show(self.h, true); },
 		"Hide",             [](FrameHandle self)                   { LuaUI::show(self.h, false); },
 		"IsValid",          [](FrameHandle self)                   { return LuaUI::valid(self.h); },
+		"SetFrameLevel",    [](FrameHandle self, int level)        { LuaUI::setFrameLevel(self.h, level); },
+		"GetFrameLevel",    [](FrameHandle self)                   { return LuaUI::getFrameLevel(self.h); },
+		"Raise",            [](FrameHandle self)                   { LuaUI::raiseFrame(self.h); },
+		"Lower",            [](FrameHandle self)                   { LuaUI::lowerFrame(self.h); },
 		"SetScript",        [this](FrameHandle self, std::string which, sol::protected_function fn) {
 			if (which == "OnUpdate")     m_impl->onUpdate[self.h] = fn;
 			else if (which == "OnClick") m_impl->onClick[self.h]  = fn;
+			else if (which == "OnEnter") m_impl->onEnter[self.h]  = fn;
 			else if (which == "OnEvent") m_impl->onEvent[self.h]  = fn;
 		},
 		"RegisterEvent",    [this](FrameHandle self, std::string event) { m_impl->eventSubs[event].insert(self.h); },
@@ -615,6 +648,7 @@ void LuaEngine::bindUI()
 		int h;
 		if (t == "Button")         h = LuaUI::createButton(p);
 		else if (t == "StatusBar") h = LuaUI::createStatusBar(p);
+		else if (t == "EditBox")   h = LuaUI::createEditBox(p);
 		else                       h = LuaUI::createFrame(p);
 		return FrameHandle{ h };
 	};
@@ -636,6 +670,17 @@ void LuaEngine::bindUI()
 
 	// Hide/show a C++ window that a Lua view replaces.
 	m_impl->sandbox["SetGameFrameShown"] = [](std::string name, bool shown) { LuaUI::setGameFrameShown(name, shown); };
+
+	// Login screen command/getter.
+	m_impl->sandbox["SubmitLogin"]   = [](std::string user, std::string pass, bool remember) { LuaUI::submitLogin(user, pass, remember); };
+	m_impl->sandbox["GetSavedLogin"] = []() { return LuaUI::getSavedLogin(); };
+
+	// Screen metrics for Lua layout.
+	m_impl->sandbox["GetScreenWidth"]  = []() { return LuaUI::screenWidth(); };
+	m_impl->sandbox["GetScreenHeight"] = []() { return LuaUI::screenHeight(); };
+
+	// Debug: DebugBounds(true) outlines every Lua widget.
+	m_impl->sandbox["DebugBounds"] = [](bool v) { LuaUI::setDebugBounds(v); };
 
 	// Expose the event names to Lua as Events.UNIT_HEALTH etc. (same single source as the C++ fire sites).
 	sol::table events = lua.create_table();
@@ -669,6 +714,19 @@ void LuaEngine::fire(const std::string& event, const std::string& arg)
 		m_impl->instrArmed = false;
 		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnEvent error: ") + e.what()); }
 	}
+}
+
+void LuaEngine::showTimedPopup(const std::string& text, float seconds)
+{
+	// Encode "<seconds>|<text>" into the single event arg; the Lua popup splits on the first '|'.
+	char buf[32];
+	snprintf(buf, sizeof(buf), "%.2f|", seconds);
+	fire(LuaEvents::UI_POPUP, std::string(buf) + text);
+}
+
+void LuaEngine::clearTimedPopups()
+{
+	fire(LuaEvents::UI_POPUP_CLEAR, "");
 }
 
 void LuaEngine::requestReload()
@@ -714,6 +772,19 @@ void LuaEngine::onFrame(float dt)
 		sol::protected_function_result r = it->second(FrameHandle{ h }, std::string("LeftButton"));
 		m_impl->instrArmed = false;
 		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnClick error: ") + e.what()); }
+	}
+
+	// Drain Enter-submitted editboxes and fire OnEnter(self).
+	for (int h = LuaUI::popSubmittedHandle(); h != 0; h = LuaUI::popSubmittedHandle())
+	{
+		auto it = m_impl->onEnter.find(h);
+		if (it == m_impl->onEnter.end() || !it->second.valid())
+			continue;
+		m_impl->instrArmed = true;
+		m_impl->instrCount = 0;
+		sol::protected_function_result r = it->second(FrameHandle{ h });
+		m_impl->instrArmed = false;
+		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnEnter error: ") + e.what()); }
 	}
 }
 

@@ -8,6 +8,8 @@
 #include "ClientMap.h"
 #include "ClientPlayer.h"
 #include "Minimap.h"
+#include "lua/LuaEngine.h"
+#include "lua/LuaEvents.h"
 
 #include "..\Shared\GameDefines.h"
 #include "..\SqlConnector\QueryResult.h"
@@ -70,44 +72,9 @@ void ZoneNotifcation::render() /*final*/
 		}
 	}
 
-	if (m_currentZoneId == 0)
-		return;
-
-	if (m_introAlpha >= 0.f)
-	{
-		m_introAlpha -= sApplication->delta();
-		m_alpha = 1.f - m_introAlpha;
-	}
-	else
-	{
-		if (m_solidTimerSeconds <= 0.f)
-			m_alpha -= sApplication->delta();
-		else
-			m_solidTimerSeconds -= sApplication->delta();
-	}
-
-	if (m_alpha > 1.f)
-		m_alpha = 1.f;
-
-	if (m_alpha <= 0.f)
-		return;
-
-	// Positions	
-	getTopLeftCornerRef().x = sApplication->centerOfScreen().x - int(m_frame->getGlobalBounds().width / 2);
-	getTopLeftCornerRef().y = 250;
-
-	m_title->setData(getTopLeftCornerRef().x, getTopLeftCornerRef().y + 30, m_zoneName_Display.empty() ? "Unknown Zone" : m_zoneName_Display, 699, TextBox::AlignCenterBounds, true, 1.f);
-	m_caption->setData(getTopLeftCornerRef().x, getTopLeftCornerRef().y + 80, m_zoneTypeStr, 699, TextBox::AlignCenterBounds, true, 1.f);
-
-	// Alpha is dynamic
-	m_title->setColor(sf::Color(232, 205, 182, uint8_t(255.f * m_alpha)), sf::Color(0, 0, 0, uint8_t(125.f * m_alpha)));
-	m_caption->setColor(sf::Color(m_territoryColor.r, m_territoryColor.g, m_territoryColor.b, uint8_t(255.f * m_alpha)), sf::Color(0, 0, 0, uint8_t(125.f * m_alpha)));
-	m_frame->setColor(sf::Color(255, 255, 255, uint8_t(255.f * m_alpha)));
-
-	// Draw
-	m_frame->render(sf::Vector2f(getTopLeftCornerRef()));
-	m_title->draw();
-	m_caption->draw();
+	// The banner display (frame + title + caption + fade) is now rendered by Lua (ZoneNotification.lua),
+	// driven by the ZONE_CHANGED event fired from playZone(). This class keeps only the zone/area
+	// detection + the music/ambience/minimap/light side effects.
 }
 	
 void ZoneNotifcation::setMinimapArea(const int areaId)
@@ -197,6 +164,13 @@ void ZoneNotifcation::playZone(const int zoneId)
 				break;
 			}
 		}
+
+		// The banner display lives in Lua (ZoneNotification.lua). Hand it the zone name, territory label
+		// and color; Lua runs the fade-in/solid/fade-out animation. Encoded as "name|type|r|g|b".
+		std::stringstream payload;
+		payload << m_zoneName_Display << '|' << m_zoneTypeStr << '|'
+		        << int(m_territoryColor.r) << '|' << int(m_territoryColor.g) << '|' << int(m_territoryColor.b);
+		sLua->fire(LuaEvents::ZONE_CHANGED, payload.str());
 	}
 
 	m_fadeIntro = false;

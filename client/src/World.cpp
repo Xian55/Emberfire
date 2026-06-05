@@ -58,6 +58,7 @@
 
 // Bridged "self" info (see World.h). Lives across the char-select -> NewWorld -> SetController hop.
 World::PendingSelf World::s_pendingSelf;
+clock_t World::s_enterStartClock = 0;
 
 World::World(Game& owner, const int id) :
 	BuffDebuffRenderer(*this, &owner, id),
@@ -65,6 +66,7 @@ World::World(Game& owner, const int id) :
 	m_topcenterStartPct(1.25f),
 	m_introAlpha(-1.f)
 {
+	const auto _ctorT0 = std::clock();
 	setMultiInput(true);
 	sKeybinds->load();
 	m_map = make_shared<ClientMap>(*this, Interface::MapObject);
@@ -178,13 +180,12 @@ World::World(Game& owner, const int id) :
 	m_auraAnchor = getRenderObject(Interface::MinimapObj)->getTopLeftCornerRef();
 	registerAuraObjs(&m_auraAnchor);
 
-	// Lua addon layer: root holder for Lua-created frames. World is multi-input, so Lua frames coexist
-	// with the game UI and receive input; added late => high Z (renders above the game UI).
-	// Note: the default UI + addons are loaded by Game::setStage AFTER this World is registered (so the
-	// Lua getters/commands can resolve currentWorld() during load), not here.
-	addRenderObject(make_shared<LuaFrameManager>(*this, Interface::LuaFrameRoot));
+	// Lua UI: the frame manager now lives at the Game stage (persistent across all screens), not in World.
+	// See Game::Game / Game::setStage. World fires WORLD_SHOWN (via setStage) so the Lua HUD reveals itself.
 
 	//togglePanel(Interface::BankPanel);
+
+	blog(Logger::LOG_INFO, "[perf] World ctor = %ldms", long(std::clock() - _ctorT0));
 }
 
 World::~World()
@@ -368,7 +369,10 @@ void World::render()
 	if (!isPanelOpen(Interface::MapQuesterPanel))
 		registerSkipRenderingObjThisFrame(m_zoneIndicator->getId());
 
+	const auto _wt0 = std::clock();
 	__super::render();
+	if (const long _ms = long(std::clock() - _wt0); _ms > 30)
+		blog(Logger::LOG_INFO, "[perf-world] children render=%ldms", _ms);
 
 	// Draw but also update/fade scrolling messages
 	if (!m_topCenterMsgs.empty())
@@ -386,11 +390,23 @@ void World::render()
 
 	if (m_introAlpha > 0.f)
 	{
+		// C++ fallback black fade (hidden under the Lua loading screen when it is present).
 		sf::RectangleShape rectangle;
 		rectangle.setSize(sf::Vector2f(sf::Vector2i(sApplication->sW(), sApplication->sH())));
 		rectangle.setFillColor(sf::Color(0, 0, 0, uint8_t(255.f * min(m_introAlpha, 1.f))));
 		sApplication->canvas().draw(rectangle);
 		m_introAlpha -= sApplication->delta();
+	}
+
+	// "World ready" -> reveal the Lua HUD + lift the loading screen. Gated on REAL time (m_introEndClock),
+	// not the delta-drained alpha — delta is clamped, so at the low FPS during streaming the old path
+	// stretched a 1.5s fade to ~5s. Fires once per map load.
+	if (m_introEndClock != 0 && std::clock() >= m_introEndClock)
+	{
+		m_introEndClock = 0;
+		blog(Logger::LOG_INFO, "[timing] +%4ldms  world visible (intro done) -> PLAYER_LOGIN",
+			long(std::clock() - s_enterStartClock));
+		sLua->fire(LuaEvents::PLAYER_LOGIN, "");
 	}
 
 	if (m_recalcObjectives && !(m_recalcObjectives = false))
@@ -683,8 +699,14 @@ void World::setMap(const int mapId)
 	m_mapId = mapId;
 	const auto& db = sContentMgr->db("map");
 	const string mapname = db.data(mapId, "name");
+	const auto loadT0 = std::clock();
 	ASSERT(m_map->loadFromDisk(mapname));
-	m_introAlpha = 3.f;
+	blog(Logger::LOG_INFO, "[timing] +%4ldms  setMap: loadFromDisk('%s') = %ldms",
+		long(std::clock() - s_enterStartClock), mapname.c_str(), long(std::clock() - loadT0));
+	// "World ready" 1.5s of REAL time after the map loads (the Lua loading screen covers this window). Was a
+	// delta-drained alpha fade, but delta is clamped, so at the low FPS during streaming it stretched to ~5s.
+	m_introEndClock = std::clock() + 300;
+	m_introAlpha = 0.5f;   // (kept for the C++ black-rect fallback when the Lua loading screen isn't present)
 	dynamic_pointer_cast<Minimap>(getRenderObject(Interface::MinimapObj))->setMap(mapname);
 	m_zoneIndicator->onMapChange();
 }

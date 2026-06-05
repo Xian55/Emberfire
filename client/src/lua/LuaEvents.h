@@ -17,7 +17,17 @@
     X(UNIT_MAXHEALTH)             \
     X(UNIT_POWER)                 \
     X(UNIT_MAXPOWER)              \
-    X(UNIT_LEVEL)
+    X(UNIT_LEVEL)                 \
+    X(LOGIN_SHOWN)                \
+    X(CHARSELECT_SHOWN)           \
+    X(CHARCREATE_SHOWN)           \
+    X(WORLD_SHOWN)                \
+    X(LOGIN_RESULT)               \
+    X(CHARLIST_UPDATE)            \
+    X(CHARCREATE_RESULT)          \
+    X(UI_POPUP)                   \
+    X(UI_POPUP_CLEAR)             \
+    X(ZONE_CHANGED)
 
 namespace LuaEvents
 {

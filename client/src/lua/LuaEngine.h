@@ -33,6 +33,11 @@ class LuaEngine
 		// signature so game code (Game.cpp packet handlers) can call it without pulling in sol2.
 		void fire(const std::string& event, const std::string& arg = "");
 
+		// Timed toast popups, rendered by the Lua default UI (replaces the C++ TimedMessageBox). sol-free so
+		// Application::spawnTimedPopup / clearPopups can route through it. seconds>=~60 means "until cleared".
+		void showTimedPopup(const std::string& text, float seconds);
+		void clearTimedPopups();
+
 		// Drop all OnUpdate/OnClick/OnEvent handlers + event subscriptions. Called by the frame manager
 		// on (re)create/destroy so stale handles from a previous World don't linger or collide.
 		void clearFrames();
