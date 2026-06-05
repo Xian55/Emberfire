@@ -101,9 +101,9 @@ void LuaFontString::render()
 
 // ---------------------------------------------------------------- LuaButton
 
-LuaButton::LuaButton(RenderObject& owner, const int id) : RenderObject(&owner, id)
+LuaButton::LuaButton(RenderObject& owner, const int id) : RenderObjectHolder(&owner, id)
 {
-	// mouseable by default => it is a hit target.
+	// mouseable by default => it is a hit target. Children (bars/text/textures) anchor to it.
 }
 
 void LuaButton::setTexture(const std::string& textureName)
@@ -126,6 +126,8 @@ bool LuaButton::popClicked()
 
 void LuaButton::input()
 {
+	RenderObjectHolder::input();   // route input to children first
+
 	// A left release while this is the top-most moused-over object counts as a click.
 	if (isMousedOver(true) && sApplication->mouseUp(sf::Mouse::Left))
 		m_clicked = true;
@@ -136,6 +138,8 @@ void LuaButton::render()
 	m_bottomRightCorner = { m_topLeftCorner.x + m_w, m_topLeftCorner.y + m_h };
 	if (m_sprite)
 		m_sprite->render({ static_cast<float>(m_topLeftCorner.x), static_cast<float>(m_topLeftCorner.y) });
+
+	RenderObjectHolder::render();   // draw children (bars, fontstrings, textures) on top of the bg
 }
 
 // ---------------------------------------------------------------- LuaStatusBar

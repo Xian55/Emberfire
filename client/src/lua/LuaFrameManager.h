@@ -59,8 +59,10 @@ class LuaFontString : public RenderObject
 		unique_ptr<Text> m_text;
 };
 
-// A clickable region: detects a left click over its bounds, drained by the manager into OnClick.
-class LuaButton : public RenderObject
+// A clickable frame: holds child regions (like LuaFrame) AND detects a left click over its
+// bounds, drained by the manager into OnClick. WoW Buttons are frames, so this is a holder —
+// otherwise its child textures/bars/fontstrings would never be created or drawn.
+class LuaButton : public RenderObjectHolder
 {
 	public:
 		LuaButton(RenderObject& owner, const int id);
