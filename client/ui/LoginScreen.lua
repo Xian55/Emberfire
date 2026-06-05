@@ -39,7 +39,7 @@ remember:SetScript('OnClick', function()
 	remember:SetTexture(remembered and 'tick_box_full.png' or 'tick_box_empty.png')
 end)
 
--- Login button (login_idle.png, 288x103). Return-to-login is covered by the fields' OnEnter.
+-- Login button (login_idle.png, 288x103). Return-to-login is covered by the fields' OnEnterPressed.
 local login = CreateFrame('Button', nil, panel)
 login:SetTexture('login_idle.png'); login:SetHoverTexture('login_hover.png')
 login:SetSize(288, 103); login:SetPoint('TOPLEFT', 203, 649)
@@ -52,8 +52,8 @@ local function submit()
 	SubmitLogin(user:GetText(), pass:GetText(), remembered)
 end
 login:SetScript('OnClick', submit)
-user:SetScript('OnEnter', submit)
-pass:SetScript('OnEnter', submit)
+user:SetScript('OnEnterPressed', submit)
+pass:SetScript('OnEnterPressed', submit)
 
 -- Status follows the C++ login result (auth/connect failures + server validate failures).
 local res = CreateFrame('Frame', nil, nil)

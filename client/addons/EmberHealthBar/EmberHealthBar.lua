@@ -11,17 +11,31 @@ local f = CreateFrame('Frame', 'EmberHealthBar', nil)
 f:SetSize(220, 26)
 f:SetPoint('TOPLEFT', DB.x, DB.y)
 
+-- Drag to reposition (left button); the engine moves the frame, we just persist where it lands.
+f:SetMovable(true)
+f:RegisterForDrag('LeftButton')
+f:SetScript('OnDragStop', function(self)
+	DB.x = self:GetLeft(); DB.y = self:GetTop()
+end)
+
 local bar = CreateFrame('StatusBar', nil, f)
 bar:SetStatusBarTexture('xp_bar.png')
 bar:SetStatusBarColor(210, 50, 50, 255)   -- red
-bar:SetSize(220, 26)
-bar:SetPoint('TOPLEFT', 0, 0)
+bar:SetAllPoints(f)                        -- stretch to fill the frame (two-point anchor; tracks resize)
 bar:SetMinMaxValues(0, 1)
 bar:SetValue(1)
 
 local label = f:CreateFontString()
-label:SetPoint('TOPLEFT', 8, 4)
+label:SetPoint('LEFT', bar, 'LEFT', 8, 0)  -- anchored relative to the bar (relativeTo)
 label:SetText('HP')
+
+-- Primitives demo: an icon anchored to the RIGHT of the frame, cropped to the texture's left half, faded.
+local icon = f:CreateTexture()
+icon:SetSize(26, 26)
+icon:SetTexture('xp_bar.png')
+icon:SetPoint('LEFT', f, 'RIGHT', 4, 0)    -- relativeTo + relativePoint
+icon:SetTexCoord(0, 0.5, 0, 1)             -- show only the left half of the source texture
+icon:SetAlpha(0.8)
 
 local function refresh()
 	local hp = UnitHealth('player')
@@ -56,4 +70,8 @@ stage:RegisterEvent(Events.LOGIN_SHOWN)
 stage:RegisterEvent(Events.CHARSELECT_SHOWN)
 stage:RegisterEvent(Events.CHARCREATE_SHOWN)
 
-print('EmberHealthBar loaded')
+-- Primitives introspection demo (GetName/GetWidth/GetParent/IsVisible).
+print('EmberHealthBar loaded: name=' .. tostring(f:GetName())
+	.. ' size=' .. f:GetWidth() .. 'x' .. f:GetHeight()
+	.. ' barParent=' .. tostring(bar:GetParent():GetName())
+	.. ' type=' .. bar:GetObjectType())
