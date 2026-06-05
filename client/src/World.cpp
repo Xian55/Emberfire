@@ -9,6 +9,7 @@
 #include "DialogNpc.h"
 #include "Equipment.h"
 #include "Game.h"
+#include "lua/LuaFrameManager.h"
 #include "ItemIcon.h"
 #include "SpellIcon.h"
 #include "GuildRoster.h"
@@ -174,6 +175,10 @@ World::World(Game& owner, const int id) :
 	BuffDebuffRenderer::setDirection(BuffDebuffRenderer::Direction::RightLeft);
 	m_auraAnchor = getRenderObject(Interface::MinimapObj)->getTopLeftCornerRef();
 	registerAuraObjs(&m_auraAnchor);
+
+	// Lua addon layer: root holder for Lua-created frames. World is multi-input, so Lua frames coexist
+	// with the game UI and receive input; added late => high Z (renders above the game UI).
+	addRenderObject(make_shared<LuaFrameManager>(*this, Interface::LuaFrameRoot));
 
 	//togglePanel(Interface::BankPanel);
 }

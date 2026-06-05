@@ -18,6 +18,7 @@
 #include <functional>
 #include <thread>
 #include <map>
+#include <set>
 #include <vector>
 #include <ctime>
 #include <cstdlib>
@@ -57,6 +58,8 @@ struct LuaEngineImpl
 
 	std::map<int, sol::protected_function> onUpdate;     // handle -> OnUpdate(self, dt)
 	std::map<int, sol::protected_function> onClick;      // handle -> OnClick(self, button)
+	std::map<int, sol::protected_function> onEvent;      // handle -> OnEvent(self, event, arg)
+	std::map<std::string, std::set<int>>   eventSubs;    // eventName -> subscribed handles
 
 	size_t memUsed = 0;
 	size_t memCap  = kMemCap;
@@ -158,6 +161,14 @@ void LuaEngine::shutdown()
 	m_impl->L = nullptr;
 }
 
+void LuaEngine::clearFrames()
+{
+	m_impl->onUpdate.clear();
+	m_impl->onClick.clear();
+	m_impl->onEvent.clear();
+	m_impl->eventSubs.clear();
+}
+
 void LuaEngine::buildSandbox()
 {
 	lua_State* L = m_impl->L;
@@ -257,7 +268,14 @@ void LuaEngine::bindUI()
 		"SetScript",        [this](FrameHandle self, std::string which, sol::protected_function fn) {
 			if (which == "OnUpdate")     m_impl->onUpdate[self.h] = fn;
 			else if (which == "OnClick") m_impl->onClick[self.h]  = fn;
+			else if (which == "OnEvent") m_impl->onEvent[self.h]  = fn;
 		},
+		"RegisterEvent",    [this](FrameHandle self, std::string event) { m_impl->eventSubs[event].insert(self.h); },
+		"UnregisterEvent",  [this](FrameHandle self, std::string event) {
+			auto it = m_impl->eventSubs.find(event);
+			if (it != m_impl->eventSubs.end()) it->second.erase(self.h);
+		},
+		"UnregisterAllEvents", [this](FrameHandle self) { for (auto& kv : m_impl->eventSubs) kv.second.erase(self.h); },
 		"CreateTexture",    [](FrameHandle self)                   { return FrameHandle{ LuaUI::createTexture(self.h) }; },
 		"CreateFontString", [](FrameHandle self)                   { return FrameHandle{ LuaUI::createFontString(self.h) }; }
 	);
@@ -269,6 +287,37 @@ void LuaEngine::bindUI()
 		const int h = (t == "Button") ? LuaUI::createButton(p) : LuaUI::createFrame(p);
 		return FrameHandle{ h };
 	};
+
+	// Game-state getters (M4).
+	m_impl->sandbox["UnitHealth"]    = [](std::string token) { return LuaUI::unitHealth(token); };
+	m_impl->sandbox["UnitHealthMax"] = [](std::string token) { return LuaUI::unitHealthMax(token); };
+	m_impl->sandbox["UnitLevel"]     = [](std::string token) { return LuaUI::unitLevel(token); };
+}
+
+void LuaEngine::fire(const std::string& event, const std::string& arg)
+{
+	if (!m_impl->L)
+		return;
+
+	assert(std::this_thread::get_id() == m_impl->mainThreadId);
+
+	auto it = m_impl->eventSubs.find(event);
+	if (it == m_impl->eventSubs.end() || it->second.empty())
+		return;
+
+	// Snapshot subscribers (a handler may (un)register during dispatch).
+	std::vector<int> handles(it->second.begin(), it->second.end());
+	for (int h : handles)
+	{
+		auto hit = m_impl->onEvent.find(h);
+		if (hit == m_impl->onEvent.end() || !hit->second.valid())
+			continue;
+		m_impl->instrArmed = true;
+		m_impl->instrCount = 0;
+		sol::protected_function_result r = hit->second(FrameHandle{ h }, event, arg);
+		m_impl->instrArmed = false;
+		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnEvent error: ") + e.what()); }
+	}
 }
 
 void LuaEngine::onFrame(float dt)

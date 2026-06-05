@@ -29,6 +29,14 @@ class LuaEngine
 		// Per-frame pump (called from the main loop): runs OnUpdate(self, dt) handlers + drains OnClick.
 		void onFrame(float dt);
 
+		// Fire a named event to all frames that RegisterEvent'd it -> OnEvent(self, event, arg). sol-free
+		// signature so game code (Game.cpp packet handlers) can call it without pulling in sol2.
+		void fire(const std::string& event, const std::string& arg = "");
+
+		// Drop all OnUpdate/OnClick/OnEvent handlers + event subscriptions. Called by the frame manager
+		// on (re)create/destroy so stale handles from a previous World don't linger or collide.
+		void clearFrames();
+
 		// M1 sandbox proof: asserts io/os.execute/require/load/dofile/debug/package absent, safe libs present,
 		// and that an infinite loop is killed by the watchdog without hanging the client.
 		void selfTest();

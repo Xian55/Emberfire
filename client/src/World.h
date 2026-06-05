@@ -91,7 +91,10 @@ class World : public BuffDebuffRenderer, public CooldownHolder
 			// Context Menues
 			NpcContextMenu,
 			PlayerContextMenu,
-			ChannelCtxMenu
+			ChannelCtxMenu,
+
+			// Lua addon layer
+			LuaFrameRoot
 		};
 
 		enum WASDCooldown

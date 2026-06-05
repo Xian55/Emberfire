@@ -25,4 +25,9 @@ namespace LuaUI
 	void show(int handle, bool shown);
 
 	bool valid(int handle);
+
+	// ---- game-state getters exposed to Lua (M4). token: "player" (others later). 0 if unavailable. ----
+	int unitHealth(const std::string& token);
+	int unitHealthMax(const std::string& token);
+	int unitLevel(const std::string& token);
 }

@@ -10,6 +10,7 @@
 #include "CharacterCreation.h"
 #include "World.h"
 #include "ClientPlayer.h"
+#include "lua/LuaEngine.h"
 #include "Inventory.h"
 #include "ItemIcon.h"
 #include "Equipment.h"
@@ -1864,7 +1865,14 @@ void Game::processPacket_Server_ObjectVariable(StlBuffer& data)
 	pk.unpack(data);
 
 	if (auto object = world->getClientObject(pk.m_guid))
+	{
 		object->setVariable(static_cast<ObjDefines::Variable>(pk.m_variableId), pk.m_value);
+
+		// Lua addon layer: fire UNIT_HEALTH when the local player's health changes.
+		if (world->myself() && pk.m_guid == world->myself()->getGuid()
+			&& static_cast<ObjDefines::Variable>(pk.m_variableId) == ObjDefines::Variable::Health)
+			sLua->fire("UNIT_HEALTH", "player");
+	}
 }
 
 void Game::processPacket_Server_UnitSpline(StlBuffer& data)

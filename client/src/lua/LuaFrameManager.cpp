@@ -1,11 +1,15 @@
 #include "stdafx.h"
 #include "lua/LuaFrameManager.h"
 #include "lua/LuaUI.h"
+#include "lua/LuaEngine.h"
 
 #include "Sprite.h"
 #include "Text.h"
 #include "ContentMgr.h"
 #include "Application.h"
+#include "Game.h"
+#include "World.h"
+#include "ClientPlayer.h"
 
 #include <assert.h>
 
@@ -142,12 +146,14 @@ LuaFrameManager::LuaFrameManager(RenderObject& owner, const int id) : RenderObje
 	setMultiInput(true);
 	setMouseable(false);
 	s_instance = this;
+	sLua->clearFrames();   // fresh World => drop any handlers from a previous one
 }
 
 LuaFrameManager::~LuaFrameManager()
 {
 	if (s_instance == this)
 		s_instance = nullptr;
+	sLua->clearFrames();   // frames are gone; drop their handlers so nothing stale fires
 }
 
 RenderObject* LuaFrameManager::lookup(int handle) const
@@ -357,4 +363,28 @@ namespace LuaUI
 		auto* m = LuaFrameManager::instance();
 		return m && m->valid(handle);
 	}
+
+	// ---- game-state getters ----
+
+	static World* currentWorld()
+	{
+		auto game = dynamic_pointer_cast<Game>(sApplication->getRenderObject(Application::RoGame));
+		if (!game)
+			return nullptr;
+		return dynamic_pointer_cast<World>(game->getRenderObject(Game::RoWorld)).get();
+	}
+
+	static ClientPlayer* resolveUnit(const std::string& token)
+	{
+		auto* w = currentWorld();
+		if (!w)
+			return nullptr;
+		if (token == "player")
+			return w->myself();
+		return nullptr;   // "target"/party tokens: later
+	}
+
+	int unitHealth(const std::string& token)    { auto* u = resolveUnit(token); return u ? u->getHealth() : 0; }
+	int unitHealthMax(const std::string& token) { auto* u = resolveUnit(token); return u ? u->getMaxHealth() : 0; }
+	int unitLevel(const std::string& token)     { auto* u = resolveUnit(token); return u ? u->getLevel() : 0; }
 }

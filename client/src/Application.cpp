@@ -11,7 +11,6 @@
 #include "Options.h"
 #include "WindowsKeybindHack.h"
 #include "AudioDeviceNotifier.h"
-#include "lua/LuaFrameManager.h"
 #include "lua/LuaEngine.h"
 
 #include "..\Shared\Md5.h"
@@ -75,9 +74,6 @@ void Application::begin()
 
 	// The default objects
 	addRenderObject(make_shared<ConsoleWindow>(*this, RoConsole));
-
-	// Lua addon layer: root holder for Lua-created frames (renders on every screen, incl. login).
-	addRenderObject(make_shared<LuaFrameManager>(*this, RoLuaRoot));
 
 	registerCursor(m_defaultCursor = "cursor.png");
 	registerCursor("cursor_loot.png");
