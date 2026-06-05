@@ -18,6 +18,7 @@ class Application : public RenderObjectHolder
 			RoTimedMsg,
 			RoPopupPrompt,
 			RoDbEditor,
+			RoLuaRoot,        // root holder for Lua-created frames (addon layer)
 		};
 
 	public:

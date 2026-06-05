@@ -10,12 +10,15 @@
 #include <sol/sol.hpp>
 
 #include "LuaEngine.h"
+#include "LuaUI.h"           // sol-free handle boundary to the widget adapters
 #include "../../Logger.h"   // header-only blog(); no std/byte usage
 
 #include <string>
 #include <memory>
 #include <functional>
 #include <thread>
+#include <map>
+#include <vector>
 #include <ctime>
 #include <cstdlib>
 #include <cassert>
@@ -25,6 +28,22 @@ namespace
 	constexpr size_t    kMemCap      = 128u * 1024u * 1024u; // 128 MB hard cap for the whole Lua VM
 	constexpr int       kHookStep    = 1000;                 // count-hook granularity (VM instructions)
 	constexpr long long kInstrBudget = 20'000'000;           // per host->Lua call (~a few ms) before kill
+
+	// Lightweight Lua-facing handle for a widget; forwards to the LuaUI:: backend (no client types here).
+	struct FrameHandle { int h = 0; };
+
+	int pointToInt(const std::string& p)
+	{
+		if (p == "CENTER")      return LuaUI::Center;
+		if (p == "TOP")         return LuaUI::Top;
+		if (p == "BOTTOM")      return LuaUI::Bottom;
+		if (p == "LEFT")        return LuaUI::Left;
+		if (p == "RIGHT")       return LuaUI::Right;
+		if (p == "TOPRIGHT")    return LuaUI::TopRight;
+		if (p == "BOTTOMLEFT")  return LuaUI::BottomLeft;
+		if (p == "BOTTOMRIGHT") return LuaUI::BottomRight;
+		return LuaUI::TopLeft;
+	}
 }
 
 // All sol2 / Lua state lives here so it never leaks into the header.
@@ -35,6 +54,9 @@ struct LuaEngineImpl
 	sol::protected_function tostring;    // captured base tostring, for print()
 
 	std::function<void(const std::string&)> outputSink;  // routes print() to the console (set by host)
+
+	std::map<int, sol::protected_function> onUpdate;     // handle -> OnUpdate(self, dt)
+	std::map<int, sol::protected_function> onClick;      // handle -> OnClick(self, button)
 
 	size_t memUsed = 0;
 	size_t memCap  = kMemCap;
@@ -120,6 +142,7 @@ void LuaEngine::init()
 	lua_sethook(m_impl->L, instrHook, LUA_MASKCOUNT, kHookStep);
 
 	buildSandbox();
+	bindUI();
 	blog(Logger::LOG_INFO, "[lua] engine ready (%s)", LUA_RELEASE);
 }
 
@@ -210,6 +233,76 @@ void LuaEngine::buildSandbox()
 	lua_pop(L, 1);
 
 	m_impl->sandbox = env;
+}
+
+void LuaEngine::bindUI()
+{
+	sol::state_view lua(m_impl->L);
+
+	// FrameHandle methods live on a global metatable; addons reach them via instances, not the sandbox env.
+	lua.new_usertype<FrameHandle>("__EmberFrame",
+		sol::no_constructor,
+		"SetPoint", [](FrameHandle self, std::string point, sol::variadic_args va) {
+			const float x = (va.size() >= 1) ? va[0].as<float>() : 0.f;
+			const float y = (va.size() >= 2) ? va[1].as<float>() : 0.f;
+			const int pi = pointToInt(point);
+			LuaUI::setPoint(self.h, pi, 0, pi, x, y);
+		},
+		"SetSize",          [](FrameHandle self, float w, float h) { LuaUI::setSize(self.h, w, h); },
+		"SetText",          [](FrameHandle self, std::string t)    { LuaUI::setText(self.h, t); },
+		"SetTexture",       [](FrameHandle self, std::string t)    { LuaUI::setTexture(self.h, t); },
+		"Show",             [](FrameHandle self)                   { LuaUI::show(self.h, true); },
+		"Hide",             [](FrameHandle self)                   { LuaUI::show(self.h, false); },
+		"IsValid",          [](FrameHandle self)                   { return LuaUI::valid(self.h); },
+		"SetScript",        [this](FrameHandle self, std::string which, sol::protected_function fn) {
+			if (which == "OnUpdate")     m_impl->onUpdate[self.h] = fn;
+			else if (which == "OnClick") m_impl->onClick[self.h]  = fn;
+		},
+		"CreateTexture",    [](FrameHandle self)                   { return FrameHandle{ LuaUI::createTexture(self.h) }; },
+		"CreateFontString", [](FrameHandle self)                   { return FrameHandle{ LuaUI::createFontString(self.h) }; }
+	);
+
+	// CreateFrame(frameType, name, parent) -> Frame. "Button" makes a clickable region; else a Frame.
+	m_impl->sandbox["CreateFrame"] = [](sol::optional<std::string> type, sol::optional<std::string>, sol::optional<FrameHandle> parent) {
+		const int p = parent ? parent->h : 0;
+		const std::string t = type.value_or(std::string("Frame"));
+		const int h = (t == "Button") ? LuaUI::createButton(p) : LuaUI::createFrame(p);
+		return FrameHandle{ h };
+	};
+}
+
+void LuaEngine::onFrame(float dt)
+{
+	if (!m_impl->L)
+		return;
+
+	assert(std::this_thread::get_id() == m_impl->mainThreadId);
+
+	// OnUpdate(self, dt) for every frame that registered one (snapshot so handlers may mutate the set).
+	std::vector<std::pair<int, sol::protected_function>> updates(m_impl->onUpdate.begin(), m_impl->onUpdate.end());
+	for (auto& [h, fn] : updates)
+	{
+		if (!fn.valid())
+			continue;
+		m_impl->instrArmed = true;
+		m_impl->instrCount = 0;
+		sol::protected_function_result r = fn(FrameHandle{ h }, dt);
+		m_impl->instrArmed = false;
+		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnUpdate error: ") + e.what()); }
+	}
+
+	// Drain clicked buttons and fire OnClick(self, "LeftButton").
+	for (int h = LuaUI::popClickedHandle(); h != 0; h = LuaUI::popClickedHandle())
+	{
+		auto it = m_impl->onClick.find(h);
+		if (it == m_impl->onClick.end() || !it->second.valid())
+			continue;
+		m_impl->instrArmed = true;
+		m_impl->instrCount = 0;
+		sol::protected_function_result r = it->second(FrameHandle{ h }, std::string("LeftButton"));
+		m_impl->instrArmed = false;
+		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnClick error: ") + e.what()); }
+	}
 }
 
 bool LuaEngine::runString(const std::string& chunkName, const std::string& source)

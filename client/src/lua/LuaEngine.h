@@ -26,6 +26,9 @@ class LuaEngine
 		// Console `lua <code>` entry point.
 		void consoleExec(const std::string& code);
 
+		// Per-frame pump (called from the main loop): runs OnUpdate(self, dt) handlers + drains OnClick.
+		void onFrame(float dt);
+
 		// M1 sandbox proof: asserts io/os.execute/require/load/dofile/debug/package absent, safe libs present,
 		// and that an infinite loop is killed by the watchdog without hanging the client.
 		void selfTest();
@@ -43,6 +46,7 @@ class LuaEngine
 		LuaEngine& operator=(const LuaEngine&) = delete;
 
 		void buildSandbox();
+		void bindUI();        // registers CreateFrame + the Frame handle methods (M2)
 
 		std::unique_ptr<LuaEngineImpl> m_impl;
 };
