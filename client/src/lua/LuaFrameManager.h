@@ -1,8 +1,12 @@
 #pragma once
 
 #include "RenderObjectHolder.h"
+#include "LuaUI.h"   // LuaUI::WidgetMouseEvent (queued in the manager)
 
 #include <map>
+#include <vector>
+#include <set>
+#include <string>
 
 class Sprite;
 class Text;
@@ -34,6 +38,8 @@ class LuaTexture : public RenderObject
 		void setTexture(const std::string& textureName);
 		void setScaleSize(const int w, const int h);
 		void setColor(const int r, const int g, const int b, const int a);   // tint + alpha
+		void setAlpha(const int a);                                          // change only alpha, keep tint
+		void setTexCoord(const float l, const float r, const float t, const float b);  // 0..1 sub-rect crop
 		sf::Vector2i naturalSize() const;
 
 	private:
@@ -41,6 +47,7 @@ class LuaTexture : public RenderObject
 		void render() final;
 
 		shared_ptr<Sprite> m_sprite;
+		sf::Color m_color{ 255, 255, 255, 255 };   // last tint (so setAlpha keeps RGB)
 		int m_w{0};   // 0 => natural size (no scale)
 		int m_h{0};
 };
@@ -54,6 +61,7 @@ class LuaFontString : public RenderObject
 		void setText(const std::string& str);
 		void setFontSize(const int n);
 		void setColor(const int r, const int g, const int b, const int a);
+		void setAlpha(const int a);                   // change only alpha, keep RGB
 		void setFont(const std::string& fontName);   // "Ringbearer", "Palatino", ...
 		sf::Vector2i textSize() const;
 
@@ -62,6 +70,7 @@ class LuaFontString : public RenderObject
 		void render() final;
 
 		unique_ptr<Text> m_text;
+		sf::Color m_color{ 255, 255, 255, 255 };   // last fill color (so setAlpha keeps RGB)
 };
 
 // A clickable frame: holds child regions (like LuaFrame) AND detects a left click over its
@@ -100,13 +109,18 @@ class LuaStatusBar : public RenderObject
 		void setMinMax(const float mn, const float mx);
 		void setValue(const float v);
 		void setColor(const int r, const int g, const int b, const int a);
+		void setAlpha(const int a);                   // change only alpha, keep RGB
 		sf::Vector2i barSize() const { return { m_w, m_h }; }
+		float value() const    { return m_value; }   // for OnValueChanged edge detection
+		float minValue() const { return m_min; }      // for OnMinMaxChanged edge detection
+		float maxValue() const { return m_max; }
 
 	private:
 		void input() final {}
 		void render() final;
 
 		shared_ptr<Sprite> m_fill;
+		sf::Color m_color{ 255, 255, 255, 255 };   // last tint (so setAlpha keeps RGB)
 		int   m_w{0};
 		int   m_h{0};
 		float m_min{0.f};
@@ -172,6 +186,8 @@ class LuaFrameManager : public RenderObjectHolder
 		void setValue(int handle, float v);
 		void setColor(int handle, int r, int g, int b, int a);
 		void setPoint(int handle, int point, int relHandle, int relPoint, float x, float y);
+		void setAllPoints(int handle, int relHandle);
+		void clearAllPoints(int handle);
 		void setSize(int handle, float w, float h);
 		void setText(int handle, const std::string& text);
 		void setTexture(int handle, const std::string& textureName);
@@ -180,13 +196,45 @@ class LuaFrameManager : public RenderObjectHolder
 		void clearAll();   // destroy every Lua frame + reset the handle registry
 		bool valid(int handle) const { return lookup(handle) != nullptr; }
 
+		// Widget interaction state (set from Lua via the LuaUI wrappers).
+		void setMouseEnabled(int handle, bool v);
+		void setMovable(int handle, bool v);
+		void setDragButton(int handle, int sfButton);
+		bool popMouseEvent(LuaUI::WidgetMouseEvent& out);   // drain one queued mouse/drag event
+		bool  isShownSelf(int handle) const;
+		float statusBarValue(int handle) const;
+		float statusBarMin(int handle) const;
+		float statusBarMax(int handle) const;
+		sf::Vector2i frameSize(int handle) const;           // current size via sizeOf
+
+		// Introspection / visual primitives.
+		int          parentOf(int handle) const;
+		void         setName(int handle, const std::string& name);
+		std::string  frameName(int handle) const;
+		bool         isVisible(int handle) const;           // shown AND no hidden ancestor
+		std::string  objectType(int handle) const;
+		void         setAlpha(int handle, float a);
+		void         setTexCoord(int handle, float l, float r, float t, float b);
+
 		RenderObject* lookup(int handle) const;
+
+		// True if point p (screen space) is within handle's visible bounds. Uses top-left + sizeOf (the
+		// bottom-right corner ref is not maintained for all widget types), and rejects hidden ancestors.
+		bool hitTest(int handle, sf::Vector2i p) const;
 
 		static LuaFrameManager* instance() { return s_instance; }
 		static void debugDumpBounds();   // log every visible widget's type/pos/size (layout debug)
 
 	private:
+		void input() override;    // detect+consume mouse buttons/wheel + run the drag state machine
+		void render() override;   // recompute dynamic (relative/two-point) anchors, then draw children
 		void dumpBounds() const;
+
+		// Topmost (highest frame level) mouse-enabled handle whose bounds contain p; 0 if none.
+		int topMouseHandleAt(sf::Vector2i p) const;
+
+		// Recompute a frame's offset (+ size for two-point) from its stored anchors and apply it.
+		void relayout(int handle);
 
 		// Attach `child` under `parent` (anchored to parent's top-left + offset), register its handle.
 		void attachChild(RenderObjectHolder& parent, shared_ptr<RenderObject> child, int handle);
@@ -194,6 +242,22 @@ class LuaFrameManager : public RenderObjectHolder
 
 		int m_nextHandle{100000};   // reserved Lua id range (no collision with World/Application ids)
 		std::map<int, shared_ptr<RenderObject>> m_objects;
+
+		// Anchors: WoW-style SetPoint. Each frame may have several (one per anchor point). relHandle 0 =>
+		// owner/screen. Frames with a relative-to-other-frame or a two-point (stretch) anchor are recomputed
+		// every frame (m_dynamicAnchored); pure single-point-to-owner anchors are applied once at setPoint.
+		struct Anchor { int point; int relHandle; int relPoint; int x; int y; };
+		std::map<int, std::vector<Anchor>> m_anchors;
+		std::set<int>                      m_dynamicAnchored;
+		std::map<int, int>                 m_parent;   // handle -> parent handle (GetParent)
+		std::map<int, std::string>         m_name;     // handle -> name (GetName)
+
+		// Per-handle interaction flags (EnableMouse / SetMovable / RegisterForDrag).
+		struct LuaInputState { bool mouseEnabled = false; bool movable = false; int dragButton = -1; };
+		std::map<int, LuaInputState>         m_inputState;
+		std::vector<LuaUI::WidgetMouseEvent> m_mouseQueue;   // produced in input(), drained by the engine
+		int          m_dragHandle = 0;     // handle currently being dragged (0 = none)
+		sf::Vector2i m_dragGrab;           // cursor-to-topLeft offset captured at drag start
 
 		static LuaFrameManager* s_instance;
 };

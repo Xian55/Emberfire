@@ -17,6 +17,8 @@
 #include "..\..\Shared\Config.h"
 
 #include <assert.h>
+#include <climits>
+#include <algorithm>
 
 // ---------------------------------------------------------------- LuaFrame
 
@@ -53,9 +55,27 @@ void LuaTexture::setScaleSize(const int w, const int h)
 
 void LuaTexture::setColor(const int r, const int g, const int b, const int a)
 {
+	m_color = sf::Color(static_cast<sf::Uint8>(r), static_cast<sf::Uint8>(g),
+	                    static_cast<sf::Uint8>(b), static_cast<sf::Uint8>(a));
 	if (m_sprite)
-		m_sprite->setColor(sf::Color(static_cast<sf::Uint8>(r), static_cast<sf::Uint8>(g),
-		                             static_cast<sf::Uint8>(b), static_cast<sf::Uint8>(a)));
+		m_sprite->setColor(m_color);
+}
+
+void LuaTexture::setAlpha(const int a)
+{
+	m_color.a = static_cast<sf::Uint8>(a);
+	if (m_sprite)
+		m_sprite->setColor(m_color);
+}
+
+void LuaTexture::setTexCoord(const float l, const float r, const float t, const float b)
+{
+	if (!m_sprite || !m_sprite->getTexture())
+		return;
+	const auto sz = m_sprite->getTexture()->getSize();
+	m_sprite->setTextureRect(sf::IntRect(
+		static_cast<int>(l * sz.x), static_cast<int>(t * sz.y),
+		static_cast<int>((r - l) * sz.x), static_cast<int>((b - t) * sz.y)));
 }
 
 sf::Vector2i LuaTexture::naturalSize() const
@@ -107,9 +127,17 @@ void LuaFontString::setFontSize(const int n)
 
 void LuaFontString::setColor(const int r, const int g, const int b, const int a)
 {
-	m_text->setFillColor(sf::Color(static_cast<sf::Uint8>(r), static_cast<sf::Uint8>(g),
-	                               static_cast<sf::Uint8>(b), static_cast<sf::Uint8>(a)));
+	m_color = sf::Color(static_cast<sf::Uint8>(r), static_cast<sf::Uint8>(g),
+	                    static_cast<sf::Uint8>(b), static_cast<sf::Uint8>(a));
+	m_text->setFillColor(m_color);
 	// fade the outline with the fill so the text fades cleanly
+	m_text->setOutlineColor(sf::Color(0, 0, 0, static_cast<sf::Uint8>(a / 2)));
+}
+
+void LuaFontString::setAlpha(const int a)
+{
+	m_color.a = static_cast<sf::Uint8>(a);
+	m_text->setFillColor(m_color);
 	m_text->setOutlineColor(sf::Color(0, 0, 0, static_cast<sf::Uint8>(a / 2)));
 }
 
@@ -225,9 +253,17 @@ void LuaStatusBar::setValue(const float v) { m_value = v; }
 
 void LuaStatusBar::setColor(const int r, const int g, const int b, const int a)
 {
+	m_color = sf::Color(static_cast<sf::Uint8>(r), static_cast<sf::Uint8>(g),
+	                    static_cast<sf::Uint8>(b), static_cast<sf::Uint8>(a));
 	if (m_fill)
-		m_fill->setColor(sf::Color(static_cast<sf::Uint8>(r), static_cast<sf::Uint8>(g),
-		                           static_cast<sf::Uint8>(b), static_cast<sf::Uint8>(a)));
+		m_fill->setColor(m_color);
+}
+
+void LuaStatusBar::setAlpha(const int a)
+{
+	m_color.a = static_cast<sf::Uint8>(a);
+	if (m_fill)
+		m_fill->setColor(m_color);
 }
 
 void LuaStatusBar::render()
@@ -398,6 +434,24 @@ RenderObject* LuaFrameManager::lookup(int handle) const
 	return (it == m_objects.end()) ? nullptr : it->second.get();
 }
 
+bool LuaFrameManager::hitTest(int handle, sf::Vector2i p) const
+{
+	auto* obj = lookup(handle);
+	if (!obj)
+		return false;
+	// Hidden frames (or any hidden ancestor) are not hoverable.
+	for (RenderObject* o = obj; o != nullptr; o = o->getOwner())
+	{
+		if (o->isHidden() || o->isForceHidden())
+			return false;
+		if (o->getOwner() == o)
+			break;
+	}
+	const auto& tl = obj->getTopLeftCornerRef();
+	const sf::Vector2i sz = sizeOf(obj);   // bottom-right corner ref is unreliable; derive from size
+	return p.x >= tl.x && p.x < tl.x + sz.x && p.y >= tl.y && p.y < tl.y + sz.y;
+}
+
 void LuaFrameManager::attachChild(RenderObjectHolder& parent, shared_ptr<RenderObject> child, int handle)
 {
 	// Equivalent to the protected attachObj(), but callable across holder instances (all public API).
@@ -419,6 +473,7 @@ int LuaFrameManager::createFrame(int parentHandle)
 
 	const int h = m_nextHandle++;
 	attachChild(*parent, make_shared<LuaFrame>(*parent, h), h);
+	m_parent[h] = parentHandle;
 	return h;
 }
 
@@ -430,6 +485,7 @@ int LuaFrameManager::createTexture(int frameHandle)
 
 	const int h = m_nextHandle++;
 	attachChild(*frame, make_shared<LuaTexture>(*frame, h), h);
+	m_parent[h] = frameHandle;
 	return h;
 }
 
@@ -441,6 +497,7 @@ int LuaFrameManager::createFontString(int frameHandle)
 
 	const int h = m_nextHandle++;
 	attachChild(*frame, make_shared<LuaFontString>(*frame, h), h);
+	m_parent[h] = frameHandle;
 	return h;
 }
 
@@ -456,6 +513,7 @@ int LuaFrameManager::createButton(int parentHandle)
 
 	const int h = m_nextHandle++;
 	attachChild(*parent, make_shared<LuaButton>(*parent, h), h);
+	m_parent[h] = parentHandle;
 	return h;
 }
 
@@ -471,6 +529,7 @@ int LuaFrameManager::createStatusBar(int parentHandle)
 
 	const int h = m_nextHandle++;
 	attachChild(*parent, make_shared<LuaStatusBar>(*parent, h), h);
+	m_parent[h] = parentHandle;
 	return h;
 }
 
@@ -486,6 +545,7 @@ int LuaFrameManager::createEditBox(int parentHandle)
 
 	const int h = m_nextHandle++;
 	attachChild(*parent, make_shared<LuaEditBox>(*parent, h), h);
+	m_parent[h] = parentHandle;
 	return h;
 }
 
@@ -579,30 +639,106 @@ sf::Vector2i LuaFrameManager::sizeOf(RenderObject* o) const
 	return { 0, 0 };
 }
 
+// Where an anchor point lands within a box of size sz: TopLeft={0,0}, Center={w/2,h/2}, BottomRight={w,h}.
+static sf::Vector2i anchorWithin(int p, const sf::Vector2i& sz)
+{
+	int ax = 0, ay = 0;
+	if (p == LuaUI::Center || p == LuaUI::Top || p == LuaUI::Bottom)              ax = sz.x / 2;
+	else if (p == LuaUI::Right || p == LuaUI::TopRight || p == LuaUI::BottomRight) ax = sz.x;
+	if (p == LuaUI::Center || p == LuaUI::Left || p == LuaUI::Right)              ay = sz.y / 2;
+	else if (p == LuaUI::Bottom || p == LuaUI::BottomLeft || p == LuaUI::BottomRight) ay = sz.y;
+	return { ax, ay };
+}
+
 void LuaFrameManager::setPoint(int handle, int point, int relHandle, int relPoint, float x, float y)
+{
+	if (!lookup(handle))
+		return;
+
+	auto& list = m_anchors[handle];
+	const Anchor a{ point, relHandle, relPoint, static_cast<int>(x), static_cast<int>(y) };
+	bool replaced = false;
+	for (auto& e : list)
+		if (e.point == point) { e = a; replaced = true; break; }   // same point replaces
+	if (!replaced)
+		list.push_back(a);
+
+	// Recompute every frame only if it depends on another frame, or stretches between two points.
+	if (relHandle != 0 || list.size() >= 2)
+		m_dynamicAnchored.insert(handle);
+
+	relayout(handle);   // apply immediately (no first-frame flicker)
+}
+
+void LuaFrameManager::setAllPoints(int handle, int relHandle)
+{
+	if (!lookup(handle))
+		return;
+	auto& list = m_anchors[handle];
+	list.clear();
+	list.push_back({ LuaUI::TopLeft,     relHandle, LuaUI::TopLeft,     0, 0 });
+	list.push_back({ LuaUI::BottomRight, relHandle, LuaUI::BottomRight, 0, 0 });
+	m_dynamicAnchored.insert(handle);
+	relayout(handle);
+}
+
+void LuaFrameManager::clearAllPoints(int handle)
+{
+	m_anchors.erase(handle);
+	m_dynamicAnchored.erase(handle);
+}
+
+// Solve the frame's screen position (and size, if two opposing points pin it) from its anchors, then apply
+// via setOffset (+ setSize). Reproduces the old single-point math exactly; adds frame-relative + two-point.
+void LuaFrameManager::relayout(int handle)
 {
 	auto* obj = lookup(handle);
 	if (!obj)
 		return;
+	auto it = m_anchors.find(handle);
+	if (it == m_anchors.end() || it->second.empty())
+		return;
 
-	RenderObject* rel = (relHandle != 0) ? lookup(relHandle) : obj->getOwner();
+	RenderObject* owner = obj->getOwner();
+	const sf::Vector2i ownerTL = (owner && owner != this) ? owner->getTopLeftCornerRef() : sf::Vector2i{ 0, 0 };
+	const sf::Vector2i curSize = sizeOf(obj);
 
-	const sf::Vector2i parentSize = (rel == this || rel == nullptr)
-		? sf::Vector2i{ sApplication->sW(), sApplication->sH() }   // top-level => relative to the screen
-		: sizeOf(rel);
-	const sf::Vector2i childSize = sizeOf(obj);
+	bool haveL = false, haveR = false, haveCX = false, haveT = false, haveB = false, haveCY = false;
+	int  L = 0, R = 0, CX = 0, T = 0, B = 0, CY = 0;
 
-	sf::Vector2i off{ static_cast<int>(x), static_cast<int>(y) };
-	if (point == LuaUI::Center)
+	for (const auto& a : it->second)
 	{
-		off.x += parentSize.x / 2 - childSize.x / 2;
-		off.y += parentSize.y / 2 - childSize.y / 2;
+		RenderObject* rel = (a.relHandle != 0) ? lookup(a.relHandle) : owner;
+		const bool relIsScreen = (rel == this || rel == nullptr);
+		const sf::Vector2i relTL  = relIsScreen ? sf::Vector2i{ 0, 0 } : rel->getTopLeftCornerRef();
+		const sf::Vector2i relSz  = relIsScreen ? sf::Vector2i{ sApplication->sW(), sApplication->sH() } : sizeOf(rel);
+		const sf::Vector2i ra     = anchorWithin(a.relPoint, relSz);
+		const int tx = relTL.x + ra.x + a.x;   // screen X where the child's `point` should sit
+		const int ty = relTL.y + ra.y + a.y;
+
+		const int p = a.point;
+		if (p == LuaUI::TopLeft || p == LuaUI::Left || p == LuaUI::BottomLeft)            { haveL = true;  L = tx; }
+		else if (p == LuaUI::TopRight || p == LuaUI::Right || p == LuaUI::BottomRight)     { haveR = true;  R = tx; }
+		else                                                                              { haveCX = true; CX = tx; }
+		if (p == LuaUI::TopLeft || p == LuaUI::Top || p == LuaUI::TopRight)                { haveT = true;  T = ty; }
+		else if (p == LuaUI::BottomLeft || p == LuaUI::Bottom || p == LuaUI::BottomRight)  { haveB = true;  B = ty; }
+		else                                                                              { haveCY = true; CY = ty; }
 	}
 
-	if (relHandle != 0 && rel)
-		obj->setAnchor(&rel->getTopLeftCornerRef());
+	int w = (haveL && haveR) ? (R - L) : curSize.x;
+	int h = (haveT && haveB) ? (B - T) : curSize.y;
+	if (w < 0) w = 0;
+	if (h < 0) h = 0;
 
-	obj->setOffset(off);
+	const int left = haveL ? L : haveR ? (R - w) : haveCX ? (CX - w / 2) : (ownerTL.x + obj->getOffset().x);
+	const int top  = haveT ? T : haveB ? (B - h) : haveCY ? (CY - h / 2) : (ownerTL.y + obj->getOffset().y);
+
+	if ((haveL && haveR) || (haveT && haveB))
+		setSize(handle, static_cast<float>(w), static_cast<float>(h));   // two-point stretch derives size
+
+	if (owner && owner != this)
+		obj->setAnchor(&owner->getTopLeftCornerRef());
+	obj->setOffset({ left - ownerTL.x, top - ownerTL.y });
 }
 
 void LuaFrameManager::setSize(int handle, float w, float h)
@@ -645,7 +781,194 @@ void LuaFrameManager::clearAll()
 {
 	clearNow();              // remove + destroy all child render objects (RenderObjectHolder)
 	m_objects.clear();
+	m_inputState.clear();
+	m_mouseQueue.clear();
+	m_anchors.clear();
+	m_dynamicAnchored.clear();
+	m_parent.clear();
+	m_name.clear();
+	m_dragHandle = 0;
 	m_nextHandle = 100000;
+}
+
+// Recompute every dynamic (frame-relative / two-point) anchor just before drawing, so frames track their
+// relatives. Static single-point-to-owner frames were applied once at setPoint and skip this pass.
+void LuaFrameManager::render()
+{
+	for (int h : m_dynamicAnchored)
+		relayout(h);
+	RenderObjectHolder::render();
+}
+
+// ---- introspection / visual primitives ----
+
+int LuaFrameManager::parentOf(int handle) const { auto it = m_parent.find(handle); return it != m_parent.end() ? it->second : 0; }
+void LuaFrameManager::setName(int handle, const std::string& name) { if (lookup(handle) && !name.empty()) m_name[handle] = name; }
+std::string LuaFrameManager::frameName(int handle) const { auto it = m_name.find(handle); return it != m_name.end() ? it->second : std::string(); }
+
+bool LuaFrameManager::isVisible(int handle) const
+{
+	auto* o = lookup(handle);
+	if (!o)
+		return false;
+	for (RenderObject* p = o; p != nullptr; p = p->getOwner())
+	{
+		if (p->isHidden() || p->isForceHidden())
+			return false;
+		if (p->getOwner() == p)
+			break;
+	}
+	return true;
+}
+
+std::string LuaFrameManager::objectType(int handle) const
+{
+	auto* o = lookup(handle);
+	if (dynamic_cast<LuaButton*>(o))     return "Button";
+	if (dynamic_cast<LuaStatusBar*>(o))  return "StatusBar";
+	if (dynamic_cast<LuaEditBox*>(o))    return "EditBox";
+	if (dynamic_cast<LuaTexture*>(o))    return "Texture";
+	if (dynamic_cast<LuaFontString*>(o)) return "FontString";
+	if (dynamic_cast<LuaFrame*>(o))      return "Frame";
+	return "";
+}
+
+void LuaFrameManager::setAlpha(int handle, float a)
+{
+	const int ai = std::max(0, std::min(255, static_cast<int>(a * 255.f)));
+	auto* o = lookup(handle);
+	if (auto t = dynamic_cast<LuaTexture*>(o))          t->setAlpha(ai);
+	else if (auto s = dynamic_cast<LuaStatusBar*>(o))   s->setAlpha(ai);
+	else if (auto fs = dynamic_cast<LuaFontString*>(o)) fs->setAlpha(ai);
+	// frames have no own visual; alpha is per-region in v1 (no child propagation)
+}
+
+void LuaFrameManager::setTexCoord(int handle, float l, float r, float t, float b)
+{
+	if (auto tex = dynamic_cast<LuaTexture*>(lookup(handle))) tex->setTexCoord(l, r, t, b);
+}
+
+// ---- widget interaction state ----
+
+void LuaFrameManager::setMouseEnabled(int handle, bool v) { if (lookup(handle)) m_inputState[handle].mouseEnabled = v; }
+void LuaFrameManager::setMovable(int handle, bool v)      { if (lookup(handle)) m_inputState[handle].movable = v; }
+void LuaFrameManager::setDragButton(int handle, int btn)  { if (lookup(handle)) m_inputState[handle].dragButton = btn; }
+
+bool LuaFrameManager::popMouseEvent(LuaUI::WidgetMouseEvent& out)
+{
+	if (m_mouseQueue.empty())
+		return false;
+	out = m_mouseQueue.front();
+	m_mouseQueue.erase(m_mouseQueue.begin());
+	return true;
+}
+
+bool LuaFrameManager::isShownSelf(int handle) const
+{
+	auto* o = lookup(handle);
+	return o && !o->isHidden();
+}
+
+float LuaFrameManager::statusBarValue(int handle) const { auto* sb = dynamic_cast<LuaStatusBar*>(lookup(handle)); return sb ? sb->value() : 0.f; }
+float LuaFrameManager::statusBarMin(int handle) const   { auto* sb = dynamic_cast<LuaStatusBar*>(lookup(handle)); return sb ? sb->minValue() : 0.f; }
+float LuaFrameManager::statusBarMax(int handle) const   { auto* sb = dynamic_cast<LuaStatusBar*>(lookup(handle)); return sb ? sb->maxValue() : 0.f; }
+
+sf::Vector2i LuaFrameManager::frameSize(int handle) const
+{
+	auto* o = lookup(handle);
+	return o ? sizeOf(o) : sf::Vector2i{ 0, 0 };
+}
+
+int LuaFrameManager::topMouseHandleAt(sf::Vector2i p) const
+{
+	int best = 0, bestLevel = INT_MIN;
+	for (auto& [h, st] : m_inputState)
+	{
+		if (!st.mouseEnabled || !hitTest(h, p))
+			continue;
+		auto* o = lookup(h);
+		const int level = o ? o->getZLevel() : 0;
+		if (level >= bestLevel) { bestLevel = level; best = h; }
+	}
+	return best;
+}
+
+// Detect+consume mouse buttons/wheel for the topmost mouse-enabled Lua frame under the cursor, and run the
+// automatic drag state machine. Runs in the input pass (before the world's click-to-move), so consuming the
+// event (clearMouseDown/Up/Wheel) prevents click-through. Detected events are queued for LuaEngine::onFrame.
+void LuaFrameManager::input()
+{
+	RenderObjectHolder::input();   // children first (buttons set their own m_clicked, editboxes focus, etc.)
+
+	const sf::Vector2i mp = sApplication->mousePos();
+
+	// --- drag follow / stop (runs before new-press handling so a release ends the drag cleanly) ---
+	if (m_dragHandle)
+	{
+		auto it = m_inputState.find(m_dragHandle);
+		const int btn = (it != m_inputState.end()) ? it->second.dragButton : 0;
+		const auto sfBtn = static_cast<sf::Mouse::Button>(btn < 0 ? 0 : btn);
+		if (sf::Mouse::isButtonPressed(sfBtn))
+		{
+			if (auto* o = lookup(m_dragHandle))
+			{
+				const sf::Vector2i ownerTL = o->getOwner() ? o->getOwner()->getTopLeftCornerRef() : sf::Vector2i{ 0, 0 };
+				o->setOffset({ mp.x - m_dragGrab.x - ownerTL.x, mp.y - m_dragGrab.y - ownerTL.y });
+			}
+		}
+		else
+		{
+			m_mouseQueue.push_back({ m_dragHandle, LuaUI::WE_DragStop, btn, 0.f });
+			const int drop = topMouseHandleAt(mp);
+			if (drop && drop != m_dragHandle)
+				m_mouseQueue.push_back({ drop, LuaUI::WE_ReceiveDrag, btn, 0.f });
+			m_dragHandle = 0;
+		}
+	}
+
+	const int hit = topMouseHandleAt(mp);
+
+	// --- mouse buttons: left/right/middle, press + release ---
+	static const sf::Mouse::Button kButtons[] = { sf::Mouse::Left, sf::Mouse::Right, sf::Mouse::Middle };
+	for (int i = 0; i < 3; ++i)
+	{
+		const sf::Mouse::Button b = kButtons[i];
+		if (hit && sApplication->mouseDown(b))
+		{
+			m_mouseQueue.push_back({ hit, LuaUI::WE_MouseDown, i, 0.f });
+
+			// Begin a drag if this frame is movable and registered for this button.
+			auto it = m_inputState.find(hit);
+			if (!m_dragHandle && it != m_inputState.end() && it->second.movable && it->second.dragButton == b)
+			{
+				if (auto* o = lookup(hit))
+				{
+					const auto& tl = o->getTopLeftCornerRef();
+					m_dragHandle = hit;
+					m_dragGrab = { mp.x - tl.x, mp.y - tl.y };
+					clearAllPoints(hit);   // become offset-positioned so relayout won't fight the drag
+					m_mouseQueue.push_back({ hit, LuaUI::WE_DragStart, i, 0.f });
+				}
+			}
+			sApplication->clearMouseDown();   // consume so the world doesn't also act on it
+		}
+		if (hit && sApplication->mouseUp(b))
+		{
+			m_mouseQueue.push_back({ hit, LuaUI::WE_MouseUp, i, 0.f });
+			sApplication->clearMouseUp();
+		}
+	}
+
+	// --- mouse wheel ---
+	if (hit)
+	{
+		const float delta = sApplication->getMouseWheelEvent().delta;
+		if (delta != 0.f)
+		{
+			m_mouseQueue.push_back({ hit, LuaUI::WE_MouseWheel, 0, delta });
+			sApplication->clearMouseWheelEvent();
+		}
+	}
 }
 
 // ---------------------------------------------------------------- LuaUI:: (sol-free backend)
@@ -729,6 +1052,9 @@ namespace LuaUI
 		if (auto* m = LuaFrameManager::instance())
 			m->setPoint(handle, point, relHandle, relPoint, xOfs, yOfs);
 	}
+
+	void setAllPoints(int handle, int relHandle) { if (auto* m = LuaFrameManager::instance()) m->setAllPoints(handle, relHandle); }
+	void clearAllPoints(int handle)              { if (auto* m = LuaFrameManager::instance()) m->clearAllPoints(handle); }
 
 	void setSize(int handle, float w, float h)
 	{
@@ -873,6 +1199,35 @@ namespace LuaUI
 
 	int screenWidth()  { return sApplication->sW(); }
 	int screenHeight() { return sApplication->sH(); }
+
+	bool isInWorld() { auto* w = currentWorld(); return w && w->myself(); }
+
+	bool isMouseOver(int handle)
+	{
+		auto* m = LuaFrameManager::instance();
+		return m && m->hitTest(handle, sApplication->mousePos());
+	}
+
+	// ---- widget interaction (forward to the manager) ----
+	bool popMouseEvent(WidgetMouseEvent& out)        { auto* m = LuaFrameManager::instance(); return m && m->popMouseEvent(out); }
+	void setMouseEnabled(int handle, bool v)         { if (auto* m = LuaFrameManager::instance()) m->setMouseEnabled(handle, v); }
+	void setMovable(int handle, bool v)              { if (auto* m = LuaFrameManager::instance()) m->setMovable(handle, v); }
+	void setDragButton(int handle, int sfButton)     { if (auto* m = LuaFrameManager::instance()) m->setDragButton(handle, sfButton); }
+	bool  isShownSelf(int handle)                    { auto* m = LuaFrameManager::instance(); return m && m->isShownSelf(handle); }
+	float statusBarValue(int handle)                 { auto* m = LuaFrameManager::instance(); return m ? m->statusBarValue(handle) : 0.f; }
+	float statusBarMin(int handle)                   { auto* m = LuaFrameManager::instance(); return m ? m->statusBarMin(handle) : 0.f; }
+	float statusBarMax(int handle)                   { auto* m = LuaFrameManager::instance(); return m ? m->statusBarMax(handle) : 0.f; }
+	int   frameWidth(int handle)                     { auto* m = LuaFrameManager::instance(); return m ? m->frameSize(handle).x : 0; }
+	int   frameHeight(int handle)                    { auto* m = LuaFrameManager::instance(); return m ? m->frameSize(handle).y : 0; }
+	int   frameLeft(int handle)                      { auto* m = LuaFrameManager::instance(); auto* o = m ? m->lookup(handle) : nullptr; return o ? o->getTopLeftCornerRef().x : 0; }
+	int   frameTop(int handle)                       { auto* m = LuaFrameManager::instance(); auto* o = m ? m->lookup(handle) : nullptr; return o ? o->getTopLeftCornerRef().y : 0; }
+	int   parentOf(int handle)                       { auto* m = LuaFrameManager::instance(); return m ? m->parentOf(handle) : 0; }
+	void  setName(int handle, const std::string& n)  { if (auto* m = LuaFrameManager::instance()) m->setName(handle, n); }
+	std::string frameName(int handle)                { auto* m = LuaFrameManager::instance(); return m ? m->frameName(handle) : std::string(); }
+	bool  isVisible(int handle)                      { auto* m = LuaFrameManager::instance(); return m && m->isVisible(handle); }
+	std::string objectType(int handle)               { auto* m = LuaFrameManager::instance(); return m ? m->objectType(handle) : std::string(); }
+	void  setAlpha(int handle, float a)              { if (auto* m = LuaFrameManager::instance()) m->setAlpha(handle, a); }
+	void  setTexCoord(int handle, float l, float r, float t, float b) { if (auto* m = LuaFrameManager::instance()) m->setTexCoord(handle, l, r, t, b); }
 
 	void setDebugBounds(bool v) { if (v) LuaFrameManager::debugDumpBounds(); }
 

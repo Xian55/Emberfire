@@ -72,11 +72,29 @@ struct LuaEngineImpl
 
 	std::function<void(const std::string&)> outputSink;  // routes print() to the console (set by host)
 
-	std::map<int, sol::protected_function> onUpdate;     // handle -> OnUpdate(self, dt)
-	std::map<int, sol::protected_function> onClick;      // handle -> OnClick(self, button)
-	std::map<int, sol::protected_function> onEnter;      // handle -> OnEnter(self) (editbox Enter)
-	std::map<int, sol::protected_function> onEvent;      // handle -> OnEvent(self, event, arg)
-	std::map<std::string, std::set<int>>   eventSubs;    // eventName -> subscribed handles
+	std::map<int, sol::protected_function> onUpdate;       // handle -> OnUpdate(self, dt)
+	std::map<int, sol::protected_function> onClick;        // handle -> OnClick(self, button)
+	std::map<int, sol::protected_function> onEnterPressed; // handle -> OnEnterPressed(self) (editbox Enter key)
+	std::map<int, sol::protected_function> onMouseEnter;   // handle -> OnEnter(self) (cursor entered bounds)
+	std::map<int, sol::protected_function> onMouseLeave;   // handle -> OnLeave(self) (cursor left bounds)
+	std::set<int>                          hovered;        // handles the cursor is currently inside (edge detect)
+	std::map<int, sol::protected_function> onMouseDown;    // handle -> OnMouseDown(self, button)
+	std::map<int, sol::protected_function> onMouseUp;      // handle -> OnMouseUp(self, button)
+	std::map<int, sol::protected_function> onMouseWheel;   // handle -> OnMouseWheel(self, delta)
+	std::map<int, sol::protected_function> onDragStart;    // handle -> OnDragStart(self)
+	std::map<int, sol::protected_function> onDragStop;     // handle -> OnDragStop(self)
+	std::map<int, sol::protected_function> onReceiveDrag;  // handle -> OnReceiveDrag(self)
+	std::map<int, sol::protected_function> onShow;         // handle -> OnShow(self)
+	std::map<int, sol::protected_function> onHide;         // handle -> OnHide(self)
+	std::map<int, sol::protected_function> onValueChanged; // handle -> OnValueChanged(self, value)
+	std::map<int, sol::protected_function> onMinMaxChanged;// handle -> OnMinMaxChanged(self, min, max)
+	std::map<int, sol::protected_function> onSizeChanged;  // handle -> OnSizeChanged(self, w, h)
+	std::set<int>                          shownState;     // last-seen shown flag (OnShow/OnHide edge detect)
+	std::map<int, float>                   lastValue;      // OnValueChanged edge cache
+	std::map<int, std::pair<float,float>>  lastMinMax;     // OnMinMaxChanged edge cache
+	std::map<int, std::pair<int,int>>      lastSize;       // OnSizeChanged edge cache
+	std::map<int, sol::protected_function> onEvent;        // handle -> OnEvent(self, event, arg)
+	std::map<std::string, std::set<int>>   eventSubs;      // eventName -> subscribed handles
 
 	std::vector<AddonInfo> addons;                       // loaded addons (M5)
 	sol::environment       defaultUiEnv;                 // shared env for the built-in Lua default UI (ui/)
@@ -187,7 +205,25 @@ void LuaEngine::clearFrames()
 {
 	m_impl->onUpdate.clear();
 	m_impl->onClick.clear();
-	m_impl->onEnter.clear();
+	m_impl->onEnterPressed.clear();
+	m_impl->onMouseEnter.clear();
+	m_impl->onMouseLeave.clear();
+	m_impl->hovered.clear();
+	m_impl->onMouseDown.clear();
+	m_impl->onMouseUp.clear();
+	m_impl->onMouseWheel.clear();
+	m_impl->onDragStart.clear();
+	m_impl->onDragStop.clear();
+	m_impl->onReceiveDrag.clear();
+	m_impl->onShow.clear();
+	m_impl->onHide.clear();
+	m_impl->onValueChanged.clear();
+	m_impl->onMinMaxChanged.clear();
+	m_impl->onSizeChanged.clear();
+	m_impl->shownState.clear();
+	m_impl->lastValue.clear();
+	m_impl->lastMinMax.clear();
+	m_impl->lastSize.clear();
 	m_impl->onEvent.clear();
 	m_impl->eventSubs.clear();
 }
@@ -491,6 +527,16 @@ void LuaEngine::reloadAddons()
 	clearFrames();             // drop OnUpdate/OnClick/OnEvent handlers (engine side)
 	m_impl->addons.clear();    // release per-addon envs
 	loadAddons();
+
+	// loadAddons re-fires only ADDON_LOADED. If we reloaded while already in the world, the freshly
+	// re-created HUD frames are still hidden (they reveal on WORLD_SHOWN/PLAYER_LOGIN, which won't fire
+	// again on their own) — replay them so the HUD comes back instead of vanishing.
+	if (LuaUI::isInWorld())
+	{
+		fire(LuaEvents::WORLD_SHOWN, "");
+		fire(LuaEvents::PLAYER_LOGIN, "");
+	}
+
 	hostPrint("addons reloaded");
 }
 
@@ -578,12 +624,20 @@ void LuaEngine::bindUI()
 	// FrameHandle methods live on a global metatable; addons reach them via instances, not the sandbox env.
 	lua.new_usertype<FrameHandle>("__EmberFrame",
 		sol::no_constructor,
+		// WoW SetPoint(point [, relativeTo:Frame] [, relativePoint:string] [, x, y]).
 		"SetPoint", [](FrameHandle self, std::string point, sol::variadic_args va) {
-			const float x = (va.size() >= 1) ? va[0].as<float>() : 0.f;
-			const float y = (va.size() >= 2) ? va[1].as<float>() : 0.f;
 			const int pi = pointToInt(point);
-			LuaUI::setPoint(self.h, pi, 0, pi, x, y);
+			int relH = 0, relPi = pi;   // default: anchor to owner/screen, relativePoint == point
+			float x = 0.f, y = 0.f;
+			std::size_t i = 0;
+			if (i < va.size() && va[i].is<FrameHandle>()) { relH = va[i].as<FrameHandle>().h; ++i; }
+			if (i < va.size() && va[i].is<std::string>()) { relPi = pointToInt(va[i].as<std::string>()); ++i; }
+			if (i < va.size() && va[i].is<double>())      { x = va[i].as<float>(); ++i; }
+			if (i < va.size() && va[i].is<double>())      { y = va[i].as<float>(); ++i; }
+			LuaUI::setPoint(self.h, pi, relH, relPi, x, y);
 		},
+		"SetAllPoints",     [](FrameHandle self, sol::optional<FrameHandle> rel) { LuaUI::setAllPoints(self.h, rel ? rel->h : 0); },
+		"ClearAllPoints",   [](FrameHandle self)                   { LuaUI::clearAllPoints(self.h); },
 		"SetSize",          [](FrameHandle self, float w, float h) { LuaUI::setSize(self.h, w, h); },
 		"SetText",          [](FrameHandle self, std::string t)    { LuaUI::setText(self.h, t); },
 		"GetText",          [](FrameHandle self)                   { return LuaUI::getText(self.h); },
@@ -626,10 +680,23 @@ void LuaEngine::bindUI()
 		"Raise",            [](FrameHandle self)                   { LuaUI::raiseFrame(self.h); },
 		"Lower",            [](FrameHandle self)                   { LuaUI::lowerFrame(self.h); },
 		"SetScript",        [this](FrameHandle self, std::string which, sol::protected_function fn) {
-			if (which == "OnUpdate")     m_impl->onUpdate[self.h] = fn;
-			else if (which == "OnClick") m_impl->onClick[self.h]  = fn;
-			else if (which == "OnEnter") m_impl->onEnter[self.h]  = fn;
-			else if (which == "OnEvent") m_impl->onEvent[self.h]  = fn;
+			if (which == "OnUpdate")            m_impl->onUpdate[self.h]       = fn;
+			else if (which == "OnClick")        m_impl->onClick[self.h]        = fn;
+			else if (which == "OnEnter")        m_impl->onMouseEnter[self.h]   = fn;   // cursor entered bounds (passive)
+			else if (which == "OnLeave")        m_impl->onMouseLeave[self.h]   = fn;   // cursor left bounds (passive)
+			else if (which == "OnEnterPressed") m_impl->onEnterPressed[self.h] = fn;   // editbox Enter key
+			else if (which == "OnMouseDown")  { m_impl->onMouseDown[self.h]    = fn; LuaUI::setMouseEnabled(self.h, true); }
+			else if (which == "OnMouseUp")    { m_impl->onMouseUp[self.h]      = fn; LuaUI::setMouseEnabled(self.h, true); }
+			else if (which == "OnMouseWheel") { m_impl->onMouseWheel[self.h]   = fn; LuaUI::setMouseEnabled(self.h, true); }
+			else if (which == "OnDragStart")    m_impl->onDragStart[self.h]    = fn;
+			else if (which == "OnDragStop")     m_impl->onDragStop[self.h]     = fn;
+			else if (which == "OnReceiveDrag")  m_impl->onReceiveDrag[self.h]  = fn;
+			else if (which == "OnShow")         m_impl->onShow[self.h]         = fn;
+			else if (which == "OnHide")         m_impl->onHide[self.h]         = fn;
+			else if (which == "OnValueChanged")  m_impl->onValueChanged[self.h]  = fn;
+			else if (which == "OnMinMaxChanged") m_impl->onMinMaxChanged[self.h] = fn;
+			else if (which == "OnSizeChanged")   m_impl->onSizeChanged[self.h]   = fn;
+			else if (which == "OnEvent")        m_impl->onEvent[self.h]        = fn;
 		},
 		"RegisterEvent",    [this](FrameHandle self, std::string event) { m_impl->eventSubs[event].insert(self.h); },
 		"UnregisterEvent",  [this](FrameHandle self, std::string event) {
@@ -638,11 +705,33 @@ void LuaEngine::bindUI()
 		},
 		"UnregisterAllEvents", [this](FrameHandle self) { for (auto& kv : m_impl->eventSubs) kv.second.erase(self.h); },
 		"CreateTexture",    [](FrameHandle self)                   { return FrameHandle{ LuaUI::createTexture(self.h) }; },
-		"CreateFontString", [](FrameHandle self)                   { return FrameHandle{ LuaUI::createFontString(self.h) }; }
+		"CreateFontString", [](FrameHandle self)                   { return FrameHandle{ LuaUI::createFontString(self.h) }; },
+		"IsMouseOver",      [](FrameHandle self)                   { return LuaUI::isMouseOver(self.h); },
+		"GetLeft",          [](FrameHandle self)                   { return LuaUI::frameLeft(self.h); },   // current top-left screen X
+		"GetTop",           [](FrameHandle self)                   { return LuaUI::frameTop(self.h); },    // current top-left screen Y
+		"GetWidth",         [](FrameHandle self)                   { return LuaUI::frameWidth(self.h); },
+		"GetHeight",        [](FrameHandle self)                   { return LuaUI::frameHeight(self.h); },
+		"GetParent",        [](FrameHandle self)                   { return FrameHandle{ LuaUI::parentOf(self.h) }; },
+		"GetName",          [](FrameHandle self)                   { return LuaUI::frameName(self.h); },
+		"GetObjectType",    [](FrameHandle self)                   { return LuaUI::objectType(self.h); },
+		"IsShown",          [](FrameHandle self)                   { return LuaUI::isShownSelf(self.h); },
+		"IsVisible",        [](FrameHandle self)                   { return LuaUI::isVisible(self.h); },
+		"SetAlpha",         [](FrameHandle self, float a)          { LuaUI::setAlpha(self.h, a); },
+		"SetTexCoord",      [](FrameHandle self, float l, float r, float t, float b) { LuaUI::setTexCoord(self.h, l, r, t, b); },
+		"EnableMouse",      [](FrameHandle self, bool v)           { LuaUI::setMouseEnabled(self.h, v); },
+		"SetMovable",       [](FrameHandle self, bool v)           { LuaUI::setMovable(self.h, v); if (v) LuaUI::setMouseEnabled(self.h, true); },
+		"RegisterForDrag",  [](FrameHandle self, sol::optional<std::string> btn) {
+			// default LeftButton; map name -> sf::Mouse index (0=Left,1=Right,2=Middle)
+			const std::string b = btn.value_or(std::string("LeftButton"));
+			const int sfBtn = (b == "RightButton") ? 1 : (b == "MiddleButton") ? 2 : 0;
+			LuaUI::setDragButton(self.h, sfBtn);
+			LuaUI::setMovable(self.h, true);
+			LuaUI::setMouseEnabled(self.h, true);
+		}
 	);
 
 	// CreateFrame(frameType, name, parent) -> Frame. "Button" makes a clickable region; else a Frame.
-	m_impl->sandbox["CreateFrame"] = [](sol::optional<std::string> type, sol::optional<std::string>, sol::optional<FrameHandle> parent) {
+	m_impl->sandbox["CreateFrame"] = [](sol::optional<std::string> type, sol::optional<std::string> name, sol::optional<FrameHandle> parent) {
 		const int p = parent ? parent->h : 0;
 		const std::string t = type.value_or(std::string("Frame"));
 		int h;
@@ -650,6 +739,8 @@ void LuaEngine::bindUI()
 		else if (t == "StatusBar") h = LuaUI::createStatusBar(p);
 		else if (t == "EditBox")   h = LuaUI::createEditBox(p);
 		else                       h = LuaUI::createFrame(p);
+		if (h && name && !name->empty())
+			LuaUI::setName(h, *name);
 		return FrameHandle{ h };
 	};
 
@@ -774,17 +865,144 @@ void LuaEngine::onFrame(float dt)
 		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnClick error: ") + e.what()); }
 	}
 
-	// Drain Enter-submitted editboxes and fire OnEnter(self).
+	// Drain Enter-submitted editboxes and fire OnEnterPressed(self).
 	for (int h = LuaUI::popSubmittedHandle(); h != 0; h = LuaUI::popSubmittedHandle())
 	{
-		auto it = m_impl->onEnter.find(h);
-		if (it == m_impl->onEnter.end() || !it->second.valid())
+		auto it = m_impl->onEnterPressed.find(h);
+		if (it == m_impl->onEnterPressed.end() || !it->second.valid())
 			continue;
 		m_impl->instrArmed = true;
 		m_impl->instrCount = 0;
 		sol::protected_function_result r = it->second(FrameHandle{ h });
 		m_impl->instrArmed = false;
-		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnEnter error: ") + e.what()); }
+		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnEnterPressed error: ") + e.what()); }
+	}
+
+	// Hover edge-detection: fire OnEnter(self) when the cursor enters a frame's bounds and OnLeave(self)
+	// when it leaves. The ENGINE tracks state (m_impl->hovered) so addons never poll IsMouseOver in
+	// OnUpdate. Only frames with an OnEnter/OnLeave script are tested; handlers fire on transitions only.
+	{
+		std::set<int> watched;
+		for (auto& [h, fn] : m_impl->onMouseEnter) watched.insert(h);
+		for (auto& [h, fn] : m_impl->onMouseLeave) watched.insert(h);
+		for (int h : watched)
+		{
+			const bool over = LuaUI::isMouseOver(h);
+			const bool was  = m_impl->hovered.count(h) != 0;
+			if (over == was)
+				continue;
+			if (over) m_impl->hovered.insert(h);
+			else      m_impl->hovered.erase(h);
+
+			auto& tbl = over ? m_impl->onMouseEnter : m_impl->onMouseLeave;
+			auto it = tbl.find(h);
+			if (it == tbl.end() || !it->second.valid())
+				continue;
+			m_impl->instrArmed = true;
+			m_impl->instrCount = 0;
+			sol::protected_function_result r = it->second(FrameHandle{ h });
+			m_impl->instrArmed = false;
+			if (!r.valid()) { sol::error e = r; hostPrint(std::string(over ? "OnEnter error: " : "OnLeave error: ") + e.what()); }
+		}
+	}
+
+	// Drain mouse/drag events the manager's input() pass queued; fire the matching handlers.
+	{
+		auto buttonName = [](int b) -> std::string { return b == 1 ? "RightButton" : b == 2 ? "MiddleButton" : "LeftButton"; };
+		for (LuaUI::WidgetMouseEvent e; LuaUI::popMouseEvent(e); )
+		{
+			std::map<int, sol::protected_function>* tbl = nullptr;
+			switch (e.kind)
+			{
+				case LuaUI::WE_MouseDown:   tbl = &m_impl->onMouseDown;   break;
+				case LuaUI::WE_MouseUp:     tbl = &m_impl->onMouseUp;     break;
+				case LuaUI::WE_MouseWheel:  tbl = &m_impl->onMouseWheel;  break;
+				case LuaUI::WE_DragStart:   tbl = &m_impl->onDragStart;   break;
+				case LuaUI::WE_DragStop:    tbl = &m_impl->onDragStop;    break;
+				case LuaUI::WE_ReceiveDrag: tbl = &m_impl->onReceiveDrag; break;
+			}
+			if (!tbl) continue;
+			auto it = tbl->find(e.handle);
+			if (it == tbl->end() || !it->second.valid()) continue;
+			m_impl->instrArmed = true;
+			m_impl->instrCount = 0;
+			sol::protected_function_result r =
+				(e.kind == LuaUI::WE_MouseDown || e.kind == LuaUI::WE_MouseUp) ? it->second(FrameHandle{ e.handle }, buttonName(e.button))
+				: (e.kind == LuaUI::WE_MouseWheel)                            ? it->second(FrameHandle{ e.handle }, e.delta)
+				                                                              : it->second(FrameHandle{ e.handle });
+			m_impl->instrArmed = false;
+			if (!r.valid()) { sol::error err = r; hostPrint(std::string("mouse/drag handler error: ") + err.what()); }
+		}
+	}
+
+	// OnShow/OnHide: edge-detect the frame's OWN shown flag (engine-tracked, like hover).
+	{
+		std::set<int> watched;
+		for (auto& [h, fn] : m_impl->onShow) watched.insert(h);
+		for (auto& [h, fn] : m_impl->onHide) watched.insert(h);
+		for (int h : watched)
+		{
+			const bool shown = LuaUI::isShownSelf(h);
+			const bool was   = m_impl->shownState.count(h) != 0;
+			if (shown == was) continue;
+			if (shown) m_impl->shownState.insert(h); else m_impl->shownState.erase(h);
+			auto& tbl = shown ? m_impl->onShow : m_impl->onHide;
+			auto it = tbl.find(h);
+			if (it == tbl.end() || !it->second.valid()) continue;
+			m_impl->instrArmed = true;
+			m_impl->instrCount = 0;
+			sol::protected_function_result r = it->second(FrameHandle{ h });
+			m_impl->instrArmed = false;
+			if (!r.valid()) { sol::error e = r; hostPrint(std::string(shown ? "OnShow error: " : "OnHide error: ") + e.what()); }
+		}
+	}
+
+	// OnValueChanged (StatusBar value), edge-detected against a cache. First sighting seeds, doesn't fire.
+	for (auto& [h, fn] : m_impl->onValueChanged)
+	{
+		if (!fn.valid()) continue;
+		const float v = LuaUI::statusBarValue(h);
+		const bool seen = m_impl->lastValue.count(h) != 0;
+		const float prev = seen ? m_impl->lastValue[h] : 0.f;
+		m_impl->lastValue[h] = v;
+		if (!seen || prev == v) continue;
+		m_impl->instrArmed = true;
+		m_impl->instrCount = 0;
+		sol::protected_function_result r = fn(FrameHandle{ h }, v);
+		m_impl->instrArmed = false;
+		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnValueChanged error: ") + e.what()); }
+	}
+
+	// OnMinMaxChanged (StatusBar min/max).
+	for (auto& [h, fn] : m_impl->onMinMaxChanged)
+	{
+		if (!fn.valid()) continue;
+		const std::pair<float,float> mm{ LuaUI::statusBarMin(h), LuaUI::statusBarMax(h) };
+		const bool seen = m_impl->lastMinMax.count(h) != 0;
+		const std::pair<float,float> prev = seen ? m_impl->lastMinMax[h] : std::pair<float,float>{};
+		m_impl->lastMinMax[h] = mm;
+		if (!seen || prev == mm) continue;
+		m_impl->instrArmed = true;
+		m_impl->instrCount = 0;
+		sol::protected_function_result r = fn(FrameHandle{ h }, mm.first, mm.second);
+		m_impl->instrArmed = false;
+		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnMinMaxChanged error: ") + e.what()); }
+	}
+
+	// OnSizeChanged (any frame's current size).
+	for (auto& [h, fn] : m_impl->onSizeChanged)
+	{
+		if (!fn.valid()) continue;
+		const std::pair<int,int> sz{ LuaUI::frameWidth(h), LuaUI::frameHeight(h) };
+		const bool seen = m_impl->lastSize.count(h) != 0;
+		const std::pair<int,int> prev = seen ? m_impl->lastSize[h] : std::pair<int,int>{};
+		m_impl->lastSize[h] = sz;
+		if (!seen || prev == sz) continue;
+		m_impl->instrArmed = true;
+		m_impl->instrCount = 0;
+		sol::protected_function_result r = fn(FrameHandle{ h }, sz.first, sz.second);
+		m_impl->instrArmed = false;
+		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnSizeChanged error: ") + e.what()); }
 	}
 }
 

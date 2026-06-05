@@ -35,6 +35,8 @@ namespace LuaUI
 	void setBarColor(int handle, int r, int g, int b, int a);
 
 	void setPoint(int handle, int point, int relHandle, int relPoint, float xOfs, float yOfs);
+	void setAllPoints(int handle, int relHandle);   // anchor TOPLEFT+BOTTOMRIGHT to rel (0 => owner/screen)
+	void clearAllPoints(int handle);                // drop all anchors
 	void setSize(int handle, float w, float h);
 	void setText(int handle, const std::string& text);
 	void setTexture(int handle, const std::string& textureName);
@@ -70,6 +72,51 @@ namespace LuaUI
 	// ---- screen metrics (for Lua layout) ----
 	int screenWidth();
 	int screenHeight();
+
+	// True once the player is spawned in the world (HUD should be visible). Used by /reload to decide
+	// whether to re-fire the in-world events (WORLD_SHOWN/PLAYER_LOGIN) that reveal the HUD.
+	bool isInWorld();
+
+	// True if the cursor is within this (visible) object's bounds. Backs frame:IsMouseOver() and the
+	// engine's edge-detected OnEnter/OnLeave hover dispatch (see LuaEngine::onFrame).
+	bool isMouseOver(int handle);
+
+	// ---- widget interaction (mouse buttons / wheel / drag) ----
+	// Mouse buttons, the wheel and drag are detected in the manager's input() pass (so they can be CONSUMED
+	// before the world's click-to-move acts) and queued; LuaEngine::onFrame drains them and fires the Lua
+	// OnMouseDown/OnMouseUp/OnMouseWheel/OnDragStart/OnDragStop/OnReceiveDrag handlers.
+	struct WidgetMouseEvent
+	{
+		int   handle = 0;
+		int   kind   = 0;   // 0=MouseDown 1=MouseUp 2=MouseWheel 3=DragStart 4=DragStop 5=ReceiveDrag
+		int   button = 0;   // sf::Mouse index: 0=Left 1=Right 2=Middle (for MouseDown/Up)
+		float delta  = 0.f; // wheel delta (for MouseWheel)
+	};
+	enum WidgetEventKind { WE_MouseDown = 0, WE_MouseUp, WE_MouseWheel, WE_DragStart, WE_DragStop, WE_ReceiveDrag };
+
+	bool popMouseEvent(WidgetMouseEvent& out);          // drain one queued event; false when empty
+
+	void setMouseEnabled(int handle, bool v);           // EnableMouse: frame becomes a hit target that consumes
+	void setMovable(int handle, bool v);                // SetMovable: frame can be dragged
+	void setDragButton(int handle, int sfButton);       // RegisterForDrag: -1 = none
+
+	bool  isShownSelf(int handle);                      // the object's OWN shown flag (!isHidden), not ancestor
+	float statusBarValue(int handle);                   // 0 if not a StatusBar
+	float statusBarMin(int handle);
+	float statusBarMax(int handle);
+	int   frameWidth(int handle);                       // current size (sizeOf), 0 if unknown
+	int   frameHeight(int handle);
+	int   frameLeft(int handle);                        // current top-left screen X (reliable corner)
+	int   frameTop(int handle);                         // current top-left screen Y
+
+	// ---- introspection / visual primitives ----
+	int   parentOf(int handle);                         // owner's handle (0 = top-level)
+	void  setName(int handle, const std::string& name); // store the CreateFrame name
+	std::string frameName(int handle);
+	bool  isVisible(int handle);                        // shown AND no hidden ancestor
+	std::string objectType(int handle);                 // "Frame"/"Button"/"StatusBar"/...
+	void  setAlpha(int handle, float a);                // 0..1 -> per-widget vertex/text alpha
+	void  setTexCoord(int handle, float l, float r, float t, float b);   // 0..1 sub-rect (texture crop)
 
 	// ---- z-order within the parent (WoW SetFrameLevel/GetFrameLevel/Raise/Lower) ----
 	void setFrameLevel(int handle, int level);
