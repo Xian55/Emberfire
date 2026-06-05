@@ -406,13 +406,51 @@ void ClientMap::renderCalculationsThread()
 		const int screenSize = max(sApplication->sW(), sApplication->sH());
 		const int cellSize = min(GameMap::Defines::BaseCellHeight, GameMap::Defines::BaseCellWidth);
 		const int terrainSize = cellSize * ClientMap::Defines::TerrainToCellRatio;
-
-		// Dynamic Radius + A fixed amount to allow big sprites to appear off screen
-		const int cellSearchSize = ((screenSize / cellSize) / 2) + 4;   // PERF: was +14 (radius 54 -> 44, ~33% fewer cells)
 		const int terrainSearchSize = ((screenSize / terrainSize) / 2) + 2;
 
+		// Aspect-aware cell search. The iso viewport is a DIAMOND in cell space, not a square, so the old
+		// max(w,h) square loaded a huge off-screen area on wide (ultrawide) screens. Bound the search by the
+		// two iso axes separately: A along screen-X (dx-dy), B along screen-Y (dx+dy). Derive A/B from the
+		// real inverse projection (map the 4 screen corners to cell coords) so it is correct for any aspect.
 		vector<int> cells;
-		MapLogic::getIndexesAround(cells, centerCell, getMapWidth(), cellSearchSize);
+		{
+			const int W = getMapWidth();
+			int ccx, ccy;
+			Geo2d::computeCellPos(centerCell, ccx, ccy, W);
+
+			const Geo2d::Vector2 corners[4] = {
+				{ 0.f, 0.f }, { sApplication->sWf(), 0.f },
+				{ 0.f, sApplication->sHf() }, { sApplication->sWf(), sApplication->sHf() } };
+
+			int A = 0, B = 0;
+			for (const auto& corner : corners)
+			{
+				int x, y;
+				getCellPositionRelative(x, y, corner);
+				const int dx = x - ccx, dy = y - ccy;
+				A = max(A, abs(dx - dy));
+				B = max(B, abs(dx + dy));
+			}
+			A += 6;   // padding so big sprites (tall trees) at the edge don't pop
+			B += 6;
+
+			const int R = (A + B) / 2 + 1;   // bounding-box radius of the diamond
+			for (int dy = -R; dy <= R; ++dy)
+			{
+				const int y = ccy + dy;
+				if (y < 0 || y >= W)
+					continue;
+				for (int dx = -R; dx <= R; ++dx)
+				{
+					if (abs(dx - dy) > A || abs(dx + dy) > B)
+						continue;   // outside the iso viewport diamond
+					const int x = ccx + dx;
+					if (x < 0 || x >= W)
+						continue;
+					cells.push_back(y * W + x);
+				}
+			}
+		}
 
 		RenderData result;
 		MapLogic::getIndexesAround(result.terrain, centerTerrain, getTerrainWidth(), terrainSearchSize);
