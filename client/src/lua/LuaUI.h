@@ -13,10 +13,15 @@ namespace LuaUI
 
 	int  createFrame(int parentHandle);        // parent 0 => the root manager (top-level frame)
 	int  createButton(int parentHandle);       // a clickable region (OnClick via the poll bridge)
+	int  createStatusBar(int parentHandle);    // a fill-bar (SetMinMaxValues/SetValue)
 	int  createTexture(int frameHandle);       // a texture region owned by the frame
 	int  createFontString(int frameHandle);    // a text region owned by the frame
 
 	int  popClickedHandle();                   // drains the next clicked button handle (0 = none)
+
+	void setMinMax(int handle, float mn, float mx);
+	void setValue(int handle, float v);
+	void setBarColor(int handle, int r, int g, int b, int a);
 
 	void setPoint(int handle, int point, int relHandle, int relPoint, float xOfs, float yOfs);
 	void setSize(int handle, float w, float h);

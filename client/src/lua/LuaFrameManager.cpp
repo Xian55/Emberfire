@@ -137,6 +137,48 @@ void LuaButton::render()
 		m_sprite->render({ static_cast<float>(m_topLeftCorner.x), static_cast<float>(m_topLeftCorner.y) });
 }
 
+// ---------------------------------------------------------------- LuaStatusBar
+
+LuaStatusBar::LuaStatusBar(RenderObject& owner, const int id) : RenderObject(&owner, id)
+{
+	setMouseable(false);
+}
+
+void LuaStatusBar::setTexture(const std::string& textureName)
+{
+	m_fill = sContentMgr->spawnSprite(textureName);
+}
+
+void LuaStatusBar::setBarSize(const int w, const int h) { m_w = w; m_h = h; }
+void LuaStatusBar::setMinMax(const float mn, const float mx) { m_min = mn; m_max = mx; }
+void LuaStatusBar::setValue(const float v) { m_value = v; }
+
+void LuaStatusBar::setColor(const int r, const int g, const int b, const int a)
+{
+	if (m_fill)
+		m_fill->setColor(sf::Color(static_cast<sf::Uint8>(r), static_cast<sf::Uint8>(g),
+		                           static_cast<sf::Uint8>(b), static_cast<sf::Uint8>(a)));
+}
+
+void LuaStatusBar::render()
+{
+	if (!m_fill || m_w <= 0 || m_h <= 0)
+		return;
+
+	const float range = m_max - m_min;
+	float pct = (range > 0.f) ? (m_value - m_min) / range : 0.f;
+	if (pct < 0.f) pct = 0.f;
+	if (pct > 1.f) pct = 1.f;
+	if (pct <= 0.f)
+		return;
+
+	const auto lb = m_fill->getLocalBounds();
+	if (lb.width > 0.f && lb.height > 0.f)
+		m_fill->setScale((m_w * pct) / lb.width, m_h / lb.height);
+
+	m_fill->render({ static_cast<float>(m_topLeftCorner.x), static_cast<float>(m_topLeftCorner.y) });
+}
+
 // ---------------------------------------------------------------- LuaFrameManager
 
 LuaFrameManager* LuaFrameManager::s_instance = nullptr;
@@ -223,6 +265,21 @@ int LuaFrameManager::createButton(int parentHandle)
 	return h;
 }
 
+int LuaFrameManager::createStatusBar(int parentHandle)
+{
+	RenderObjectHolder* parent = this;
+	if (parentHandle != 0)
+	{
+		parent = dynamic_cast<RenderObjectHolder*>(lookup(parentHandle));
+		if (!parent)
+			return 0;
+	}
+
+	const int h = m_nextHandle++;
+	attachChild(*parent, make_shared<LuaStatusBar>(*parent, h), h);
+	return h;
+}
+
 int LuaFrameManager::popClickedHandle()
 {
 	for (auto& [h, obj] : m_objects)
@@ -232,12 +289,28 @@ int LuaFrameManager::popClickedHandle()
 	return 0;
 }
 
+void LuaFrameManager::setMinMax(int handle, float mn, float mx)
+{
+	if (auto s = dynamic_cast<LuaStatusBar*>(lookup(handle))) s->setMinMax(mn, mx);
+}
+
+void LuaFrameManager::setValue(int handle, float v)
+{
+	if (auto s = dynamic_cast<LuaStatusBar*>(lookup(handle))) s->setValue(v);
+}
+
+void LuaFrameManager::setColor(int handle, int r, int g, int b, int a)
+{
+	if (auto s = dynamic_cast<LuaStatusBar*>(lookup(handle))) s->setColor(r, g, b, a);
+}
+
 sf::Vector2i LuaFrameManager::sizeOf(RenderObject* o) const
 {
 	if (auto f = dynamic_cast<LuaFrame*>(o))      return f->logicalSize();
 	if (auto t = dynamic_cast<LuaTexture*>(o))    return t->naturalSize();
 	if (auto s = dynamic_cast<LuaFontString*>(o)) return s->textSize();
 	if (auto b = dynamic_cast<LuaButton*>(o))     return b->hitSize();
+	if (auto sb = dynamic_cast<LuaStatusBar*>(o)) return sb->barSize();
 	return { 0, 0 };
 }
 
@@ -270,9 +343,10 @@ void LuaFrameManager::setPoint(int handle, int point, int relHandle, int relPoin
 void LuaFrameManager::setSize(int handle, float w, float h)
 {
 	auto* o = lookup(handle);
-	if (auto f = dynamic_cast<LuaFrame*>(o))        f->setLogicalSize(static_cast<int>(w), static_cast<int>(h));
-	else if (auto t = dynamic_cast<LuaTexture*>(o)) t->setScaleSize(static_cast<int>(w), static_cast<int>(h));
-	else if (auto b = dynamic_cast<LuaButton*>(o))  b->setHitSize(static_cast<int>(w), static_cast<int>(h));
+	if (auto f = dynamic_cast<LuaFrame*>(o))          f->setLogicalSize(static_cast<int>(w), static_cast<int>(h));
+	else if (auto t = dynamic_cast<LuaTexture*>(o))   t->setScaleSize(static_cast<int>(w), static_cast<int>(h));
+	else if (auto b = dynamic_cast<LuaButton*>(o))    b->setHitSize(static_cast<int>(w), static_cast<int>(h));
+	else if (auto sb = dynamic_cast<LuaStatusBar*>(o)) sb->setBarSize(static_cast<int>(w), static_cast<int>(h));
 }
 
 void LuaFrameManager::setText(int handle, const std::string& text)
@@ -284,8 +358,9 @@ void LuaFrameManager::setText(int handle, const std::string& text)
 void LuaFrameManager::setTexture(int handle, const std::string& textureName)
 {
 	auto* o = lookup(handle);
-	if (auto t = dynamic_cast<LuaTexture*>(o))     t->setTexture(textureName);
-	else if (auto b = dynamic_cast<LuaButton*>(o)) b->setTexture(textureName);
+	if (auto t = dynamic_cast<LuaTexture*>(o))         t->setTexture(textureName);
+	else if (auto b = dynamic_cast<LuaButton*>(o))     b->setTexture(textureName);
+	else if (auto sb = dynamic_cast<LuaStatusBar*>(o)) sb->setTexture(textureName);
 }
 
 void LuaFrameManager::show(int handle, bool shown)
@@ -340,6 +415,16 @@ namespace LuaUI
 		if (auto* m = LuaFrameManager::instance())
 			m->clearAll();
 	}
+
+	int createStatusBar(int parentHandle)
+	{
+		auto* m = LuaFrameManager::instance();
+		return m ? m->createStatusBar(parentHandle) : 0;
+	}
+
+	void setMinMax(int handle, float mn, float mx) { if (auto* m = LuaFrameManager::instance()) m->setMinMax(handle, mn, mx); }
+	void setValue(int handle, float v)             { if (auto* m = LuaFrameManager::instance()) m->setValue(handle, v); }
+	void setBarColor(int handle, int r, int g, int b, int a) { if (auto* m = LuaFrameManager::instance()) m->setColor(handle, r, g, b, a); }
 
 	void setPoint(int handle, int point, int relHandle, int relPoint, float xOfs, float yOfs)
 	{

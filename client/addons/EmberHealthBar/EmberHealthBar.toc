@@ -1,0 +1,5 @@
+## Title: Ember Health Bar
+## Version: 1.0
+## Notes: Sample addon — a player health StatusBar fed by the UNIT_HEALTH event.
+## SavedVariables: EmberHealthBarDB
+EmberHealthBar.lua

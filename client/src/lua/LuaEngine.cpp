@@ -541,6 +541,16 @@ void LuaEngine::bindUI()
 		"SetSize",          [](FrameHandle self, float w, float h) { LuaUI::setSize(self.h, w, h); },
 		"SetText",          [](FrameHandle self, std::string t)    { LuaUI::setText(self.h, t); },
 		"SetTexture",       [](FrameHandle self, std::string t)    { LuaUI::setTexture(self.h, t); },
+		"SetStatusBarTexture", [](FrameHandle self, std::string t) { LuaUI::setTexture(self.h, t); },
+		"SetMinMaxValues",  [](FrameHandle self, float mn, float mx) { LuaUI::setMinMax(self.h, mn, mx); },
+		"SetValue",         [](FrameHandle self, float v)          { LuaUI::setValue(self.h, v); },
+		"SetStatusBarColor",[](FrameHandle self, sol::variadic_args va) {
+			const int r = va.size() >= 1 ? va[0].as<int>() : 255;
+			const int g = va.size() >= 2 ? va[1].as<int>() : 255;
+			const int b = va.size() >= 3 ? va[2].as<int>() : 255;
+			const int a = va.size() >= 4 ? va[3].as<int>() : 255;
+			LuaUI::setBarColor(self.h, r, g, b, a);
+		},
 		"Show",             [](FrameHandle self)                   { LuaUI::show(self.h, true); },
 		"Hide",             [](FrameHandle self)                   { LuaUI::show(self.h, false); },
 		"IsValid",          [](FrameHandle self)                   { return LuaUI::valid(self.h); },
@@ -563,7 +573,10 @@ void LuaEngine::bindUI()
 	m_impl->sandbox["CreateFrame"] = [](sol::optional<std::string> type, sol::optional<std::string>, sol::optional<FrameHandle> parent) {
 		const int p = parent ? parent->h : 0;
 		const std::string t = type.value_or(std::string("Frame"));
-		const int h = (t == "Button") ? LuaUI::createButton(p) : LuaUI::createFrame(p);
+		int h;
+		if (t == "Button")         h = LuaUI::createButton(p);
+		else if (t == "StatusBar") h = LuaUI::createStatusBar(p);
+		else                       h = LuaUI::createFrame(p);
 		return FrameHandle{ h };
 	};
 

@@ -80,6 +80,31 @@ class LuaButton : public RenderObject
 		bool m_clicked{false};
 };
 
+// A status/progress bar: a fill sprite scaled horizontally by (value-min)/(max-min).
+class LuaStatusBar : public RenderObject
+{
+	public:
+		LuaStatusBar(RenderObject& owner, const int id);
+
+		void setTexture(const std::string& textureName);
+		void setBarSize(const int w, const int h);
+		void setMinMax(const float mn, const float mx);
+		void setValue(const float v);
+		void setColor(const int r, const int g, const int b, const int a);
+		sf::Vector2i barSize() const { return { m_w, m_h }; }
+
+	private:
+		void input() final {}
+		void render() final;
+
+		shared_ptr<Sprite> m_fill;
+		int   m_w{0};
+		int   m_h{0};
+		float m_min{0.f};
+		float m_max{1.f};
+		float m_value{0.f};
+};
+
 // ---- Manager: root holder for all Lua frames + the handle registry behind LuaUI:: ----
 class LuaFrameManager : public RenderObjectHolder
 {
@@ -90,9 +115,13 @@ class LuaFrameManager : public RenderObjectHolder
 		// LuaUI backend (return 0 / no-op on bad handles).
 		int  createFrame(int parentHandle);
 		int  createButton(int parentHandle);
+		int  createStatusBar(int parentHandle);
 		int  createTexture(int frameHandle);
 		int  createFontString(int frameHandle);
 		int  popClickedHandle();
+		void setMinMax(int handle, float mn, float mx);
+		void setValue(int handle, float v);
+		void setColor(int handle, int r, int g, int b, int a);
 		void setPoint(int handle, int point, int relHandle, int relPoint, float x, float y);
 		void setSize(int handle, float w, float h);
 		void setText(int handle, const std::string& text);
