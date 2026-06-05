@@ -69,9 +69,8 @@ add_custom_command(TARGET emberfire_client POST_BUILD
             "${EMBERFIRE_SFML_ROOT}/bin" "$<TARGET_FILE_DIR:emberfire_client>"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${EMBERFIRE_DEPS_DIR}/zip/zip.dll" "$<TARGET_FILE_DIR:emberfire_client>"
-    # Built-in Lua default UI: client/ui -> runtime ui/ (cwd = the exe's parent dir). Always refresh.
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/ui" "$<TARGET_FILE_DIR:emberfire_client>/../ui"
+    # Built-in Lua default UI (client/ui -> runtime ui/) is junctioned by provision.ps1 (below) instead of
+    # copied, so source edits are live and in-game /reload picks them up without a rebuild.
     # Provision assets so the build-dir exe runs in place (junctions + config/db; idempotent).
     COMMAND powershell -NoProfile -ExecutionPolicy Bypass
             -File "${CMAKE_SOURCE_DIR}/scripts/provision.ps1"
