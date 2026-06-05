@@ -1,75 +1,106 @@
--- Player + target unit frames: name, level, health bar, mana bar; click to target.
--- Built entirely from the C++ API (getters + events + the TargetUnit command).
--- The frame manager is now persistent across all screens, so these frames stay hidden until the player
--- is in the world (WORLD_SHOWN) and hide again on the login / character screens.
+-- Unit frames: instantiate player / target / party from the shared template (UnitFrameTemplate.lua),
+-- then wire the refresh events + stage lifecycle. The widget itself lives in the template; this file only
+-- decides WHICH frames exist, where, and how they differ.
+--
+-- player + target share the LARGE layout and differ only by `mirror` (portrait left vs right + reverse art).
+-- party 1-3 share the COMPACT layout. Layout numbers are in portrait-left coords; the template mirrors them.
 
-local function makeUnitFrame(token, x, y)
-	local f = CreateFrame('Button', 'EmberUI_' .. token .. 'Frame', nil)
-	f:SetSize(220, 60)
-	f:SetPoint('TOPLEFT', x, y)
+-- Large layout (player/target). Coords from UnitFrame.cpp's LocalPlayer style; the template mirrors for target.
+local LARGE = {
+	portrait = { 44, 73, 39 },                          -- center x, center y, radius
+	hp = { 74, 39 }, mp = { 84, 70 },
+	hpPct = { 91, 46 }, mpPct = { 91, 74 },
+	hpTxt = { 215, 45 }, mpTxt = { 215, 73 },
+	lvl = { 71, 105 }, name = { 66, 8 },
+	combat = { 73, 108 }, leader = { 16, 40 }, repairPos = { 15, 105 }, elite = { 110, -2 },
+	auras = { 95, 108 }, auraSize = 30, castOffset = { 50, 200 },
+}
 
-	local hp = CreateFrame('StatusBar', nil, f)
-	hp:SetStatusBarTexture('xp_bar.png'); hp:SetStatusBarColor(210, 50, 50, 255)
-	hp:SetSize(200, 18); hp:SetPoint('TOPLEFT', 10, 22)
+-- Compact layout (party). Coords from UnitFrame.cpp's PartyMember style.
+local COMPACT = {
+	portrait = { 30, 36, 26 },
+	hp = { 45, 11 }, mp = { 55, 33 },
+	hpPct = { 66, 13 }, mpPct = { 66, 33 },
+	hpTxt = { 165, 13 }, mpTxt = { 165, 33 },
+	lvl = { 51, 54 }, name = { 80, -13 },
+	combat = { 53, 57 }, leader = { 10, 14 },
+	auras = { 76, 58 }, auraSize = 19,
+}
 
-	local mp = CreateFrame('StatusBar', nil, f)
-	mp:SetStatusBarTexture('xp_bar.png'); mp:SetStatusBarColor(40, 90, 220, 255)
-	mp:SetSize(200, 12); mp:SetPoint('TOPLEFT', 10, 44)
+-- Lay frames out from the real art dimensions so they never overlap (sizes vary by texture).
+local MARGIN = 16
+local lw, lh = GetTextureSize('unit_frame.png');       if lw <= 0 then lw, lh = 300, 130 end
+local pw, ph = GetTextureSize('unit_frame_party.png');  if pw <= 0 then pw, ph = 230, 70 end
+local PX, PY = 40, 20                                    -- player top-left
 
-	local name = f:CreateFontString(); name:SetPoint('TOPLEFT', 10, 2)
-	local lvl  = f:CreateFontString(); lvl:SetPoint('TOPLEFT', 180, 2)
+EmberUI.PlayerFrame = EmberUI.CreateUnitFrame{
+	token = 'player', x = PX, y = PY, layout = LARGE, mirror = false,
+	art = { frame = 'unit_frame.png', hp = 'unit_frame_hp.png', mp = 'unit_frame_mp.png' },
+	show = { leader = true, repair = true, castbar = true, movable = true },
+}
 
-	-- One refresh updates everything; driven by the relevant events AND a 0.5s poll, so the frame fills in
-	-- as soon as the player's/target's data arrives (which can be after this UI loads).
-	local function refresh()
-		if not EmberUI.inWorld then f:Hide(); return end
-		if token == 'target' then
-			if UnitExists('target') then f:Show() else f:Hide(); return end
-		else
-			f:Show()
-		end
-		local hpmax = UnitHealthMax(token); if hpmax <= 0 then hpmax = 1 end
-		hp:SetMinMaxValues(0, hpmax); hp:SetValue(UnitHealth(token))
-		local mpmax = UnitPowerMax(token); if mpmax <= 0 then mpmax = 1 end
-		mp:SetMinMaxValues(0, mpmax); mp:SetValue(UnitPower(token))
-		name:SetText(UnitName(token))
-		lvl:SetText('Lv ' .. UnitLevel(token))
-	end
+EmberUI.TargetFrame = EmberUI.CreateUnitFrame{
+	token = 'target', x = PX + lw + MARGIN, y = PY, layout = LARGE, mirror = true,
+	art = { frame = 'unit_frame_reverse.png', hp = 'unit_frame_hp_reverse.png', mp = 'unit_frame_mp_reverse.png' },
+	show = { name = true, castbar = true, elite = true, movable = true },
+}
 
-	local d = CreateFrame('Frame', nil, nil)
-	d:SetScript('OnEvent', refresh)
-	d:RegisterEvent(Events.UNIT_HEALTH);   d:RegisterEvent(Events.UNIT_MAXHEALTH)
-	d:RegisterEvent(Events.UNIT_POWER);    d:RegisterEvent(Events.UNIT_MAXPOWER)
-	d:RegisterEvent(Events.UNIT_LEVEL);    d:RegisterEvent(Events.PLAYER_TARGET_CHANGED)
-	local acc = 0
-	d:SetScript('OnUpdate', function(_, dt) acc = acc + dt; if acc >= 0.5 then acc = 0; refresh() end end)
-
-	f:SetScript('OnClick', function() TargetUnit(token) end)
-	f:Hide()   -- hidden until WORLD_SHOWN
-	return { frame = f, hp = hp, mp = mp, name = name, lvl = lvl, refresh = refresh }
+EmberUI.PartyFrames = {}
+for i = 1, 3 do
+	EmberUI.PartyFrames[i] = EmberUI.CreateUnitFrame{
+		token = 'party' .. i, x = PX, y = PY + lh + MARGIN + (i - 1) * (ph + 8), layout = COMPACT, mirror = false,
+		art = { frame = 'unit_frame_party.png', hp = 'unit_frame_hp_party.png', mp = 'unit_frame_mp_party.png' },
+		show = { name = true, leader = true },
+	}
 end
 
-EmberUI.PlayerFrame = makeUnitFrame('player', 40, 20)
-EmberUI.TargetFrame = makeUnitFrame('target', 280, 20)
+-- Refresh on the unit events + a 0.5s poll fallback.
+local function refreshAll()
+	if not EmberUI.inWorld then return end
+	EmberUI.PlayerFrame.refresh()
+	EmberUI.TargetFrame.refresh()
+	for i = 1, 3 do
+		if PartyMemberExists(i) then EmberUI.PartyFrames[i].refresh()
+		else EmberUI.PartyFrames[i].frame:Hide() end
+	end
+end
 
--- HUD visibility:
---  * WORLD_SHOWN  fires when the world stage is created (the "Loading" screen is up, player not spawned yet)
---    -> retire the C++ frames now so nothing shows during loading, but keep the Lua HUD hidden too.
---  * PLAYER_LOGIN fires when the player is actually in control (loading done) -> reveal the Lua HUD.
---  * glue stages -> hide.
+-- Lock/Unlock from the right-click menu (Lua-handled entries; social actions are handled C++-side).
+local menu = CreateFrame('Frame', nil, nil)
+menu:SetScript('OnEvent', function(_, _, line)
+	local t = EmberUI._menuToken
+	if not t then return end
+	if line == 'Unlock' then EmberUI.SetFrameLocked(t, false)
+	elseif line == 'Lock' then EmberUI.SetFrameLocked(t, true) end
+end)
+menu:RegisterEvent(Events.CONTEXT_MENU_CLICK)
+
+local d = CreateFrame('Frame', nil, nil)
+d:SetScript('OnEvent', refreshAll)
+for _, e in ipairs({ Events.UNIT_HEALTH, Events.UNIT_MAXHEALTH, Events.UNIT_POWER, Events.UNIT_MAXPOWER,
+                     Events.UNIT_LEVEL, Events.UNIT_AURA, Events.UNIT_SPELLCAST_START, Events.UNIT_SPELLCAST_STOP,
+                     Events.PLAYER_TARGET_CHANGED, Events.GROUP_ROSTER_UPDATE }) do
+	d:RegisterEvent(e)
+end
+local acc = 0
+d:SetScript('OnUpdate', function(_, dt) if EmberUI.inWorld then acc = acc + dt; if acc >= 0.5 then acc = 0; refreshAll() end end end)
+
+-- Stage lifecycle: retire the C++ frames in-world, gate the Lua HUD on PLAYER_LOGIN, hide on glue screens.
+local function hideAll()
+	EmberUI.PlayerFrame.frame:Hide(); EmberUI.TargetFrame.frame:Hide()
+	for i = 1, 3 do EmberUI.PartyFrames[i].frame:Hide() end
+end
+
 local stage = CreateFrame('Frame', nil, nil)
 stage:SetScript('OnEvent', function(_, event)
 	if event == Events.WORLD_SHOWN then
-		SetGameFrameShown('PlayerFrame', false)
-		SetGameFrameShown('TargetFrame', false)
+		for _, n in ipairs({ 'PlayerFrame', 'TargetFrame', 'Party1Frame', 'Party2Frame', 'Party3Frame', 'CastBar' }) do
+			SetGameFrameShown(n, false)
+		end
 	elseif event == Events.PLAYER_LOGIN then
-		EmberUI.inWorld = true
-		EmberUI.PlayerFrame.refresh()
-		EmberUI.TargetFrame.refresh()
+		EmberUI.inWorld = true; refreshAll()
 	else
-		EmberUI.inWorld = false
-		EmberUI.PlayerFrame.frame:Hide()
-		EmberUI.TargetFrame.frame:Hide()
+		EmberUI.inWorld = false; hideAll()
 	end
 end)
 stage:RegisterEvent(Events.WORLD_SHOWN)

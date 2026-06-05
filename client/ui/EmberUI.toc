@@ -2,6 +2,7 @@
 ## Notes: Built-in FrameXML-style UI written in Lua (login screen + HUD).
 EmberUI.lua
 LoginScreen.lua
+UnitFrameTemplate.lua
 UnitFrames.lua
 XPBar.lua
 ZoneNotification.lua
