@@ -4,12 +4,16 @@
 
 #include "..\Shared\GamePacketServer.h"
 
+#include <vector>
+#include <string>
+
 class ClientUnit;
 class Sprite;
 class TextBox;
 class Text;
 class CastBar;
 class ParticleSystem;
+class RenderObjectHolder;
 
 class UnitFrame : public BuffDebuffRenderer
 {
@@ -48,6 +52,9 @@ class UnitFrame : public BuffDebuffRenderer
 		void setOffline(const bool v) { m_offline = v; }
 
 		void notifyCtxMenuClicked(const int id, const string& lineClicked) final;
+		// build+register the menu on `host` (default: owner). The Lua frames pass the Lua manager so it renders
+		// above the Lua HUD, and may append extraLines (e.g. Lock/Unlock) handled Lua-side.
+		void openContextMenu(RenderObjectHolder* host = nullptr, const std::vector<std::string>& extraLines = {});
 
 		int getPortraitOffset() const { return m_portraitOffset; }
 

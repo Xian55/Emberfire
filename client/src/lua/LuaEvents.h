@@ -18,6 +18,11 @@
     X(UNIT_POWER)                 \
     X(UNIT_MAXPOWER)              \
     X(UNIT_LEVEL)                 \
+    X(UNIT_AURA)                  \
+    X(UNIT_SPELLCAST_START)       \
+    X(UNIT_SPELLCAST_STOP)        \
+    X(GROUP_ROSTER_UPDATE)        \
+    X(CONTEXT_MENU_CLICK)         \
     X(LOGIN_SHOWN)                \
     X(CHARSELECT_SHOWN)           \
     X(CHARCREATE_SHOWN)           \

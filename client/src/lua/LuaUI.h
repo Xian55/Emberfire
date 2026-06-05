@@ -54,6 +54,39 @@ namespace LuaUI
 	int unitPowerMax(const std::string& token);
 	std::string unitName(const std::string& token);
 	bool unitExists(const std::string& token);
+
+	// ---- unit-frame parity getters (token: "player"|"target"|"party1".."party3") ----
+	int  unitNameColor(const std::string& token);                 // packed 0xRRGGBB (faction/level-scaled)
+	int  unitFlag(const std::string& token, const std::string& name);  // generic getVariable: Elite/Boss/InCombat/InArenaQueue/DynGreyTagged
+	bool unitIsDead(const std::string& token);
+	bool unitIsPlayer(const std::string& token);                  // false => NPC (or absent)
+	bool unitIsPartyLeader(const std::string& token);
+	std::string unitPortraitTexture(const std::string& token);    // square portrait texture name
+	int  unitCastSpell(const std::string& token);                 // casting spell id (0 = not casting)
+	int  unitCastElapsedMs(const std::string& token);
+	int  unitCastTotalMs(const std::string& token);
+	int  unitAuraCount(const std::string& token, bool harmful);
+	// fills spellId/count/remainingMs/durationMs for aura `index` (0-based); false if out of range.
+	bool unitAura(const std::string& token, int index, bool harmful, int& spellId, int& count, int& remainingMs, int& durationMs);
+	bool partyMemberExists(int idx);                              // idx 0..2
+	// open the C++ right-click menu for the unit; extraLines (newline-joined) are appended + handled Lua-side.
+	void unitContextMenu(const std::string& token, const std::string& extraLines);
+	bool popMenuResult(std::string& out);                        // drain a clicked menu line (for the engine)
+	void showUnitTooltip(const std::string& token);             // re-assert the C++ unit tooltip (call while hovering)
+	void showSpellTooltip(int spellId);                         // re-assert a spell/aura tooltip (call while hovering)
+
+	// ---- persisted UI settings (default UI has no SavedVariables; backed by the config file) ----
+	void saveUISetting(const std::string& key, int value);
+	int  getUISetting(const std::string& key, int def);
+
+	// ---- spell DB (icon/name by spell id) ----
+	std::string spellTexture(int spellId);
+	std::string spellName(int spellId);
+
+	// ---- texture metrics (natural pixel size of a texture, for art-accurate layout) ----
+	int textureWidth(const std::string& name);
+	int textureHeight(const std::string& name);
+
 	int playerXP();
 	int playerMaxXP();
 

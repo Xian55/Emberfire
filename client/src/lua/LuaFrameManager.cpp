@@ -13,6 +13,10 @@
 #include "World.h"
 #include "Login.h"
 #include "ClientPlayer.h"
+#include "ClientUnit.h"
+#include "UnitFrame.h"
+#include "ContextMenu.h"
+#include "Tooltip.h"
 #include "..\..\SqlConnector\QueryResult.h"
 #include "..\..\Shared\Config.h"
 
@@ -434,6 +438,31 @@ RenderObject* LuaFrameManager::lookup(int handle) const
 	return (it == m_objects.end()) ? nullptr : it->second.get();
 }
 
+void LuaFrameManager::unregisterCtxMenu(const int id, const int childId, const std::string& result)
+{
+	// We host the Lua-opened unit context menu (so it draws above the Lua HUD). Its reportTo is the live C++
+	// UnitFrame in World — not our child — so route there manually, then destroy the menu.
+	if (auto menu = dynamic_pointer_cast<ContextMenu>(getRenderObject(m_ctxMenuId)))
+	{
+		if (auto* g = dynamic_cast<Game*>(getOwner()))
+			if (auto w = dynamic_pointer_cast<World>(g->getRenderObject(Game::RoWorld)))
+				if (auto rt = w->getRenderObject(menu->getReportToId()))
+					rt->notifyCtxMenuClicked(id, result);   // C++ social actions
+		m_menuResults.push_back(result);                    // also surface to Lua (Lock/Unlock etc.)
+		destroyObjectById(m_ctxMenuId);
+		m_ctxMenuId = -1;
+	}
+}
+
+bool LuaFrameManager::popMenuResult(std::string& out)
+{
+	if (m_menuResults.empty())
+		return false;
+	out = m_menuResults.front();
+	m_menuResults.erase(m_menuResults.begin());
+	return true;
+}
+
 bool LuaFrameManager::hitTest(int handle, sf::Vector2i p) const
 {
 	auto* obj = lookup(handle);
@@ -783,6 +812,7 @@ void LuaFrameManager::clearAll()
 	m_objects.clear();
 	m_inputState.clear();
 	m_mouseQueue.clear();
+	m_menuResults.clear();
 	m_anchors.clear();
 	m_dynamicAnchored.clear();
 	m_parent.clear();
@@ -1107,6 +1137,23 @@ namespace LuaUI
 		return dynamic_pointer_cast<World>(game->getRenderObject(Game::RoWorld)).get();
 	}
 
+	// The live C++ UnitFrame for a token (player/target/party1..3). These frames are force-hidden in favor of
+	// the Lua replacement but still alive, so they own the resolved unit + portrait + the context menu.
+	static UnitFrame* resolveUnitFrame(const std::string& token)
+	{
+		auto* w = currentWorld();
+		if (!w)
+			return nullptr;
+		const int id = (token == "player")  ? World::PlayerUnitFrame
+		             : (token == "target")  ? World::TargetUnitFrame
+		             : (token == "party1")  ? World::Party1UnitFrame
+		             : (token == "party2")  ? World::Party2UnitFrame
+		             : (token == "party3")  ? World::Party3UnitFrame : 0;
+		if (!id)
+			return nullptr;
+		return dynamic_cast<UnitFrame*>(w->getRenderObject(id).get());
+	}
+
 	static ClientUnit* resolveUnit(const std::string& token)
 	{
 		auto* w = currentWorld();
@@ -1116,6 +1163,8 @@ namespace LuaUI
 			return w->myself();
 		if (token == "target")
 			return w->selectedUnit();
+		if (auto* f = resolveUnitFrame(token))   // party1..3 via the live C++ frame's unit
+			return f->getUnitPtr();
 		return nullptr;
 	}
 
@@ -1126,6 +1175,140 @@ namespace LuaUI
 	int unitPowerMax(const std::string& token)  { auto* u = resolveUnit(token); return u ? u->getMaxMana() : 0; }
 	std::string unitName(const std::string& token) { auto* u = resolveUnit(token); return u ? u->getName() : std::string(); }
 	bool unitExists(const std::string& token)   { return resolveUnit(token) != nullptr; }
+
+	int unitNameColor(const std::string& token)
+	{
+		auto* u = resolveUnit(token);
+		if (!u) return 0xFFFFFF;
+		const sf::Color c = u->getNameColor();
+		return (int(c.r) << 16) | (int(c.g) << 8) | int(c.b);
+	}
+
+	int unitFlag(const std::string& token, const std::string& name)
+	{
+		auto* u = resolveUnit(token);
+		if (!u) return 0;
+		const ObjDefines::Variable v =
+			  (name == "Elite")         ? ObjDefines::Variable::Elite
+			: (name == "Boss")          ? ObjDefines::Variable::Boss
+			: (name == "InCombat")      ? ObjDefines::Variable::InCombat
+			: (name == "InArenaQueue")  ? ObjDefines::Variable::InArenaQueue
+			: (name == "DynGreyTagged") ? ObjDefines::Variable::DynGreyTagged
+			: ObjDefines::Variable::Health;   // unknown name => harmless read
+		return u->getVariable(v);
+	}
+
+	bool unitIsDead(const std::string& token)   { auto* u = resolveUnit(token); return u && u->getHealth() <= 0; }
+	bool unitIsPlayer(const std::string& token) { auto* u = resolveUnit(token); return u && u->getType() == MutualObject::Type::Player; }
+
+	bool unitIsPartyLeader(const std::string& token)
+	{
+		auto* w = currentWorld();
+		auto* u = resolveUnit(token);
+		return w && u && w->isPartyLeader(u->getGuid());
+	}
+
+	std::string unitPortraitTexture(const std::string& token)
+	{
+		auto* f = resolveUnitFrame(token);
+		if (!f) return std::string();
+		auto* spr = f->getPortraitPtr();
+		return spr ? spr->getTextureName() : std::string();
+	}
+
+	int unitCastSpell(const std::string& token) { auto* u = resolveUnit(token); return u ? u->getCastSpellId() : 0; }
+
+	int unitCastElapsedMs(const std::string& token)
+	{
+		auto* u = resolveUnit(token);
+		if (!u || u->getCastSpellId() == 0) return 0;
+		return static_cast<int>(std::clock()) - static_cast<int>(u->getCastStartTime());
+	}
+
+	int unitCastTotalMs(const std::string& token)
+	{
+		auto* u = resolveUnit(token);
+		if (!u || u->getCastSpellId() == 0) return 0;
+		return static_cast<int>(u->getCastStopTime()) - static_cast<int>(u->getCastStartTime());
+	}
+
+	int unitAuraCount(const std::string& token, bool harmful)
+	{
+		auto* u = resolveUnit(token);
+		if (!u) return 0;
+		return static_cast<int>((harmful ? u->getDebuffs() : u->getBuffs()).size());
+	}
+
+	bool unitAura(const std::string& token, int index, bool harmful, int& spellId, int& count, int& remainingMs, int& durationMs)
+	{
+		auto* u = resolveUnit(token);
+		if (!u) return false;
+		const auto& list = harmful ? u->getDebuffs() : u->getBuffs();
+		if (index < 0 || index >= static_cast<int>(list.size())) return false;
+		const auto& a = list[index];
+		spellId    = a.spellId;
+		count      = a.stackCount;
+		durationMs = a.maxDuration;
+		remainingMs = static_cast<int>(a.endDate - sApplication->timeNowMs());   // 0/neg => expired/permanent
+		if (a.maxDuration == 0) remainingMs = 0;
+		return true;
+	}
+
+	bool partyMemberExists(int idx)
+	{
+		auto* w = currentWorld();
+		if (!w) return false;
+		const int id = (idx == 0) ? World::Party1UnitFrame : (idx == 1) ? World::Party2UnitFrame : (idx == 2) ? World::Party3UnitFrame : 0;
+		if (!id) return false;
+		auto* f = dynamic_cast<UnitFrame*>(w->getRenderObject(id).get());
+		return f && f->getUnitPtr() != nullptr;
+	}
+
+	void unitContextMenu(const std::string& token, const std::string& extraLines)
+	{
+		auto* f = resolveUnitFrame(token);
+		if (!f) return;
+		std::vector<std::string> extra;
+		for (size_t i = 0; i < extraLines.size(); )
+		{
+			const size_t nl = extraLines.find('\n', i);
+			const std::string line = extraLines.substr(i, nl == std::string::npos ? std::string::npos : nl - i);
+			if (!line.empty()) extra.push_back(line);
+			if (nl == std::string::npos) break;
+			i = nl + 1;
+		}
+		f->openContextMenu(LuaFrameManager::instance(), extra);
+	}
+
+	bool popMenuResult(std::string& out) { auto* m = LuaFrameManager::instance(); return m && m->popMenuResult(out); }
+
+	void showUnitTooltip(const std::string& token) { if (auto* u = resolveUnit(token)) u->useTooltip(); }
+
+	void showSpellTooltip(int spellId)
+	{
+		auto* w = currentWorld();
+		if (!w || spellId == 0)
+			return;
+		auto& st = sContentMgr->db("spell_template");
+		auto tip = make_shared<Tooltip>(*w, sf::Vector2i{});
+		tip->setShadowOffset(1);
+		tip->addLine(Assets::FontId::Arial, 15, st.data(spellId, "name"), sf::Color(240, 197, 2, 255));
+		const std::string desc = st.data(spellId, "aura_description");
+		if (!desc.empty())
+			tip->addLine(Assets::FontId::Arial, 15, desc);
+		const auto mp = sApplication->mousePos();
+		tip->moveTo({ mp.x + 16, mp.y + 16 });
+		sApplication->setTooltip(tip);
+	}
+
+	void saveUISetting(const std::string& key, int value) { sConfig->setInt("UI", key.c_str(), value); }
+	int  getUISetting(const std::string& key, int def)    { return sConfig->getInt("UI", key.c_str(), def); }
+
+	std::string spellTexture(int spellId) { return sContentMgr->db("spell_template").data(spellId, "icon"); }
+	std::string spellName(int spellId)    { return sContentMgr->db("spell_template").data(spellId, "name"); }
+
+	int textureWidth(const std::string& name)  { auto t = sContentMgr->getTexture(name); return t ? static_cast<int>(t->getSize().x) : 0; }
+	int textureHeight(const std::string& name) { auto t = sContentMgr->getTexture(name); return t ? static_cast<int>(t->getSize().y) : 0; }
 
 	int playerXP()
 	{
@@ -1172,6 +1355,10 @@ namespace LuaUI
 		if (!w) return;
 		const int id = (name == "PlayerFrame") ? World::PlayerUnitFrame
 		             : (name == "TargetFrame") ? World::TargetUnitFrame
+		             : (name == "Party1Frame") ? World::Party1UnitFrame
+		             : (name == "Party2Frame") ? World::Party2UnitFrame
+		             : (name == "Party3Frame") ? World::Party3UnitFrame
+		             : (name == "CastBar")     ? World::PlayerCastBar
 		             : (name == "XPBar")       ? World::ToolbarXpObj : 0;
 		if (!id) return;
 		if (auto ro = w->getRenderObject(id))

@@ -216,6 +216,10 @@ class LuaFrameManager : public RenderObjectHolder
 		void         setAlpha(int handle, float a);
 		void         setTexCoord(int handle, float l, float r, float t, float b);
 
+		// Route results for context menus we host (Lua-opened unit menus) back to the C++ UnitFrame in World.
+		void unregisterCtxMenu(const int id, const int childId, const std::string& result) override;
+		bool popMenuResult(std::string& out);   // drain a clicked menu line for the engine (Lock/Unlock etc.)
+
 		RenderObject* lookup(int handle) const;
 
 		// True if point p (screen space) is within handle's visible bounds. Uses top-left + sizeOf (the
@@ -256,6 +260,7 @@ class LuaFrameManager : public RenderObjectHolder
 		struct LuaInputState { bool mouseEnabled = false; bool movable = false; int dragButton = -1; };
 		std::map<int, LuaInputState>         m_inputState;
 		std::vector<LuaUI::WidgetMouseEvent> m_mouseQueue;   // produced in input(), drained by the engine
+		std::vector<std::string>             m_menuResults;  // clicked context-menu lines, drained by the engine
 		int          m_dragHandle = 0;     // handle currently being dragged (0 = none)
 		sf::Vector2i m_dragGrab;           // cursor-to-topLeft offset captured at drag start
 

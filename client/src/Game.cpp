@@ -2224,6 +2224,12 @@ void Game::processPacket_Server_CastStop(StlBuffer& data)
 
 	if (caster->getCastSpellId() == incoming.m_spellId)
 		caster->setCastBar(nullptr, 0, 0);
+
+	// Lua addon layer: notify the player/target cast bar.
+	const char* token = caster->isLocal() ? "player"
+	                  : (caster->getGuid() == world->getSelectedGuid() ? "target" : nullptr);
+	if (token)
+		sLua->fire(LuaEvents::UNIT_SPELLCAST_STOP, token);
 }
 
 void Game::processPacket_Server_CastStart(StlBuffer& data)
@@ -2265,7 +2271,15 @@ void Game::processPacket_Server_CastStart(StlBuffer& data)
 	world->addWorldSpellAnimation(sa);
 
 	if (incoming.m_timer != 0)
+	{
 		caster->setCastBar(sa, incoming.m_spellId, incoming.m_timer);
+
+		// Lua addon layer: notify the player/target cast bar.
+		const char* token = caster->isLocal() ? "player"
+		                  : (caster->getGuid() == world->getSelectedGuid() ? "target" : nullptr);
+		if (token)
+			sLua->fire(LuaEvents::UNIT_SPELLCAST_START, token);
+	}
 }
 
 void Game::processPacket_Server_CombatMsg(StlBuffer& data)
@@ -2570,6 +2584,12 @@ void Game::processPacket_Server_UnitAuras(StlBuffer& data)
 		world->setBuffs(incoming.m_buffs);
 		world->setDebuffs(incoming.m_debuffs);
 	}
+
+	// Lua addon layer: notify the player/target aura rows.
+	const char* token = (world->myself() && incoming.m_unitGuid == world->myself()->getGuid()) ? "player"
+	                  : (incoming.m_unitGuid == world->getSelectedGuid() ? "target" : nullptr);
+	if (token)
+		sLua->fire(LuaEvents::UNIT_AURA, token);
 }
 
 void Game::processPacket_Server_UnitOrientation(StlBuffer& data)

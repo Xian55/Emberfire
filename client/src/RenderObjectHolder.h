@@ -25,7 +25,7 @@ class RenderObjectHolder : public RenderObject
 		void setPopupPromptDone(const int id);
 		void registerContextMenu(const int id, const int childId, const sf::Vector2i pos, const vector<string>& lines);
 		void registerContextMenuEx(const int id, const int childId, const sf::Vector2i pos, const vector<pair<string, sf::Color>>& lines);
-		void unregisterCtxMenu(const int id, const int childId, const string& result);
+		virtual void unregisterCtxMenu(const int id, const int childId, const string& result);
 		void setInputPrio(const int id);
 		void clearInputPrio() { m_inputPrio = -1; }
 
@@ -66,6 +66,8 @@ class RenderObjectHolder : public RenderObject
 	protected:
 		virtual void input() override;
 		virtual void render() override;
+
+		int m_ctxMenuId{ -1 };   // id of the open context menu (-1 = none); protected so subclasses can re-route results
 		
 		shared_ptr<RenderObject> attachObj(shared_ptr<RenderObject> gi, const sf::Vector2i& offset);
 		shared_ptr<RenderObject> attachAddObj(shared_ptr<RenderObject> gi, const sf::Vector2i& offset);
@@ -84,7 +86,6 @@ class RenderObjectHolder : public RenderObject
 		int m_mousedOverObject;
 		int m_queueToBringToTop;
 		int m_currentPromptInput;
-		int m_ctxMenuId;
 		int m_inputPrio;
 
 		set<int> m_idsToSkipRenderingThisFrame;

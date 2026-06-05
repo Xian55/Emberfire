@@ -22,6 +22,7 @@
 #include <set>
 #include <vector>
 #include <string>
+#include <tuple>
 #include <ctime>
 #include <cstdlib>
 #include <cassert>
@@ -755,9 +756,39 @@ void LuaEngine::bindUI()
 	m_impl->sandbox["GetXP"]         = []() { return LuaUI::playerXP(); };
 	m_impl->sandbox["GetMaxXP"]      = []() { return LuaUI::playerMaxXP(); };
 
+	// Unit-frame parity getters.
+	m_impl->sandbox["UnitNameColor"] = [](std::string token) {                          // -> r, g, b (0..255)
+		const int c = LuaUI::unitNameColor(token);
+		return std::make_tuple((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
+	};
+	m_impl->sandbox["UnitFlag"]        = [](std::string token, std::string name) { return LuaUI::unitFlag(token, name); };
+	m_impl->sandbox["UnitIsDead"]      = [](std::string token) { return LuaUI::unitIsDead(token); };
+	m_impl->sandbox["UnitIsPlayer"]    = [](std::string token) { return LuaUI::unitIsPlayer(token); };
+	m_impl->sandbox["UnitIsPartyLeader"] = [](std::string token) { return LuaUI::unitIsPartyLeader(token); };
+	m_impl->sandbox["UnitPortraitTexture"] = [](std::string token) { return LuaUI::unitPortraitTexture(token); };
+	m_impl->sandbox["UnitCastSpell"]   = [](std::string token) { return LuaUI::unitCastSpell(token); };
+	m_impl->sandbox["UnitCastElapsed"] = [](std::string token) { return LuaUI::unitCastElapsedMs(token); };
+	m_impl->sandbox["UnitCastTotal"]   = [](std::string token) { return LuaUI::unitCastTotalMs(token); };
+	m_impl->sandbox["UnitAuraCount"]   = [](std::string token, bool harmful) { return LuaUI::unitAuraCount(token, harmful); };
+	m_impl->sandbox["UnitAura"]        = [](std::string token, int index, bool harmful) {  // -> spellId, count, remainingMs, durationMs (or nil)
+		int spellId = 0, count = 0, remainingMs = 0, durationMs = 0;
+		if (!LuaUI::unitAura(token, index - 1, harmful, spellId, count, remainingMs, durationMs))   // Lua is 1-based
+			return std::make_tuple(0, 0, 0, 0);
+		return std::make_tuple(spellId, count, remainingMs, durationMs);
+	};
+	m_impl->sandbox["PartyMemberExists"] = [](int idx) { return LuaUI::partyMemberExists(idx - 1); };   // Lua 1-based
+	m_impl->sandbox["GetSpellTexture"] = [](int spellId) { return LuaUI::spellTexture(spellId); };
+	m_impl->sandbox["GetSpellName"]    = [](int spellId) { return LuaUI::spellName(spellId); };
+	m_impl->sandbox["GetTextureSize"]  = [](std::string name) { return std::make_tuple(LuaUI::textureWidth(name), LuaUI::textureHeight(name)); };
+
 	// Commands.
 	m_impl->sandbox["TargetUnit"]    = [](std::string token) { LuaUI::targetUnit(token); };
 	m_impl->sandbox["ClearTarget"]   = []() { LuaUI::clearTarget(); };
+	m_impl->sandbox["UnitContextMenu"] = [](std::string token, sol::optional<std::string> extra) { LuaUI::unitContextMenu(token, extra.value_or(std::string())); };
+	m_impl->sandbox["ShowUnitTooltip"] = [](std::string token) { LuaUI::showUnitTooltip(token); };
+	m_impl->sandbox["ShowSpellTooltip"] = [](int spellId) { LuaUI::showSpellTooltip(spellId); };
+	m_impl->sandbox["SaveUISetting"]   = [](std::string key, int value) { LuaUI::saveUISetting(key, value); };
+	m_impl->sandbox["GetUISetting"]    = [](std::string key, int def) { return LuaUI::getUISetting(key, def); };
 
 	// Hide/show a C++ window that a Lua view replaces.
 	m_impl->sandbox["SetGameFrameShown"] = [](std::string name, bool shown) { LuaUI::setGameFrameShown(name, shown); };
@@ -877,6 +908,11 @@ void LuaEngine::onFrame(float dt)
 		m_impl->instrArmed = false;
 		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnEnterPressed error: ") + e.what()); }
 	}
+
+	// Drain clicked context-menu lines and fire CONTEXT_MENU_CLICK(line) so Lua can handle its own entries
+	// (e.g. unit-frame Lock/Unlock). C++ social actions were already routed in unregisterCtxMenu.
+	for (std::string line; LuaUI::popMenuResult(line); )
+		fire(LuaEvents::CONTEXT_MENU_CLICK, line);
 
 	// Hover edge-detection: fire OnEnter(self) when the cursor enters a frame's bounds and OnLeave(self)
 	// when it leaves. The ENGINE tracks state (m_impl->hovered) so addons never poll IsMouseOver in

@@ -2083,6 +2083,8 @@ void World::setParty(const vector<int>& mbrs, const int leaderGuid)
 
 		frameObj->setUnit(unit);
 	}
+
+	sLua->fire(LuaEvents::GROUP_ROSTER_UPDATE, "");   // Lua party frames show/hide + refresh
 }
 
 void World::chatError(const int chatError)

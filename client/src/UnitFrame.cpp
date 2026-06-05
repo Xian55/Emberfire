@@ -106,82 +106,11 @@ void UnitFrame::input()
 
 	// Right clicking a portrait
 	else if (m_unit != nullptr)
-	{	
-		auto owner = dynamic_cast<World*>(getOwner());
-
-		if (sApplication->mouseUp(sf::Mouse::Right) && isMousedOver() && owner != nullptr)
+	{
+		if (sApplication->mouseUp(sf::Mouse::Right) && isMousedOver() && dynamic_cast<World*>(getOwner()) != nullptr)
 		{
 			sApplication->clearMouseUp();
-			
-			vector<string> ctxLines;
-
-			// A party member other than ourselves
-			if (m_frameStyle == FrameStyle::PartyMember)
-			{
-				if (owner->isPartyLeader(owner->getMyselfGuid()))
-				{
-					ctxLines = {
-							ctxMenuOptionStr(CtxMenuOptions::DdoWhisper),
-							ctxMenuOptionStr(CtxMenuOptions::DdoTrade),
-							//ctxMenuOptionStr(CtxMenuOptions::DdoInspect),
-							ctxMenuOptionStr(CtxMenuOptions::DdoPromote),
-							ctxMenuOptionStr(CtxMenuOptions::DdoKick),
-					};
-				}
-				else
-				{
-					ctxLines = {
-							ctxMenuOptionStr(CtxMenuOptions::DdoWhisper),
-							//ctxMenuOptionStr(CtxMenuOptions::DdoInspect),
-					};
-				}
-			}
-
-			// Target
-			else if (!m_unit->isLocal())
-			{				
-				if (m_unit->getType() == ClientUnit::Type::Player)
-				{
-					ctxLines = {
-							ctxMenuOptionStr(CtxMenuOptions::DdoWhisper),
-							//ctxMenuOptionStr(CtxMenuOptions::DdoInspect),
-							ctxMenuOptionStr(CtxMenuOptions::DdoInvite),
-							ctxMenuOptionStr(CtxMenuOptions::DdoTrade),
-							ctxMenuOptionStr(CtxMenuOptions::DdoDuel),
-					};
-				}
-				else
-				{
-					// Npc
-				}
-			}
-
-			// Myself in a party
-			else if (owner->isPartyMember(owner->getMyselfGuid()))
-			{
-				ctxLines = {
-						ctxMenuOptionStr(CtxMenuOptions::DdoLeave),
-						ctxMenuOptionStr(CtxMenuOptions::DdoResetDungeons),
-				};
-			}
-
-			// Myself
-			else if (m_unit->isLocal())
-			{
-				ctxLines = {
-						ctxMenuOptionStr(CtxMenuOptions::DdoResetDungeons),
-				};
-			}
-		
-			if (m_unit->isLocal() && m_unit->getVariable(ObjDefines::Variable::InArenaQueue) != 0)
-				ctxLines.push_back(ctxMenuOptionStr(CtxMenuOptions::DdoLeaveArenaQueue));
-
-			if (!ctxLines.empty())
-			{
-				sContentMgr->playSound(SfxId::ButtonClick);
-				ctxLines.push_back(ctxMenuOptionStr(CtxMenuOptions::DdoCancel));
-				owner->registerContextMenu(World::Interface::CtxMenuCurrent, getId(), sApplication->mousePos(), ctxLines);
-			}		
+			openContextMenu();
 		}
 	}
 
@@ -636,6 +565,89 @@ string UnitFrame::ctxMenuOptionStr(const CtxMenuOptions id)
 	}
 
 	return "";
+}
+
+// Build + register the right-click context menu for this unit. Public so the Lua unit frames (which replace
+// the C++ ones, that are force-hidden but still alive) can open the SAME menu via a thin command — the result
+// routes back through notifyCtxMenuClicked regardless of this frame being hidden.
+void UnitFrame::openContextMenu(RenderObjectHolder* host, const std::vector<std::string>& extraLines)
+{
+	auto owner = dynamic_cast<World*>(getOwner());
+	if (owner == nullptr || m_unit == nullptr)
+		return;
+	if (host == nullptr)
+		host = owner;   // default: the C++ right-click path registers on World
+
+	vector<string> ctxLines;
+
+	// A party member other than ourselves
+	if (m_frameStyle == FrameStyle::PartyMember)
+	{
+		if (owner->isPartyLeader(owner->getMyselfGuid()))
+		{
+			ctxLines = {
+					ctxMenuOptionStr(CtxMenuOptions::DdoWhisper),
+					ctxMenuOptionStr(CtxMenuOptions::DdoTrade),
+					ctxMenuOptionStr(CtxMenuOptions::DdoPromote),
+					ctxMenuOptionStr(CtxMenuOptions::DdoKick),
+			};
+		}
+		else
+		{
+			ctxLines = {
+					ctxMenuOptionStr(CtxMenuOptions::DdoWhisper),
+			};
+		}
+	}
+
+	// Target
+	else if (!m_unit->isLocal())
+	{
+		if (m_unit->getType() == ClientUnit::Type::Player)
+		{
+			ctxLines = {
+					ctxMenuOptionStr(CtxMenuOptions::DdoWhisper),
+					ctxMenuOptionStr(CtxMenuOptions::DdoInvite),
+					ctxMenuOptionStr(CtxMenuOptions::DdoTrade),
+					ctxMenuOptionStr(CtxMenuOptions::DdoDuel),
+			};
+		}
+		else
+		{
+			// Npc
+		}
+	}
+
+	// Myself in a party
+	else if (owner->isPartyMember(owner->getMyselfGuid()))
+	{
+		ctxLines = {
+				ctxMenuOptionStr(CtxMenuOptions::DdoLeave),
+				ctxMenuOptionStr(CtxMenuOptions::DdoResetDungeons),
+		};
+	}
+
+	// Myself
+	else if (m_unit->isLocal())
+	{
+		ctxLines = {
+				ctxMenuOptionStr(CtxMenuOptions::DdoResetDungeons),
+		};
+	}
+
+	if (m_unit->isLocal() && m_unit->getVariable(ObjDefines::Variable::InArenaQueue) != 0)
+		ctxLines.push_back(ctxMenuOptionStr(CtxMenuOptions::DdoLeaveArenaQueue));
+
+	// Lua-supplied extras (e.g. Lock/Unlock), handled on the Lua side via the menu-result event.
+	for (const auto& line : extraLines)
+		ctxLines.push_back(line);
+
+	if (!ctxLines.empty())
+	{
+		sContentMgr->playSound(SfxId::ButtonClick);
+		ctxLines.push_back(ctxMenuOptionStr(CtxMenuOptions::DdoCancel));
+		host->registerContextMenu(World::Interface::CtxMenuCurrent, getId(), sApplication->mousePos(), ctxLines);
+	}
 }
 
 void UnitFrame::notifyCtxMenuClicked(const int id, const string& lineClicked) /*final*/
