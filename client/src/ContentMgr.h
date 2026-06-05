@@ -133,6 +133,8 @@ class ContentMgr
 		map<Assets::ShaderId, sf::Shader> m_shaders;
 				
 		mutex m_mutex;
+		mutex m_zipMutex;                       // guards the shared open-zip handles (libzip zip* isn't thread-safe)
+		map<string, struct zip*> m_openZips;    // zip handles kept open + reused (avoid re-parsing the dir per file)
 		thread m_loadingThread;
 		size_t m_musicPlaylistIdx;
 		string m_currentAmbienceName;

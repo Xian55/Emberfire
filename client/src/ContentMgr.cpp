@@ -39,6 +39,11 @@ ContentMgr::~ContentMgr()
 	m_done = true;
 	m_loadingThread.join();
 	joinModelThreads();
+
+	lock_guard<mutex> grd(m_zipMutex);
+	for (auto& [name, z] : m_openZips)
+		zip_close(z);
+	m_openZips.clear();
 }
 
 void ContentMgr::init()
@@ -1222,13 +1227,27 @@ bool ContentMgr::unzip(const string& filename, char*& contents, unsigned int& si
 
 	const string& zipname = itr->second;
 
-	int err = 0;
-	zip* z = zip_open(zipname.c_str(), 0, &err);
+	// Keep zip handles open + reuse them. zip_open re-parses the whole central directory every call, which
+	// dominated cold map load (450+ textures => 450 dir parses, ~1.2s). libzip's zip* isn't thread-safe, so
+	// serialize access under m_zipMutex (the map calc thread is the main consumer; the main thread rarely
+	// loads a new texture).
+	lock_guard<mutex> grd(m_zipMutex);
 
-	if (z == nullptr)
+	zip* z = nullptr;
+	if (auto zit = m_openZips.find(zipname); zit != m_openZips.end())
 	{
-		blog(Logger::LOG_ERROR, "Unable to open zip %s", zipname.c_str());
-		return false;
+		z = zit->second;
+	}
+	else
+	{
+		int err = 0;
+		z = zip_open(zipname.c_str(), 0, &err);
+		if (z == nullptr)
+		{
+			blog(Logger::LOG_ERROR, "Unable to open zip %s", zipname.c_str());
+			return false;
+		}
+		m_openZips[zipname] = z;
 	}
 
 	struct zip_stat st;
@@ -1242,11 +1261,9 @@ bool ContentMgr::unzip(const string& filename, char*& contents, unsigned int& si
 
 		zip_fread(f, contents, size);
 		zip_fclose(f);
-		ASSERT(zip_close(z) == 0);
 		return true;
 	}
 
-	ASSERT(zip_close(z) == 0);
 	return false;
 }
 
