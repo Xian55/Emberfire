@@ -38,6 +38,8 @@ class Options : public RenderObjectHolder
 			System_ShowNpcNameTick,
 			System_WindowMode,
 			System_WindowModeCtx,
+			System_Resolution,
+			System_ResolutionCtx,
 
 			Keybinds_List_1_A,
 			Keybinds_List_1_B,
@@ -76,6 +78,7 @@ class Options : public RenderObjectHolder
 
 		
 		unique_ptr<Text> m_windowModeTxt;
+		unique_ptr<Text> m_resolutionTxt;
 
 		shared_ptr<Sprite> m_bgSprite;
 		shared_ptr<SelectionButtons> m_viewChoices;

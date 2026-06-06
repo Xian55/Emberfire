@@ -18,6 +18,9 @@
 #include "..\Shared\Config.h"
 
 #include <assert.h>
+#include <set>
+#include <vector>
+#include <string>
 
 Options::Options(RenderObjectHolder& owner, const int id) :
 	RenderObjectHolder(&owner, id),
@@ -39,10 +42,13 @@ Options::Options(RenderObjectHolder& owner, const int id) :
 
 	if (sConfig->getBool("Window", "Fullscreen"))
 		m_windowModeTxt->setOriginalString("Borderless Fullscreen");
-	else if (sConfig->getBool("Window", "OriginalDPI"))
-		m_windowModeTxt->setOriginalString("Original DPI");
 	else
 		m_windowModeTxt->setOriginalString("Windowed Mode");
+
+	m_resolutionTxt = make_unique<Text>(sContentMgr->getFont(FontId::Palatino));
+	m_resolutionTxt->setCharacterSize(14);
+	m_resolutionTxt->setColorIfNot(sf::Color(78, 63, 52, 255));
+	m_resolutionTxt->setOriginalString(to_string(sConfig->getInt("Window", "Width", 1280)) + "x" + to_string(sConfig->getInt("Window", "Height", 720)));
 }
 
 Options::~Options()
@@ -108,8 +114,27 @@ void Options::input()
 					{
 						"Windowed Mode",
 						"Borderless Fullscreen",
-						"Original DPI",
 					});
+			}
+			break;
+		}
+		case System_Resolution:
+		{
+			if (auto owner = dynamic_cast<RenderObjectHolder*>(getOwner()))
+			{
+				// the machine's supported resolutions (deduped by w x h, <= desktop, descending)
+				vector<string> items;
+				const sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
+				set<pair<unsigned int, unsigned int>> seen;
+				for (const auto& m : sf::VideoMode::getFullscreenModes())
+				{
+					if (m.width > desktop.width || m.height > desktop.height) continue;
+					if (m.width < 1280 || m.height < 720) continue;
+					if (!seen.insert({ m.width, m.height }).second) continue;
+					items.push_back(to_string(m.width) + "x" + to_string(m.height));
+					if (seen.size() >= 8) break;
+				}
+				owner->registerContextMenu(Interface::System_ResolutionCtx, getId(), sApplication->mousePos(), items);
 			}
 			break;
 		}
@@ -250,7 +275,22 @@ void Options::render()
 	__super::render();
 
 	if (m_stage == Stage::System)
+	{
+		// cover the two baked, now-redundant subtitle texts (they're part of the panel art) so the new
+		// Resolution dropdown can take their place. Semi-transparent black darkens the faint grey into the panel.
+		auto cover = [&](int x, int y, int w, int h) {
+			sf::RectangleShape r;
+			r.setPosition((float)(m_topLeftCorner.x + x), (float)(m_topLeftCorner.y + y));
+			r.setSize({ (float)w, (float)h });
+			r.setFillColor(sf::Color(0, 0, 0, 200));
+			sApplication->canvas().draw(r);
+		};
+		cover(92, 213, 260, 18);   // "Additional options available in your config.ini"
+		cover(92, 300, 270, 18);   // "The playback volume for combat abilities etc."
+
 		m_windowModeTxt->draw(m_topLeftCorner.x + 120, m_topLeftCorner.y + 195);
+		m_resolutionTxt->draw(m_topLeftCorner.x + 120, m_topLeftCorner.y + 243);
+	}
 }
 
 void Options::save()
@@ -328,6 +368,7 @@ void Options::setStage(const Stage stage)
 			setBackground("options_background_system.png");
 
 			attachAddObj(make_shared<Button>(*this, "options_wmode", Interface::System_WindowMode), sf::Vector2i(91, 184));
+			attachAddObj(make_shared<Button>(*this, "options_wmode", Interface::System_Resolution), sf::Vector2i(91, 232));
 
 			auto sfxVolumeBar = make_shared<ScrollBar>(*this, "side_scroll_up", "side_scroll_down", ScrollBar::ScrollLeftRight, "side_scroll_box", Interface::System_SfxVolumeBar);
 			sfxVolumeBar->getScrollDownButton()->setPos(sf::Vector2i(100, 328) + m_topLeftCorner);
@@ -449,26 +490,34 @@ void Options::notifyCtxMenuClicked(const int id, const string& lineClicked) /*fi
 {
 	if (id == Interface::System_WindowModeCtx)
 	{
-		if (lineClicked == "Original DPI")
+		if (lineClicked == "Windowed Mode")
 		{
 			sApplication->setFullscreenBorderless(false);
-			sApplication->setDevRendering(true);
-			sApplication->resetCanvas();
-			m_windowModeTxt->setOriginalString(lineClicked);
-		}
-		else if (lineClicked == "Windowed Mode")
-		{
-			sApplication->setFullscreenBorderless(false);
-			sApplication->setDevRendering(false);
+			sApplication->setNativeRendering(true);   // native (crisp) windowed
 			sApplication->resetCanvas();
 			m_windowModeTxt->setOriginalString(lineClicked);
 		}
 		else if (lineClicked == "Borderless Fullscreen")
 		{
-			sApplication->setDevRendering(false);
+			sApplication->setNativeRendering(true);   // render natively (crisp), no 1080 upscale
 			sApplication->resetCanvas();
 			sApplication->setFullscreenBorderless(true);
 			m_windowModeTxt->setOriginalString(lineClicked);
+		}
+	}
+	else if (id == Interface::System_ResolutionCtx)
+	{
+		const auto xpos = lineClicked.find('x');
+		if (xpos != string::npos)
+		{
+			const int w = atoi(lineClicked.substr(0, xpos).c_str());
+			const int h = atoi(lineClicked.substr(xpos + 1).c_str());
+			if (w >= 1280 && h >= 720)
+			{
+				sApplication->setResolution(w, h);   // switches to windowed at this size
+				m_windowModeTxt->setOriginalString("Windowed Mode");
+				m_resolutionTxt->setOriginalString(lineClicked);
+			}
 		}
 	}
 }

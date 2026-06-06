@@ -34,11 +34,12 @@ class Application : public RenderObjectHolder
 		void queueCursor(const string& texturename) { m_desiredCursor = texturename; }
 		void registerCanvas(sf::RenderTexture* canvas) { m_registeredCanvas = canvas; }
 		void resetCanvas() { if (m_originalDPI) m_registeredCanvas = &m_window; else m_registeredCanvas = &m_baseRenderTexture; }
-		void setDevRendering(const bool val);
+		void setNativeRendering(const bool val);
 		void audioDeviceChanged() { m_audioDeviceChanged = true; }
 		void resetLastInputTime() { m_lastInput = ::clock(); }
 
 		void setFullscreenBorderless(const bool val);
+		void setResolution(const int w, const int h);   // switch to windowed at this size + recreate
 		void setTutorialStatus(const string& name, const bool val);
 		void setTooltip(shared_ptr<Tooltip> t);
 		void spawnTimedPopup(const string& str, const float numsecs);

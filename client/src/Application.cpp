@@ -684,10 +684,20 @@ bool Application::isKeyHeld(const SfKeyEvent& ke) const
 		sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) == ke.control;
 }
 		
-void Application::setDevRendering(const bool val) 
-{ 
+// Render at native window resolution (crisp) vs. the 1080-capped base texture that gets upscaled.
+void Application::setNativeRendering(const bool val)
+{
 	m_originalDPI = val;
-	sConfig->setInt("Window", "OriginalDPI", (int)val);
+	sConfig->setInt("Window", "OriginalDPI", (int)val);   // config key kept for back-compat
+}
+
+// Apply a windowed resolution preset and recreate the window at that size (native).
+void Application::setResolution(const int w, const int h)
+{
+	sConfig->setInt("Window", "Fullscreen", 0);
+	sConfig->setInt("Window", "Width", w);
+	sConfig->setInt("Window", "Height", h);
+	createSfmlWindow();
 }
 
 void Application::setTutorialStatus(const string& name, const bool val)
@@ -725,10 +735,12 @@ void Application::createSfmlWindow()
 	if (m_window.isOpen())
 		m_window.close();
 
-	m_originalDPI = sConfig->getBool("Window", "OriginalDPI", false);
+	m_isFullscreen = sConfig->getBool("Window", "Fullscreen", false);
+	// Render natively (crisp) by default; the old 1080-upscale path is only used if OriginalDPI is forced to 0
+	// in the config. Borderless fullscreen is always native.
+	m_originalDPI = sConfig->getBool("Window", "OriginalDPI", true) || m_isFullscreen;
 	resetCanvas();
 
-	m_isFullscreen = sConfig->getBool("Window", "Fullscreen", false);
 	m_contextSettings.antialiasingLevel = 8;
 
 	std::string windowName = sConfig->getString("Window", "WindowName", "Emberfire");
@@ -778,11 +790,7 @@ void Application::createSfmlWindow()
 	}
 	else
 	{
-		int windowflags = sf::Style::Default;
-
-		if (sConfig->getBool("Window", "Resize", true) == false)
-			windowflags &= ~sf::Style::Resize;
-
+		const int windowflags = sf::Style::Default;   // windowed is always resizable (drag edges)
 		m_window.create(videoMode, windowName.c_str(), windowflags, m_contextSettings);
 		m_window.setVerticalSyncEnabled(false);
 		ImmAssociateContext(m_window.getSystemHandle(), NULL);
