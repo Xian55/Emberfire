@@ -151,6 +151,7 @@ namespace LuaUI
 	std::string objectType(int handle);                 // "Frame"/"Button"/"StatusBar"/...
 	void  setAlpha(int handle, float a);                // 0..1 -> per-widget vertex/text alpha
 	void  setTexCoord(int handle, float l, float r, float t, float b);   // 0..1 sub-rect (texture crop)
+	void  setTextureCircle(int handle, int radius);                     // render a texture clipped to a circle
 
 	// ---- z-order within the parent (WoW SetFrameLevel/GetFrameLevel/Raise/Lower) ----
 	void setFrameLevel(int handle, int level);

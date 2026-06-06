@@ -82,6 +82,14 @@ void LuaTexture::setTexCoord(const float l, const float r, const float t, const 
 		static_cast<int>((r - l) * sz.x), static_cast<int>((b - t) * sz.y)));
 }
 
+void LuaTexture::setCircle(const int radius)
+{
+	m_circle = radius > 0;
+	m_circleRadius = radius;
+	if (m_circle && m_sprite && m_sprite->getTexture())
+		const_cast<sf::Texture*>(m_sprite->getTexture())->setSmooth(true);   // clean circle edges (mirrors spawnPortrait)
+}
+
 sf::Vector2i LuaTexture::naturalSize() const
 {
 	if (m_w > 0 && m_h > 0)
@@ -96,6 +104,15 @@ void LuaTexture::render()
 {
 	if (!m_sprite)
 		return;
+
+	if (m_circle)
+	{
+		// clipped to a circle centered in the texture's box (box is sized 2r, top-left = center - r)
+		const sf::Vector2f center{ static_cast<float>(m_topLeftCorner.x + m_circleRadius),
+		                           static_cast<float>(m_topLeftCorner.y + m_circleRadius) };
+		m_sprite->renderAsCircle(center, m_circleRadius, { 0, sContentMgr->getPortraitOffset(*m_sprite) });
+		return;
+	}
 
 	if (m_w > 0 && m_h > 0)
 	{
@@ -1422,6 +1439,7 @@ namespace LuaUI
 	std::string objectType(int handle)               { auto* m = LuaFrameManager::instance(); return m ? m->objectType(handle) : std::string(); }
 	void  setAlpha(int handle, float a)              { if (auto* m = LuaFrameManager::instance()) m->setAlpha(handle, a); }
 	void  setTexCoord(int handle, float l, float r, float t, float b) { if (auto* m = LuaFrameManager::instance()) m->setTexCoord(handle, l, r, t, b); }
+	void  setTextureCircle(int handle, int radius) { auto* m = LuaFrameManager::instance(); if (auto t = dynamic_cast<LuaTexture*>(m ? m->lookup(handle) : nullptr)) t->setCircle(radius); }
 
 	void setDebugBounds(bool v) { if (v) LuaFrameManager::debugDumpBounds(); }
 

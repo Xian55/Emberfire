@@ -40,6 +40,7 @@ class LuaTexture : public RenderObject
 		void setColor(const int r, const int g, const int b, const int a);   // tint + alpha
 		void setAlpha(const int a);                                          // change only alpha, keep tint
 		void setTexCoord(const float l, const float r, const float t, const float b);  // 0..1 sub-rect crop
+		void setCircle(const int radius);                                    // render clipped to a circle (portraits)
 		sf::Vector2i naturalSize() const;
 
 	private:
@@ -50,6 +51,8 @@ class LuaTexture : public RenderObject
 		sf::Color m_color{ 255, 255, 255, 255 };   // last tint (so setAlpha keeps RGB)
 		int m_w{0};   // 0 => natural size (no scale)
 		int m_h{0};
+		bool m_circle{false};   // render as a circle (portrait) instead of a stretched rect
+		int  m_circleRadius{0};
 };
 
 // A font-string region: draws a line of Text at its anchored position.

@@ -35,6 +35,7 @@ local function buildPortrait(f, fw, L, mirror, st)
 	st.portrait = f:CreateTexture()
 	st.portrait:SetSize(r * 2, r * 2)
 	st.portrait:SetPoint('TOPLEFT', mpoint(fw, cx, mirror) - r, cy - r)
+	st.portrait:SetCircular(r)   -- clip to a circle (matches the original; the elite/boss border wraps it)
 end
 
 local function buildBars(f, fw, L, art, mirror, st)

@@ -719,6 +719,7 @@ void LuaEngine::bindUI()
 		"IsVisible",        [](FrameHandle self)                   { return LuaUI::isVisible(self.h); },
 		"SetAlpha",         [](FrameHandle self, float a)          { LuaUI::setAlpha(self.h, a); },
 		"SetTexCoord",      [](FrameHandle self, float l, float r, float t, float b) { LuaUI::setTexCoord(self.h, l, r, t, b); },
+		"SetCircular",      [](FrameHandle self, int radius)        { LuaUI::setTextureCircle(self.h, radius); },
 		"EnableMouse",      [](FrameHandle self, bool v)           { LuaUI::setMouseEnabled(self.h, v); },
 		"SetMovable",       [](FrameHandle self, bool v)           { LuaUI::setMovable(self.h, v); if (v) LuaUI::setMouseEnabled(self.h, true); },
 		"RegisterForDrag",  [](FrameHandle self, sol::optional<std::string> btn) {
