@@ -53,6 +53,7 @@ for i = 1, NUM do
 	local s = EmberUI.CreateItemButton(root, i, SIZE)
 	s.frame:SetPoint('TOPLEFT', root, 'TOPLEFT', OX + col * PITCH, OY + rowi * PITCH)
 	s.frame:EnableMouse(true)
+	-- Press to pick up (grey the slot + put the icon on the cursor), release over a slot to drop/move.
 	s.frame:SetScript('OnMouseDown', function(_, btn)
 		if btn ~= 'LeftButton' then return end
 		local id = GetContainerItem(i)

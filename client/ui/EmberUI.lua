@@ -85,29 +85,29 @@ local function ensureCursor()
 	c:SetFrameLevel(10000)   -- above everything
 	local tex = c:CreateTexture()
 	tex:SetAllPoints(c)
-	c.tex = tex
 	c:Hide()
 	c:SetScript('OnUpdate', function()
 		if not GetCursorPosition then return end
 		local x, y = GetCursorPosition()
 		c:SetPoint('TOPLEFT', x - 18, y - 18)   -- center the icon on the cursor
 	end)
-	EmberUI.cursor = c
-	return c
+	-- a frame handle is userdata (not a Lua table) -- store the frame + region in a plain table wrapper.
+	EmberUI.cursor = { frame = c, tex = tex }
+	return EmberUI.cursor
 end
 
 -- iconTexture: the item's icon name to ride the cursor; sourceIcon: the source slot's icon Texture to grey.
 function EmberUI.PickupItem(iconTexture, sourceIcon)
 	if GetCursorPosition and iconTexture and iconTexture ~= '' then
 		local c = ensureCursor()
-		c.tex:SetTexture(iconTexture); c.tex:Show(); c:Show()
+		c.tex:SetTexture(iconTexture); c.tex:Show(); c.frame:Show()
 	end
 	if sourceIcon then sourceIcon:SetVertexColor(80, 80, 80, 255) end   -- grey overlay on the picked-up item
 	EmberUI._held = { source = sourceIcon }
 end
 
 function EmberUI.ClearCursor()
-	if EmberUI.cursor then EmberUI.cursor:Hide() end
+	if EmberUI.cursor then EmberUI.cursor.frame:Hide() end
 	if EmberUI._held and EmberUI._held.source then EmberUI._held.source:SetVertexColor(255, 255, 255, 255) end
 	EmberUI._held = nil
 end
