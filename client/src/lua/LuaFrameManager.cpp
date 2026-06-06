@@ -19,6 +19,7 @@
 #include "ItemIcon.h"
 #include "Connector.h"
 #include "ContextMenu.h"
+#include "ConfirmMessageBox.h"
 #include "Tooltip.h"
 #include "CooldownPie.h"
 #include "..\..\SqlConnector\QueryResult.h"
@@ -1732,6 +1733,58 @@ namespace LuaUI
 		auto icon = inventoryIcon(slot);
 		if (icon && icon->getItemDef().m_itemId != 0)
 			icon->useTooltip();   // re-assert each frame while hovering (Application clears tooltips per frame)
+	}
+
+	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or
+	// a quest item is USED; gear (equip_type>0) is EQUIPPED; otherwise nothing (unusable).
+	void useOrEquipContainerItem(int slot)
+	{
+		auto icon = inventoryIcon(slot);
+		if (!icon || icon->getItemDef().m_itemId == 0)
+			return;
+		const int entry = icon->getItemDef().m_itemId;
+		if (icon->getCastedSpellId() != 0) { useContainerItem(slot); return; }
+		auto& db = sContentMgr->db("item_template");
+		if (atoi(db.data(entry, "quest_offer").c_str()) > 0) { useContainerItem(slot);  return; }
+		if (atoi(db.data(entry, "equip_type").c_str()) > 0) { equipContainerItem(slot); return; }
+		// else: not usable/equippable from the bag — do nothing.
+	}
+
+	bool containerItemUnusable(int slot)
+	{
+		auto icon = inventoryIcon(slot);
+		return icon && icon->getItemDef().m_itemId != 0 && icon->isErrorIcon();
+	}
+
+	bool mouseButtonDown(int sfBtn)
+	{
+		return sf::Mouse::isButtonPressed(static_cast<sf::Mouse::Button>(sfBtn < 0 ? 0 : sfBtn));
+	}
+
+	// Reusable confirm dialog (reuses the C++ ConfirmMessageBox so it looks native). showConfirm spawns a
+	// YesNo box and returns its unique code; popConfirm drains a finished box matching any pending code.
+	static std::vector<int> s_pendingConfirmCodes;
+
+	int showConfirm(const std::string& msg)
+	{
+		const int code = ConfirmMessageBox::uniqueCode();
+		sApplication->spawnPopup(msg, ConfirmMessageBox::ConfirmBox_YesNo, code);
+		s_pendingConfirmCodes.push_back(code);
+		return code;
+	}
+
+	bool popConfirm(int& code, bool& yes)
+	{
+		if (s_pendingConfirmCodes.empty())
+			return false;
+		auto box = sApplication->popConfirmBox(s_pendingConfirmCodes);
+		if (!box)
+			return false;
+		code = static_cast<int>(box->getCode());
+		yes  = (box->getResult() == ConfirmMessageBox::ConfirmBox_Yes);
+		s_pendingConfirmCodes.erase(std::remove(s_pendingConfirmCodes.begin(), s_pendingConfirmCodes.end(), code),
+		                            s_pendingConfirmCodes.end());
+		return true;
 	}
 
 	void setGameFrameShown(const std::string& name, bool shown)

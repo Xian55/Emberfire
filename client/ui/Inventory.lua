@@ -2,9 +2,10 @@
 -- but still toggled by its open button; this view MIRRORS that toggle state (IsGameFrameShown) and renders
 -- bag contents from the data getters. Left-drag a slot onto another = MoveContainerItem; right-click = Use.
 --
--- Hover shows the item tooltip (ShowItemTooltip, re-asserted each frame); money shown at the panel spot.
+-- Hover = item tooltip; right-click = use/equip; unusable items tint red; drag out of the bag = destroy
+-- confirm; money shown at the panel spot.
 -- v1 deviations (tune in the live client): no quality border (set EmberUI._slotBg to skin the slots); fixed
--- CENTER position; no equip/sell/destroy wiring (the commands exist, add menus later).
+-- CENTER position; red is an icon tint (no solid-overlay primitive); no vendor/bank right-click branches.
 
 -- Grid geometry copied from the C++ Inventory::attachIcon so the icons land in inventory.png's printed cells:
 -- first slot at (27,75), 45px pitch, 40px icons, 7 columns.
@@ -20,9 +21,16 @@ root:SetSize(W, H)
 root:SetPoint('CENTER')
 root:SetMovable(true); root:RegisterForDrag('LeftButton')   -- drag the window by its empty backdrop
 root:Hide()
+
+-- Forward-declared so the handlers created below (before the loop + refresh) capture the right upvalues.
+local dragFrom, hoverSlot, refresh
+local slots = {}
+
 -- releasing a held item over the backdrop (not a slot) returns it to its source.
 root:SetScript('OnMouseUp', function(_, btn)
-	if btn == 'LeftButton' and EmberUI.HasCursorItem() then dragFrom = nil; EmberUI.ClearCursor() end
+	if btn == 'LeftButton' and EmberUI.HasCursorItem() then
+		dragFrom = nil; EmberUI.ClearCursor(); if refresh then refresh() end
+	end
 end)
 
 local bg = root:CreateTexture()
@@ -44,9 +52,6 @@ local function refreshMoney() money:SetText(commas(GetMoney())) end
 
 -- Item drag-swap: record the pressed slot, act on the released slot (no physical frame move).
 -- hoverSlot tracks the slot under the cursor so the OnUpdate pump can re-assert its tooltip each frame.
-local dragFrom = nil
-local hoverSlot = nil
-local slots = {}
 for i = 1, NUM do
 	local col  = (i - 1) % COLS
 	local rowi = math.floor((i - 1) / COLS)
@@ -64,11 +69,12 @@ for i = 1, NUM do
 	end)
 	s.frame:SetScript('OnMouseUp', function(_, btn)
 		if btn == 'RightButton' then
-			UseContainerItem(i)
+			if UseOrEquipContainerItem then UseOrEquipContainerItem(i) else UseContainerItem(i) end
 		elseif btn == 'LeftButton' then
 			if dragFrom and dragFrom ~= i then MoveContainerItem(dragFrom, i) end
 			dragFrom = nil
 			EmberUI.ClearCursor()
+			refresh()   -- restore tints (ClearCursor reset the dragged icon to white)
 		end
 	end)
 	s.frame:SetScript('OnEnter', function() hoverSlot = i end)
@@ -76,10 +82,17 @@ for i = 1, NUM do
 	slots[i] = s
 end
 
-local function refresh()
+refresh = function()
 	for i = 1, NUM do
 		local id, count = GetContainerItem(i)
 		slots[i].SetItem(id, count)
+		if id ~= 0 then
+			if IsContainerItemUsable and not IsContainerItemUsable(i) then
+				slots[i].icon:SetVertexColor(255, 90, 90, 255)    -- unusable (level/class/req not met): red tint
+			else
+				slots[i].icon:SetVertexColor(255, 255, 255, 255)
+			end
+		end
 	end
 	refreshMoney()
 end
@@ -108,6 +121,8 @@ stage:RegisterEvent(Events.PLAYER_MONEY)
 
 local poll = CreateFrame('Frame', nil, nil)
 local acc = 0
+local wasDown = false
+local pendingDestroy = nil   -- { code, slot } while a destroy confirm is open
 poll:SetScript('OnUpdate', function(_, dt)
 	if not EmberUI.inWorld then if shown then setShown(false) end return end
 	acc = acc + dt
@@ -115,6 +130,29 @@ poll:SetScript('OnUpdate', function(_, dt)
 	-- re-assert the hovered item's tooltip every frame (the Application clears tooltips per frame).
 	-- guarded so a /reload on an exe without ShowItemTooltip (pre-relink) doesn't error on hover.
 	if shown and hoverSlot and ShowItemTooltip then ShowItemTooltip(hoverSlot) end
+
+	-- Holding an item + LEFT released OUTSIDE the bag => destroy confirm (reuses the C++ ConfirmMessageBox).
+	-- (This OnUpdate runs before the mouse-event drain, so over-slot/over-bag releases — where IsMouseOver is
+	-- true — are skipped here and handled by the slot/backdrop OnMouseUp instead.)
+	if IsMouseButtonDown then
+		local down = IsMouseButtonDown('LeftButton')
+		if wasDown and not down and EmberUI.HasCursorItem() and not root:IsMouseOver() then
+			local slot = dragFrom
+			dragFrom = nil
+			EmberUI.ClearCursor(); refresh()
+			if slot and ShowConfirm then
+				pendingDestroy = { code = ShowConfirm('This will DESTROY the item. Accept?'), slot = slot }
+			end
+		end
+		wasDown = down
+	end
+	if pendingDestroy and PopConfirm then
+		local code, yes = PopConfirm()
+		if code ~= 0 and code == pendingDestroy.code then
+			if yes then DestroyContainerItem(pendingDestroy.slot) end
+			pendingDestroy = nil
+		end
+	end
 end)
 
 print('EmberUI inventory loaded')

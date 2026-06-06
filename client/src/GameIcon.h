@@ -56,6 +56,7 @@ class GameIcon : public Button, public enable_shared_from_this<GameIcon>
 		auto getType() const { return m_type; }
 		auto getQuality() const { return m_quality; }
 		auto getStackCount() const { return m_stackAmount; }
+		bool isErrorIcon() const { return m_red; }   // red "can't use" overlay state (level/class/req not met)
 
 		virtual int getSpellManaCost(ClientUnit& myself) const { return 0; }
 		virtual int getSpellRange() const { return m_cachedSpellRange; }

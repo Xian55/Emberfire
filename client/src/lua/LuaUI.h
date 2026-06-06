@@ -117,6 +117,13 @@ namespace LuaUI
 	void destroyContainerItem(int slot);
 	void unequipItem(int equipSlot, int invDest);       // equipSlot 1..12 -> bag slot
 	void showItemTooltip(int slot);                     // re-assert the C++ item tooltip (call while hovering)
+	void useOrEquipContainerItem(int slot);             // right-click: use a consumable/quest item or equip gear
+	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
+
+	// ---- input + confirm dialog (for drag-out destroy etc.) ----
+	bool mouseButtonDown(int sfBtn);                    // raw button state (0=Left 1=Right 2=Middle)
+	int  showConfirm(const std::string& msg);           // spawn a YesNo ConfirmMessageBox -> its unique code
+	bool popConfirm(int& code, bool& yes);              // drain a finished confirm (code + yes/no); false if none
 
 	// ---- hide/show the C++ windows a Lua view replaces ----
 	// HUD: "PlayerFrame"|"TargetFrame"|"XPBar"; screens: "LoginScreen"|"CharSelectScreen"|"CharCreateScreen"

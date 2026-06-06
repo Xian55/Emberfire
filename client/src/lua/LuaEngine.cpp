@@ -951,6 +951,16 @@ void LuaEngine::bindUI()
 		.addFunction("DestroyContainerItem", [](int slot) { LuaUI::destroyContainerItem(slot - 1); })
 		.addFunction("UnequipInventoryItem", [](int equipSlot, int invDest) { LuaUI::unequipItem(equipSlot, invDest - 1); })
 		.addFunction("ShowItemTooltip",      [](int slot) { LuaUI::showItemTooltip(slot - 1); })
+		.addFunction("UseOrEquipContainerItem", [](int slot) { LuaUI::useOrEquipContainerItem(slot - 1); })
+		.addFunction("IsContainerItemUsable",   [](int slot) { return !LuaUI::containerItemUnusable(slot - 1); })
+		.addFunction("IsMouseButtonDown",       [](std::string btn) {
+			const int b = (btn == "RightButton") ? 1 : (btn == "MiddleButton") ? 2 : 0;
+			return LuaUI::mouseButtonDown(b); })
+		.addFunction("ShowConfirm",             [](std::string msg) { return LuaUI::showConfirm(msg); })
+		.addFunction("PopConfirm",              []() {
+			int code = 0; bool yes = false;
+			if (!LuaUI::popConfirm(code, yes)) return std::make_tuple(0, false);
+			return std::make_tuple(code, yes); })
 		.addFunction("UnitContextMenu", [](std::string token, std::optional<std::string> extra) { LuaUI::unitContextMenu(token, extra.value_or(std::string())); })
 		.addFunction("ShowUnitTooltip", [](std::string token) { LuaUI::showUnitTooltip(token); })
 		.addFunction("ShowSpellTooltip", [](int spellId) { LuaUI::showSpellTooltip(spellId); })
@@ -984,7 +994,8 @@ void LuaEngine::bindUI()
 		"UnitCastElapsed", "UnitCastTotal", "UnitAuraCount", "UnitAura", "PartyMemberExists",
 		"GetSpellTexture", "GetSpellName", "GetTextureSize", "TargetUnit", "ClearTarget",
 		"MoveContainerItem", "UseContainerItem", "EquipContainerItem", "SellContainerItem",
-		"DestroyContainerItem", "UnequipInventoryItem", "ShowItemTooltip", "UnitContextMenu",
+		"DestroyContainerItem", "UnequipInventoryItem", "ShowItemTooltip", "UseOrEquipContainerItem",
+		"IsContainerItemUsable", "IsMouseButtonDown", "ShowConfirm", "PopConfirm", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",
 		"IsGameFrameShown",
 		"SubmitLogin", "GetSavedLogin", "GetScreenWidth", "GetScreenHeight", "GetCursorPosition", "DebugBounds",
