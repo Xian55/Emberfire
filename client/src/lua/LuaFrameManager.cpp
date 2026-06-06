@@ -17,11 +17,13 @@
 #include "UnitFrame.h"
 #include "Inventory.h"
 #include "ItemIcon.h"
+#include "Connector.h"
 #include "ContextMenu.h"
 #include "Tooltip.h"
 #include "CooldownPie.h"
 #include "..\..\SqlConnector\QueryResult.h"
 #include "..\..\Shared\Config.h"
+#include "..\..\Shared\GamePacketClient.h"
 
 #include <assert.h>
 #include <climits>
@@ -1648,6 +1650,82 @@ namespace LuaUI
 	}
 
 	void clearTarget() { if (auto* w = currentWorld()) w->setSelectedGuid(0); }
+
+	// ---- item action commands (mirror the C++ Inventory packet sends; Lua passes slot indices and the
+	//      authoritative full ItemDef is read from the live ItemIcon). Connector::sendPacket guards on a
+	//      null socket, so these safely no-op when not connected. ----
+
+	static shared_ptr<ItemIcon> inventoryIcon(int slot)
+	{
+		auto* inv = resolveInventory();
+		if (!inv || slot < 0 || slot >= PlayerDefines::Inventory::NumSlots)
+			return nullptr;
+		return dynamic_pointer_cast<ItemIcon>(inv->getRenderObject(Inventory::Slot1 + slot));
+	}
+
+	void moveContainerItem(int fromSlot, int toSlot)
+	{
+		if (fromSlot < 0 || toSlot < 0)
+			return;
+		GP_Client_MoveItem pk;
+		pk.m_from = fromSlot;
+		pk.m_to   = toSlot;
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+
+	void useContainerItem(int slot)
+	{
+		auto icon = inventoryIcon(slot);
+		if (!icon || icon->getItemDef().m_itemId == 0)
+			return;
+		GP_Client_UseItem pk;
+		pk.m_slot   = slot;
+		pk.m_itemId = icon->getItemDef();   // targets keep their 0xff "no target" defaults
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+
+	void equipContainerItem(int slot)
+	{
+		auto icon = inventoryIcon(slot);
+		if (!icon || icon->getItemDef().m_itemId == 0)
+			return;
+		GP_Client_EquipItem pk;
+		pk.m_slotInv = slot;
+		pk.m_itemId  = icon->getItemDef();   // full def (affix/gems/enchant/durability)
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+
+	void sellContainerItem(int slot)
+	{
+		auto icon = inventoryIcon(slot);
+		if (!icon || icon->getItemDef().m_itemId == 0)
+			return;
+		GP_Client_SellItem pk;
+		pk.m_slot   = slot;
+		pk.m_itemId = icon->getItemDef();
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+
+	void destroyContainerItem(int slot)
+	{
+		auto icon = inventoryIcon(slot);
+		if (!icon || icon->getItemDef().m_itemId == 0)
+			return;
+		GP_Client_DestroyItem pk;
+		pk.m_slot   = slot;
+		pk.m_itemId = icon->getItemDef();
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+
+	void unequipItem(int equipSlot, int invDest)
+	{
+		if (equipSlot < UnitDefines::Helm || equipSlot > UnitDefines::Ranged || invDest < 0)
+			return;
+		GP_Client_UnequipItem pk;
+		pk.m_equipSlot     = equipSlot;
+		pk.m_inventoryDest = invDest;
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
 
 	void setGameFrameShown(const std::string& name, bool shown)
 	{

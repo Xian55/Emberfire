@@ -942,6 +942,14 @@ void LuaEngine::bindUI()
 		// Commands.
 		.addFunction("TargetUnit",    [](std::string token) { LuaUI::targetUnit(token); })
 		.addFunction("ClearTarget",   []() { LuaUI::clearTarget(); })
+
+		// Item action commands (slots 1-based, like GetContainerItem).
+		.addFunction("MoveContainerItem",    [](int from, int to) { LuaUI::moveContainerItem(from - 1, to - 1); })
+		.addFunction("UseContainerItem",     [](int slot) { LuaUI::useContainerItem(slot - 1); })
+		.addFunction("EquipContainerItem",   [](int slot) { LuaUI::equipContainerItem(slot - 1); })
+		.addFunction("SellContainerItem",    [](int slot) { LuaUI::sellContainerItem(slot - 1); })
+		.addFunction("DestroyContainerItem", [](int slot) { LuaUI::destroyContainerItem(slot - 1); })
+		.addFunction("UnequipInventoryItem", [](int equipSlot, int invDest) { LuaUI::unequipItem(equipSlot, invDest - 1); })
 		.addFunction("UnitContextMenu", [](std::string token, std::optional<std::string> extra) { LuaUI::unitContextMenu(token, extra.value_or(std::string())); })
 		.addFunction("ShowUnitTooltip", [](std::string token) { LuaUI::showUnitTooltip(token); })
 		.addFunction("ShowSpellTooltip", [](int spellId) { LuaUI::showSpellTooltip(spellId); })
@@ -971,7 +979,9 @@ void LuaEngine::bindUI()
 		"UnitNameColor", "UnitFlag", "UnitIsDead", "UnitIsPlayer",
 		"UnitIsPartyLeader", "UnitHasBrokenEquipment", "UnitPortraitTexture", "UnitCastSpell",
 		"UnitCastElapsed", "UnitCastTotal", "UnitAuraCount", "UnitAura", "PartyMemberExists",
-		"GetSpellTexture", "GetSpellName", "GetTextureSize", "TargetUnit", "ClearTarget", "UnitContextMenu",
+		"GetSpellTexture", "GetSpellName", "GetTextureSize", "TargetUnit", "ClearTarget",
+		"MoveContainerItem", "UseContainerItem", "EquipContainerItem", "SellContainerItem",
+		"DestroyContainerItem", "UnequipInventoryItem", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",
 		"SubmitLogin", "GetSavedLogin", "GetScreenWidth", "GetScreenHeight", "DebugBounds",
 	};

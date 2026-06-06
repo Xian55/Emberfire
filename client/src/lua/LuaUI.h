@@ -108,6 +108,15 @@ namespace LuaUI
 	void targetUnit(const std::string& token);
 	void clearTarget();
 
+	// ---- item action commands (send the same packets the C++ Inventory does; slot = 0-based bag index;
+	//      the full ItemDef is read from the live ItemIcon, so Lua only passes indices) ----
+	void moveContainerItem(int fromSlot, int toSlot);   // bag slot -> bag slot (swap/move)
+	void useContainerItem(int slot);
+	void equipContainerItem(int slot);
+	void sellContainerItem(int slot);                   // requires an open vendor server-side
+	void destroyContainerItem(int slot);
+	void unequipItem(int equipSlot, int invDest);       // equipSlot 1..12 -> bag slot
+
 	// ---- hide/show the C++ windows a Lua view replaces ----
 	// HUD: "PlayerFrame"|"TargetFrame"|"XPBar"; screens: "LoginScreen"|"CharSelectScreen"|"CharCreateScreen"
 	void setGameFrameShown(const std::string& name, bool shown);
