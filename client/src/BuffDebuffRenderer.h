@@ -32,6 +32,9 @@ class BuffDebuffRenderer : public RenderObjectHolder
 		void setBuffs(const vector<GP_Server_UnitAuras::AuraInfo>& buffs);
 		void setDebuffs(const vector<GP_Server_UnitAuras::AuraInfo>& debuffs);
 
+		// Stop rendering this object's aura icons (the Lua HUD replaces them). Clears any showing icons.
+		void setSuppressed(const bool v);
+
 	protected:
 		void registerAuraObjs(sf::Vector2i* pAnchor);
 		void processRightClickedId(const int id);
@@ -52,6 +55,7 @@ class BuffDebuffRenderer : public RenderObjectHolder
 		bool highlightBuffDispelType() const;
 
 		map<Interface, int> m_auraCasterGuids;
+		bool m_suppressed{false};
 		Direction m_direction{ LeftRight };
 		shared_ptr<ClientUnit> m_unit;
 		World& m_world;

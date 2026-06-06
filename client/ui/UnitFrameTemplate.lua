@@ -109,6 +109,7 @@ local function buildIcons(f, fw, L, mirror, show, st)
 end
 
 local function buildAuras(f, fw, L, mirror, st)
+	-- shared aura widget (icon + radial cooldown sweep + hover tooltip); duration text off on unit frames.
 	local sz = L.auraSize
 	local ax0 = mpoint(fw, L.auras[1], mirror)
 	local dir = mirror and -1 or 1
@@ -117,14 +118,9 @@ local function buildAuras(f, fw, L, mirror, st)
 		local col = (i - 1) % AURA_MAX
 		local ax = ax0 + dir * col * sz
 		local ay = L.auras[2] + (i > AURA_MAX and sz or 0)   -- debuffs on the 2nd row
-		local a = f:CreateTexture(); a:SetSize(sz - 2, sz - 2); a:SetPoint('TOPLEFT', ax, ay); a:Hide()
-		local dur = f:CreateFontString(); dur:SetFont('Palatino'); dur:SetFontSize(10); dur:SetTextColor(255, 255, 255, 255)
-		dur:SetPoint('TOPLEFT', ax, ay + sz - 10); dur:Hide()
-		local slot = { icon = a, dur = dur, spellId = 0 }
-		-- hover an aura icon -> show its spell tooltip (driven each frame from the unit OnUpdate)
-		a:SetScript('OnEnter', function() st.hoverAura = slot.spellId end)
-		a:SetScript('OnLeave', function() if st.hoverAura == slot.spellId then st.hoverAura = nil end end)
-		st.auras[i] = slot
+		local aura = EmberUI.CreateAura(f, sz - 2)
+		aura.frame:SetPoint('TOPLEFT', ax, ay)
+		st.auras[i] = aura
 	end
 end
 
@@ -177,12 +173,10 @@ local function makeRefresh(token, st, show)
 			for i = 1, AURA_MAX do
 				local slot = st.auras[filterIdx * AURA_MAX + i]
 				if i <= n then
-					local spellId, _, remMs = UnitAura(token, i, harmful)
-					slot.spellId = spellId
-					slot.icon:SetTexture(GetSpellTexture(spellId)); slot.icon:Show()
-					if remMs and remMs > 0 then slot.dur:SetText(math.ceil(remMs / 1000) .. 's'); slot.dur:Show() else slot.dur:Hide() end
+					local spellId, _, remMs, durMs = UnitAura(token, i, harmful)
+					slot:SetSpell(spellId, remMs, durMs)
 				else
-					slot.spellId = 0; slot.icon:Hide(); slot.dur:Hide()
+					slot:Hide()
 				end
 			end
 		end
@@ -196,7 +190,7 @@ local function makeRefresh(token, st, show)
 end
 
 local function wireScripts(token, st)
-	st.hpR, st.mpR, st.hovering, st.hoverAura = 1, 1, false, nil
+	st.hpR, st.mpR, st.hovering = 1, 1, false
 	st.frame:SetScript('OnUpdate', function(_, dt)
 		if not EmberUI.inWorld or not UnitExists(token) then return end
 		local hpT = math.min(1, UnitHealth(token) / math.max(1, UnitHealthMax(token)))
@@ -209,9 +203,9 @@ local function wireScripts(token, st)
 			local total = UnitCastTotal(token)
 			if total > 0 then st.cast.fill:SetValue(math.min(1, UnitCastElapsed(token) / total)) end
 		end
-		-- aura icon hover takes priority over the unit tooltip
-		if st.hoverAura and st.hoverAura ~= 0 then ShowSpellTooltip(st.hoverAura)
-		elseif st.hovering then ShowUnitTooltip(token) end
+		-- aura widgets re-assert their own spell tooltip on hover (they render after this frame's handle,
+		-- so they win the per-frame tooltip); otherwise show the unit tooltip.
+		if st.hovering then ShowUnitTooltip(token) end
 	end)
 	st.frame:SetScript('OnClick', function() TargetUnit(token) end)
 	-- open the context menu on right-button RELEASE (matches C++); opening on press would let the following

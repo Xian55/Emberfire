@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "GameIcon.h"
+#include "CooldownPie.h"
 #include "ContentMgr.h"
 #include "Sprite.h"
 #include "Tooltip.h"
@@ -382,120 +383,10 @@ void GameIcon::drawCooldownText()
 
 void GameIcon::drawClock(const float degree)
 {
-	vector<sf::Vector2f> points;
-	
-	sf::Vector2f topLeftCorner(getTopLeftCornerRef());
-	sf::Vector2f bottomRightCorner(getBottomRightCornerRef());
-
-	// Center
-	points.push_back(sf::Vector2f((topLeftCorner.x + bottomRightCorner.x) / 2, (topLeftCorner.y + bottomRightCorner.y) / 2));
-
-	// Top middle
-	points.push_back(sf::Vector2f((topLeftCorner.x + bottomRightCorner.x) / 2, topLeftCorner.y));
-
-	if (degree >= 45)
-	{
-		// Top right
-		points.push_back(sf::Vector2f(bottomRightCorner.x, topLeftCorner.y));
-
-		if (degree >= 135)
-		{
-			// Bottom right
-			points.push_back(sf::Vector2f(bottomRightCorner.x, bottomRightCorner.y));
-
-			if (degree >= 225)
-			{
-				// Bottom left
-				points.push_back(sf::Vector2f(topLeftCorner.x, bottomRightCorner.y));
-				
-				if (degree >= 315)
-				{
-					// Top left
-					points.push_back(sf::Vector2f(topLeftCorner.x, topLeftCorner.y));
-
-					// Getting closer to the top middle again
-					if (degree > 315)
-					{
-						float topMiddleX = (topLeftCorner.x + bottomRightCorner.x) / 2;
-
-						float remaining = 360 - degree;
-						float remainingPct = 1.f -  (remaining / 45.f);
-
-						float fullWidth = topMiddleX - topLeftCorner.x;
-						float addedWidth = fullWidth * remainingPct;
-
-						points.push_back(sf::Vector2f(topLeftCorner.x + addedWidth, topLeftCorner.y));
-					}
-				}
-				else
-				{
-					float bottomRightY = bottomRightCorner.y;
-
-					float remaining = 315 - degree;
-					float remainingPct = 1.f -  (remaining / 90.f);
-
-					float fullHeight = bottomRightCorner.y - topLeftCorner.y;
-					float subtractedHeight = fullHeight * remainingPct;
-
-					points.push_back(sf::Vector2f(topLeftCorner.x, bottomRightCorner.y - subtractedHeight));
-				}
-			}
-			else
-			{
-				float bottomRightX = bottomRightCorner.x;
-
-				float remaining = 225 - degree;
-				float remainingPct = 1.f -  float(remaining) / 90.f;
-
-				float fullWidth = bottomRightCorner.x - topLeftCorner.x;
-				float subtractedWidth = fullWidth * remainingPct;
-
-				points.push_back(sf::Vector2f(bottomRightCorner.x - subtractedWidth, bottomRightCorner.y));
-			}			
-		}
-		else
-		{
-			float topRightY = topLeftCorner.y;
-
-			float remaining = 135 - degree;
-			float remainingPct = 1.f -  (remaining / 90.f);
-
-			float fullHeight = bottomRightCorner.y - topLeftCorner.y;
-			float addedHeight = fullHeight * remainingPct;
-
-			points.push_back(sf::Vector2f(bottomRightCorner.x, topLeftCorner.y + addedHeight));
-		}		
-	}
-	else
-	{
-		float topMiddleX = (topLeftCorner.x + bottomRightCorner.x) / 2;
-
-		float remaining = 45 - degree;
-		float remainingPct = 1.f - (float(remaining) / 45.f);
-
-		float fullWidth = bottomRightCorner.x - topMiddleX;
-		float addedWidth = fullWidth * remainingPct;
-
-		points.push_back(sf::Vector2f(topMiddleX + addedWidth, topLeftCorner.y));
-	}	
-	
-	sf::ConvexShape convex;
-	convex.setPointCount(points.size());
-	convex.setFillColor(sf::Color(0, 0, 0, 150));
-
-	for (size_t i = 0; i < points.size(); ++i)
-	{
-		auto& point = points[i];
-
-		sf::Vector2f relativepos = point - topLeftCorner;
-		
-		relativepos.x = float(mouseableWidth()) - relativepos.x + topLeftCorner.x;
-		relativepos.y = point.y;
-
-		convex.setPoint(i, relativepos);
-	}
-
-	sApplication->canvas().draw(convex);
+	// Shared radial-pie renderer (also used by the Lua aura widget). Use the mouseable rect so the x-mirror
+	// width matches the original behavior exactly.
+	const sf::Vector2i tl = getTopLeftCornerRef();
+	drawCooldownPie(tl, tl + sf::Vector2i(mouseableWidth(), mouseableHeight()), degree, sf::Color(0, 0, 0, 150));
 }
 
 void GameIcon::updateTooltipPosition()

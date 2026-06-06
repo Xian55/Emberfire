@@ -720,6 +720,8 @@ void LuaEngine::bindUI()
 		"SetAlpha",         [](FrameHandle self, float a)          { LuaUI::setAlpha(self.h, a); },
 		"SetTexCoord",      [](FrameHandle self, float l, float r, float t, float b) { LuaUI::setTexCoord(self.h, l, r, t, b); },
 		"SetCircular",      [](FrameHandle self, int radius)        { LuaUI::setTextureCircle(self.h, radius); },
+		"SetCooldown",      [](FrameHandle self, int rem, int dur)  { LuaUI::setCooldown(self.h, rem, dur); },
+		"GetCooldownRemaining", [](FrameHandle self)               { return LuaUI::cooldownRemaining(self.h); },
 		"EnableMouse",      [](FrameHandle self, bool v)           { LuaUI::setMouseEnabled(self.h, v); },
 		"SetMovable",       [](FrameHandle self, bool v)           { LuaUI::setMovable(self.h, v); if (v) LuaUI::setMouseEnabled(self.h, true); },
 		"RegisterForDrag",  [](FrameHandle self, sol::optional<std::string> btn) {
@@ -739,6 +741,7 @@ void LuaEngine::bindUI()
 		int h;
 		if (t == "Button")         h = LuaUI::createButton(p);
 		else if (t == "StatusBar") h = LuaUI::createStatusBar(p);
+		else if (t == "Cooldown")  h = LuaUI::createCooldown(p);
 		else if (t == "EditBox")   h = LuaUI::createEditBox(p);
 		else                       h = LuaUI::createFrame(p);
 		if (h && name && !name->empty())

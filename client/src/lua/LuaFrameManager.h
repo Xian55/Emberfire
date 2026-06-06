@@ -131,6 +131,28 @@ class LuaStatusBar : public RenderObject
 		float m_value{0.f};
 };
 
+// A radial cooldown sweep: draws a clockwise-shrinking dark pie over its rect representing time remaining.
+// Reuses the shared drawCooldownPie helper (same pie as the C++ game icons).
+class LuaCooldown : public RenderObject
+{
+	public:
+		LuaCooldown(RenderObject& owner, const int id);
+
+		void setCooldownSize(const int w, const int h) { m_w = w; m_h = h; }
+		void setCooldown(const int remainingMs, const int durationMs);   // remaining<=0 or duration<=0 => clear
+		int  remainingMs() const;                                        // live remaining (>=0)
+		sf::Vector2i cooldownSize() const { return { m_w, m_h }; }
+
+	private:
+		void input() final {}
+		void render() final;
+
+		int m_w{0};
+		int m_h{0};
+		long long m_startMs{0};
+		long long m_endMs{0};
+};
+
 // A single-line text input: wraps a C++ PromptBox child. Click focuses it (setCurrentPrompt),
 // type to edit, Enter submits (drained into OnEnter). Password masking + max length supported.
 class LuaEditBox : public RenderObjectHolder
@@ -172,6 +194,7 @@ class LuaFrameManager : public RenderObjectHolder
 		int  createFrame(int parentHandle);
 		int  createButton(int parentHandle);
 		int  createStatusBar(int parentHandle);
+		int  createCooldown(int parentHandle);
 		int  createTexture(int frameHandle);
 		int  createFontString(int frameHandle);
 		int  createEditBox(int parentHandle);

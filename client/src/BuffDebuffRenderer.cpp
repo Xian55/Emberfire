@@ -26,12 +26,26 @@ void BuffDebuffRenderer::setUnit(shared_ptr<ClientUnit> unit)
 
 void BuffDebuffRenderer::setBuffs(const vector<GP_Server_UnitAuras::AuraInfo>& buffs)
 {
+	if (m_suppressed)
+		return;
 	setAuras(buffs, Interface::BuffStart, Interface::BuffEnd, highlightBuffDispelType());
 }
 
 void BuffDebuffRenderer::setDebuffs(const vector<GP_Server_UnitAuras::AuraInfo>& debuffs)
-{	
+{
+	if (m_suppressed)
+		return;
 	setAuras(debuffs, Interface::DebuffStart, Interface::DebuffEnd, !highlightBuffDispelType());
+}
+
+void BuffDebuffRenderer::setSuppressed(const bool v)
+{
+	m_suppressed = v;
+	if (v)   // hide any currently-shown icons
+	{
+		setAuras({}, Interface::BuffStart, Interface::BuffEnd, false);
+		setAuras({}, Interface::DebuffStart, Interface::DebuffEnd, false);
+	}
 }
 
 void BuffDebuffRenderer::setAuras(const vector<GP_Server_UnitAuras::AuraInfo>& auras, const int interfaceStart, const int interfaceEnd, const bool renderDispelType)

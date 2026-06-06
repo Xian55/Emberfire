@@ -17,6 +17,7 @@
 #include "UnitFrame.h"
 #include "ContextMenu.h"
 #include "Tooltip.h"
+#include "CooldownPie.h"
 #include "..\..\SqlConnector\QueryResult.h"
 #include "..\..\Shared\Config.h"
 
@@ -306,6 +307,45 @@ void LuaStatusBar::render()
 	m_fill->render({ static_cast<float>(m_topLeftCorner.x), static_cast<float>(m_topLeftCorner.y) });
 }
 
+// ---------------------------------------------------------------- LuaCooldown
+
+LuaCooldown::LuaCooldown(RenderObject& owner, const int id) : RenderObject(&owner, id)
+{
+	setMouseable(false);
+}
+
+void LuaCooldown::setCooldown(const int remainingMs, const int durationMs)
+{
+	if (remainingMs <= 0 || durationMs <= 0)
+	{
+		m_startMs = m_endMs = 0;
+		return;
+	}
+	m_endMs = sApplication->timeNowMs() + remainingMs;
+	m_startMs = m_endMs - durationMs;
+}
+
+int LuaCooldown::remainingMs() const
+{
+	if (m_endMs == 0)
+		return 0;
+	const long long rem = m_endMs - sApplication->timeNowMs();
+	return rem > 0 ? static_cast<int>(rem) : 0;
+}
+
+void LuaCooldown::render()
+{
+	if (m_endMs == 0 || m_w <= 0 || m_h <= 0)
+		return;
+	const long long maxDuration = m_endMs - m_startMs;
+	const long long elapsed = sApplication->timeNowMs() - m_startMs;
+	if (maxDuration <= 0 || elapsed >= maxDuration)
+		return;
+	const float pct = 1.f - (float(elapsed) / float(maxDuration));   // fraction remaining
+	const float degree = 360.f * (pct < 0.f ? 0.f : pct > 1.f ? 1.f : pct);
+	drawCooldownPie(m_topLeftCorner, m_topLeftCorner + sf::Vector2i(m_w, m_h), degree, sf::Color(0, 0, 0, 150));
+}
+
 // ---------------------------------------------------------------- LuaEditBox
 
 // The currently focused editbox. Application clears the current-prompt every frame, so the focused box
@@ -579,6 +619,22 @@ int LuaFrameManager::createStatusBar(int parentHandle)
 	return h;
 }
 
+int LuaFrameManager::createCooldown(int parentHandle)
+{
+	RenderObjectHolder* parent = this;
+	if (parentHandle != 0)
+	{
+		parent = dynamic_cast<RenderObjectHolder*>(lookup(parentHandle));
+		if (!parent)
+			return 0;
+	}
+
+	const int h = m_nextHandle++;
+	attachChild(*parent, make_shared<LuaCooldown>(*parent, h), h);
+	m_parent[h] = parentHandle;
+	return h;
+}
+
 int LuaFrameManager::createEditBox(int parentHandle)
 {
 	RenderObjectHolder* parent = this;
@@ -681,6 +737,7 @@ sf::Vector2i LuaFrameManager::sizeOf(RenderObject* o) const
 	if (auto s = dynamic_cast<LuaFontString*>(o)) return s->textSize();
 	if (auto b = dynamic_cast<LuaButton*>(o))     return b->hitSize();
 	if (auto sb = dynamic_cast<LuaStatusBar*>(o)) return sb->barSize();
+	if (auto cd = dynamic_cast<LuaCooldown*>(o))  return cd->cooldownSize();
 	if (auto e = dynamic_cast<LuaEditBox*>(o))    return e->boxSize();
 	return { 0, 0 };
 }
@@ -794,6 +851,7 @@ void LuaFrameManager::setSize(int handle, float w, float h)
 	else if (auto t = dynamic_cast<LuaTexture*>(o))   t->setScaleSize(static_cast<int>(w), static_cast<int>(h));
 	else if (auto b = dynamic_cast<LuaButton*>(o))    b->setHitSize(static_cast<int>(w), static_cast<int>(h));
 	else if (auto sb = dynamic_cast<LuaStatusBar*>(o)) sb->setBarSize(static_cast<int>(w), static_cast<int>(h));
+	else if (auto cd = dynamic_cast<LuaCooldown*>(o))  cd->setCooldownSize(static_cast<int>(w), static_cast<int>(h));
 	else if (auto e = dynamic_cast<LuaEditBox*>(o))   e->setBoxSize(static_cast<int>(w), static_cast<int>(h));
 }
 
@@ -1062,6 +1120,25 @@ namespace LuaUI
 	{
 		auto* m = LuaFrameManager::instance();
 		return m ? m->createStatusBar(parentHandle) : 0;
+	}
+
+	int createCooldown(int parentHandle)
+	{
+		auto* m = LuaFrameManager::instance();
+		return m ? m->createCooldown(parentHandle) : 0;
+	}
+
+	void setCooldown(int handle, int remainingMs, int durationMs)
+	{
+		auto* m = LuaFrameManager::instance();
+		if (auto cd = dynamic_cast<LuaCooldown*>(m ? m->lookup(handle) : nullptr)) cd->setCooldown(remainingMs, durationMs);
+	}
+
+	int cooldownRemaining(int handle)
+	{
+		auto* m = LuaFrameManager::instance();
+		auto cd = dynamic_cast<LuaCooldown*>(m ? m->lookup(handle) : nullptr);
+		return cd ? cd->remainingMs() : 0;
 	}
 
 	int createEditBox(int parentHandle)
@@ -1377,6 +1454,10 @@ namespace LuaUI
 
 		auto* w = currentWorld();
 		if (!w) return;
+
+		// World renders the minimap-adjacent player auras itself (it IS a BuffDebuffRenderer); suppress that.
+		if (name == "PlayerAuras") { w->setSuppressed(!shown); return; }
+
 		const int id = (name == "PlayerFrame") ? World::PlayerUnitFrame
 		             : (name == "TargetFrame") ? World::TargetUnitFrame
 		             : (name == "Party1Frame") ? World::Party1UnitFrame

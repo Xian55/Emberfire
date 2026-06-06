@@ -14,6 +14,7 @@ namespace LuaUI
 	int  createFrame(int parentHandle);        // parent 0 => the root manager (top-level frame)
 	int  createButton(int parentHandle);       // a clickable region (OnClick via the poll bridge)
 	int  createStatusBar(int parentHandle);    // a fill-bar (SetMinMaxValues/SetValue)
+	int  createCooldown(int parentHandle);     // a radial cooldown sweep (SetCooldown)
 	int  createTexture(int frameHandle);       // a texture region owned by the frame
 	int  createFontString(int frameHandle);    // a text region owned by the frame
 	int  createEditBox(int parentHandle);      // a single-line text input (wraps PromptBox)
@@ -152,6 +153,8 @@ namespace LuaUI
 	void  setAlpha(int handle, float a);                // 0..1 -> per-widget vertex/text alpha
 	void  setTexCoord(int handle, float l, float r, float t, float b);   // 0..1 sub-rect (texture crop)
 	void  setTextureCircle(int handle, int radius);                     // render a texture clipped to a circle
+	void  setCooldown(int handle, int remainingMs, int durationMs);     // drive a Cooldown widget's radial sweep
+	int   cooldownRemaining(int handle);                               // live remaining ms (for the text label)
 
 	// ---- z-order within the parent (WoW SetFrameLevel/GetFrameLevel/Raise/Lower) ----
 	void setFrameLevel(int handle, int level);
