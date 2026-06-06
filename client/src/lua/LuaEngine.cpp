@@ -1,16 +1,22 @@
-// LuaEngine.cpp is the SINGLE sol2 boundary in the client.
+// LuaEngine.cpp is the SINGLE LuaBridge3 boundary in the client.
 //
 // It is compiled in ISOLATION (see client/CMakeLists.txt): no precompiled header, and with
 // _HAS_STD_BYTE=1 (the rest of the client builds with _HAS_STD_BYTE=0 because it uses a bare `byte`
-// identifier under `using namespace std`; sol2 needs std::byte). Therefore this file must NOT include
+// identifier under `using namespace std`; LuaBridge3 needs std::byte). Therefore this file must NOT include
 // stdafx.h or any heavy client header (they pull in `using namespace std` + the bare `byte`). It talks
 // to the rest of the client only through plain primitives and a print-sink callback.
+//
+// The Lua VM is minilua (Lua 5.5, single-file). The core (state, allocator cap, instruction watchdog,
+// sandbox env, chunk loading) is driven through the raw Lua C API; LuaBridge3 only marshals the widget /
+// game-state API. Exceptions are disabled (LUABRIDGE_HAS_EXCEPTIONS 0): every untrusted call crosses a
+// lua_pcall, and Lua-as-C reports errors via longjmp, not C++ throws.
 
-#define SOL_ALL_SAFETIES_ON 1
-#include <sol/sol.hpp>
+#include <lua.hpp>                 // minilua (Lua 5.5) — MUST precede LuaBridge (it #errors otherwise)
+#define LUABRIDGE_HAS_EXCEPTIONS 0 // bindings report errors via Lua, not C++ throw (game: no exceptions)
+#include <LuaBridge.h>
 
 #include "LuaEngine.h"
-#include "LuaUI.h"           // sol-free handle boundary to the widget adapters
+#include "LuaUI.h"           // handle boundary to the widget adapters (no client/std-byte headers)
 #include "LuaEvents.h"       // single source of truth for fired event names
 #include "../../Logger.h"   // header-only blog(); no std/byte usage
 
@@ -21,14 +27,78 @@
 #include <map>
 #include <set>
 #include <vector>
-#include <string>
 #include <tuple>
+#include <optional>
 #include <ctime>
 #include <cstdlib>
 #include <cassert>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+
+// ---------------------------------------------------------------- impl state
+
+// A loaded addon: its sandbox env + metadata from the .toc.
+namespace
+{
+	struct AddonInfo
+	{
+		std::string name;
+		std::string savedVar;                       // ## SavedVariables: <name>  (empty if none)
+		std::vector<std::string> files;             // ordered .lua files
+		bool enabled = true;
+		bool broken  = false;
+		std::optional<luabridge::LuaRef> env;       // per-addon _ENV (falls back to the shared sandbox)
+	};
+}
+
+// All Lua / LuaBridge state lives here so it never leaks into the header.
+struct LuaEngineImpl
+{
+	lua_State* L = nullptr;
+
+	std::optional<luabridge::LuaRef> sandbox;      // the whitelisted _ENV every chunk runs under
+	std::optional<luabridge::LuaRef> defaultUiEnv; // shared env for the built-in Lua default UI (ui/)
+
+	std::function<void(const std::string&)> outputSink;  // routes print() to the console (set by host)
+
+	std::map<int, luabridge::LuaRef> onUpdate;       // handle -> OnUpdate(self, dt)
+	std::map<int, luabridge::LuaRef> onClick;        // handle -> OnClick(self, button)
+	std::map<int, luabridge::LuaRef> onEnterPressed; // handle -> OnEnterPressed(self) (editbox Enter key)
+	std::map<int, luabridge::LuaRef> onMouseEnter;   // handle -> OnEnter(self) (cursor entered bounds)
+	std::map<int, luabridge::LuaRef> onMouseLeave;   // handle -> OnLeave(self) (cursor left bounds)
+	std::set<int>                    hovered;        // handles the cursor is currently inside (edge detect)
+	std::map<int, luabridge::LuaRef> onMouseDown;    // handle -> OnMouseDown(self, button)
+	std::map<int, luabridge::LuaRef> onMouseUp;      // handle -> OnMouseUp(self, button)
+	std::map<int, luabridge::LuaRef> onMouseWheel;   // handle -> OnMouseWheel(self, delta)
+	std::map<int, luabridge::LuaRef> onDragStart;    // handle -> OnDragStart(self)
+	std::map<int, luabridge::LuaRef> onDragStop;     // handle -> OnDragStop(self)
+	std::map<int, luabridge::LuaRef> onReceiveDrag;  // handle -> OnReceiveDrag(self)
+	std::map<int, luabridge::LuaRef> onShow;         // handle -> OnShow(self)
+	std::map<int, luabridge::LuaRef> onHide;         // handle -> OnHide(self)
+	std::map<int, luabridge::LuaRef> onValueChanged; // handle -> OnValueChanged(self, value)
+	std::map<int, luabridge::LuaRef> onMinMaxChanged;// handle -> OnMinMaxChanged(self, min, max)
+	std::map<int, luabridge::LuaRef> onSizeChanged;  // handle -> OnSizeChanged(self, w, h)
+	std::set<int>                    shownState;     // last-seen shown flag (OnShow/OnHide edge detect)
+	std::map<int, float>             lastValue;      // OnValueChanged edge cache
+	std::map<int, std::pair<float,float>> lastMinMax;// OnMinMaxChanged edge cache
+	std::map<int, std::pair<int,int>>     lastSize;  // OnSizeChanged edge cache
+	std::map<int, luabridge::LuaRef> onEvent;        // handle -> OnEvent(self, event, arg)
+	std::map<std::string, std::set<int>> eventSubs;  // eventName -> subscribed handles
+
+	std::vector<AddonInfo> addons;                  // loaded addons (M5)
+
+	size_t memUsed = 0;
+	size_t memCap  = 0;
+
+	bool      instrArmed  = false;       // watchdog only bites around untrusted calls
+	long long instrCount  = 0;
+	long long instrBudget = 0;
+
+	std::thread::id mainThreadId;
+	bool reloadRequested = false;        // /reload sets this; onFrame performs it at a frame boundary
+};
 
 namespace
 {
@@ -38,6 +108,10 @@ namespace
 
 	// Lightweight Lua-facing handle for a widget; forwards to the LuaUI:: backend (no client types here).
 	struct FrameHandle { int h = 0; };
+
+	// TU-local singletons so every binding can be a *captureless* lambda (LuaBridge wants function pointers).
+	LuaEngineImpl* g_impl   = nullptr;
+	LuaEngine*     g_engine = nullptr;
 
 	int pointToInt(const std::string& p)
 	{
@@ -52,64 +126,28 @@ namespace
 		return LuaUI::TopLeft;
 	}
 
-	// A loaded addon: its sandbox env + metadata from the .toc.
-	struct AddonInfo
+	// Push a captured Lua function + args, then pcall under the instruction watchdog. No C++ exceptions:
+	// errors come back through pcall's status and get logged. `what` labels the error line.
+	template <class... Args>
+	void callLua(const char* what, const luabridge::LuaRef& fn, Args&&... args)
 	{
-		std::string name;
-		std::string savedVar;                 // ## SavedVariables: <name>  (empty if none)
-		std::vector<std::string> files;       // ordered .lua files
-		bool enabled = true;
-		bool broken  = false;
-		sol::environment env;                 // per-addon _ENV (falls back to the shared sandbox)
-	};
+		if (!fn.isFunction())
+			return;
+		lua_State* L = g_impl->L;
+		fn.push(L);
+		(static_cast<void>(luabridge::Stack<std::decay_t<Args>>::push(L, std::forward<Args>(args))), ...);
+		g_impl->instrArmed = true;
+		g_impl->instrCount = 0;
+		const int rc = lua_pcall(L, static_cast<int>(sizeof...(Args)), 0, 0);
+		g_impl->instrArmed = false;
+		if (rc != LUA_OK)
+		{
+			const char* e = lua_tostring(L, -1);
+			g_engine->hostPrint(std::string(what) + ": " + (e ? e : "(error)"));
+			lua_pop(L, 1);
+		}
+	}
 }
-
-// All sol2 / Lua state lives here so it never leaks into the header.
-struct LuaEngineImpl
-{
-	lua_State*              L = nullptr;
-	sol::environment        sandbox;     // the whitelisted _ENV every chunk runs under
-	sol::protected_function tostring;    // captured base tostring, for print()
-
-	std::function<void(const std::string&)> outputSink;  // routes print() to the console (set by host)
-
-	std::map<int, sol::protected_function> onUpdate;       // handle -> OnUpdate(self, dt)
-	std::map<int, sol::protected_function> onClick;        // handle -> OnClick(self, button)
-	std::map<int, sol::protected_function> onEnterPressed; // handle -> OnEnterPressed(self) (editbox Enter key)
-	std::map<int, sol::protected_function> onMouseEnter;   // handle -> OnEnter(self) (cursor entered bounds)
-	std::map<int, sol::protected_function> onMouseLeave;   // handle -> OnLeave(self) (cursor left bounds)
-	std::set<int>                          hovered;        // handles the cursor is currently inside (edge detect)
-	std::map<int, sol::protected_function> onMouseDown;    // handle -> OnMouseDown(self, button)
-	std::map<int, sol::protected_function> onMouseUp;      // handle -> OnMouseUp(self, button)
-	std::map<int, sol::protected_function> onMouseWheel;   // handle -> OnMouseWheel(self, delta)
-	std::map<int, sol::protected_function> onDragStart;    // handle -> OnDragStart(self)
-	std::map<int, sol::protected_function> onDragStop;     // handle -> OnDragStop(self)
-	std::map<int, sol::protected_function> onReceiveDrag;  // handle -> OnReceiveDrag(self)
-	std::map<int, sol::protected_function> onShow;         // handle -> OnShow(self)
-	std::map<int, sol::protected_function> onHide;         // handle -> OnHide(self)
-	std::map<int, sol::protected_function> onValueChanged; // handle -> OnValueChanged(self, value)
-	std::map<int, sol::protected_function> onMinMaxChanged;// handle -> OnMinMaxChanged(self, min, max)
-	std::map<int, sol::protected_function> onSizeChanged;  // handle -> OnSizeChanged(self, w, h)
-	std::set<int>                          shownState;     // last-seen shown flag (OnShow/OnHide edge detect)
-	std::map<int, float>                   lastValue;      // OnValueChanged edge cache
-	std::map<int, std::pair<float,float>>  lastMinMax;     // OnMinMaxChanged edge cache
-	std::map<int, std::pair<int,int>>      lastSize;       // OnSizeChanged edge cache
-	std::map<int, sol::protected_function> onEvent;        // handle -> OnEvent(self, event, arg)
-	std::map<std::string, std::set<int>>   eventSubs;      // eventName -> subscribed handles
-
-	std::vector<AddonInfo> addons;                       // loaded addons (M5)
-	sol::environment       defaultUiEnv;                 // shared env for the built-in Lua default UI (ui/)
-
-	size_t memUsed = 0;
-	size_t memCap  = kMemCap;
-
-	bool      instrArmed  = false;       // watchdog only bites around untrusted calls
-	long long instrCount  = 0;
-	long long instrBudget = kInstrBudget;
-
-	std::thread::id mainThreadId;
-	bool reloadRequested = false;        // /reload sets this; onFrame performs it at a frame boundary
-};
 
 // --- custom allocator: enforce a global memory cap (refusing => Lua raises "not enough memory") ---
 static void* luaAlloc(void* ud, void* ptr, size_t osize, size_t nsize)
@@ -147,7 +185,7 @@ static void instrHook(lua_State* L, lua_Debug*)
 
 	impl->instrCount += kHookStep;
 	if (impl->instrCount > impl->instrBudget)
-		luaL_error(L, "%s", "exceeded the instruction budget - possible infinite loop");  // lua_pushfstring lacks %lld
+		luaL_error(L, "%s", "exceeded the instruction budget - possible infinite loop");
 }
 
 LuaEngine::LuaEngine() : m_impl(std::make_unique<LuaEngineImpl>()) {}
@@ -171,9 +209,15 @@ void LuaEngine::init()
 	if (m_impl->L)
 		return;
 
+	g_impl   = m_impl.get();
+	g_engine = this;
+
+	m_impl->memCap      = kMemCap;
+	m_impl->instrBudget = kInstrBudget;
 	m_impl->mainThreadId = std::this_thread::get_id();
 
-	m_impl->L = lua_newstate(luaAlloc, m_impl.get());
+	// Lua 5.5: lua_newstate takes a seed (was 2-arg in 5.4).
+	m_impl->L = lua_newstate(luaAlloc, m_impl.get(), luaL_makeseed(nullptr));
 	assert(m_impl->L != nullptr);
 
 	lua_atpanic(m_impl->L, [](lua_State* L) -> int {
@@ -194,12 +238,15 @@ void LuaEngine::shutdown()
 	if (!m_impl->L)
 		return;
 
-	// Drop sol handles that reference L BEFORE closing the state.
-	m_impl->sandbox      = sol::environment();
-	m_impl->defaultUiEnv = sol::environment();
-	m_impl->tostring     = sol::protected_function();
+	// Drop every LuaRef that references L BEFORE closing the state (RAII unref while L is still alive).
+	clearFrames();
+	m_impl->addons.clear();
+	m_impl->sandbox.reset();
+	m_impl->defaultUiEnv.reset();
 	lua_close(m_impl->L);
 	m_impl->L = nullptr;
+	g_impl   = nullptr;
+	g_engine = nullptr;
 }
 
 void LuaEngine::clearFrames()
@@ -302,68 +349,122 @@ namespace
 		return out;
 	}
 
-	void serializeValue(const sol::object& v, std::ostream& os, int depth);
+	// Recursive Lua-literal writer over a value sitting at stack index `idx` (raw, lib-agnostic).
+	void serializeStack(lua_State* L, int idx, std::ostream& os, int depth);
 
-	void serializeTable(const sol::table& t, std::ostream& os, int depth)
+	void serializeTableAt(lua_State* L, int idx, std::ostream& os, int depth)
 	{
 		if (depth > 16) { os << "nil"; return; }   // cycle / over-deep guard
+		idx = lua_absindex(L, idx);
 		os << "{";
 		bool first = true;
-		for (const auto& kv : t)
+		lua_pushnil(L);
+		while (lua_next(L, idx))   // key at -2, value at -1
 		{
-			const sol::object key = kv.first;
-			const sol::object val = kv.second;
-			const sol::type vt = val.get_type();
-			if (vt == sol::type::function || vt == sol::type::userdata || vt == sol::type::lightuserdata || vt == sol::type::thread)
+			const int vt = lua_type(L, -1);
+			if (vt == LUA_TFUNCTION || vt == LUA_TUSERDATA || vt == LUA_TLIGHTUSERDATA || vt == LUA_TTHREAD)
+			{
+				lua_pop(L, 1);     // skip unserializable value, keep key for next()
 				continue;
+			}
+			const int kt = lua_type(L, -2);
+			std::string keyExpr;
+			if (kt == LUA_TSTRING)
+			{
+				size_t len = 0;
+				const char* ks = lua_tolstring(L, -2, &len);   // safe: key is a string here
+				keyExpr = "[" + luaQuote(std::string(ks, len)) + "]=";
+			}
+			else if (kt == LUA_TNUMBER)
+			{
+				// copy the number out before formatting (don't lua_tostring the live key — it mutates it)
+				const long long ki = static_cast<long long>(lua_tonumber(L, -2));
+				keyExpr = "[" + std::to_string(ki) + "]=";
+			}
+			else
+			{
+				lua_pop(L, 1);
+				continue;
+			}
+
 			if (!first) os << ",";
 			first = false;
-			if (key.get_type() == sol::type::string)
-				os << "[" << luaQuote(key.as<std::string>()) << "]=";
-			else if (key.get_type() == sol::type::number)
-				os << "[" << static_cast<long long>(key.as<double>()) << "]=";
-			else
-				continue;
-			serializeValue(val, os, depth);
+			os << keyExpr;
+			serializeStack(L, -1, os, depth);
+			lua_pop(L, 1);          // pop value, keep key for next()
 		}
 		os << "}";
 	}
 
-	void serializeValue(const sol::object& v, std::ostream& os, int depth)
+	void serializeStack(lua_State* L, int idx, std::ostream& os, int depth)
 	{
-		switch (v.get_type())
+		switch (lua_type(L, idx))
 		{
-			case sol::type::string:  os << luaQuote(v.as<std::string>()); break;
-			case sol::type::number:
+			case LUA_TSTRING:
 			{
-				const double d = v.as<double>();
+				size_t len = 0;
+				const char* s = lua_tolstring(L, idx, &len);
+				os << luaQuote(std::string(s, len));
+				break;
+			}
+			case LUA_TNUMBER:
+			{
+				const double d = lua_tonumber(L, idx);
 				const long long i = static_cast<long long>(d);
 				if (static_cast<double>(i) == d) os << i; else os << d;
 				break;
 			}
-			case sol::type::boolean: os << (v.as<bool>() ? "true" : "false"); break;
-			case sol::type::table:   serializeTable(v.as<sol::table>(), os, depth + 1); break;
-			default:                 os << "nil"; break;
+			case LUA_TBOOLEAN: os << (lua_toboolean(L, idx) ? "true" : "false"); break;
+			case LUA_TTABLE:   serializeTableAt(L, idx, os, depth + 1); break;
+			default:           os << "nil"; break;
 		}
 	}
 
-	bool runChunkInEnv(LuaEngine* self, LuaEngineImpl* impl, const std::string& name, const std::string& src, sol::environment& env)
+	// Build a fresh per-addon env table whose reads fall back to the shared sandbox (metatable __index).
+	luabridge::LuaRef makeChildEnv(lua_State* L, const luabridge::LuaRef& sandbox)
+	{
+		luabridge::LuaRef env = luabridge::newTable(L);
+		luabridge::LuaRef mt  = luabridge::newTable(L);
+		mt["__index"] = sandbox;
+		env.push(L);
+		mt.push(L);
+		lua_setmetatable(L, -2);   // pops mt, sets it as env's metatable
+		lua_pop(L, 1);             // pop env
+		return env;
+	}
+
+	bool runChunkInEnv(LuaEngine* self, LuaEngineImpl* impl, const std::string& name,
+	                   const std::string& src, const luabridge::LuaRef& env)
 	{
 		if (!src.empty() && static_cast<unsigned char>(src[0]) == 0x1B)
 		{ self->hostPrint("addon " + name + ": bytecode rejected"); return false; }
 
-		sol::state_view lua(impl->L);
-		sol::load_result chunk = lua.load_buffer(src.data(), src.size(), ("=" + name).c_str(), sol::load_mode::text);
-		if (!chunk.valid()) { sol::error e = chunk; self->hostPrint("addon " + name + " compile: " + e.what()); return false; }
+		lua_State* L = impl->L;
+		const std::string chunkName = "=" + name;
+		if (luaL_loadbufferx(L, src.data(), src.size(), chunkName.c_str(), "t") != LUA_OK)
+		{
+			const char* e = lua_tostring(L, -1);
+			self->hostPrint("addon " + name + " compile: " + (e ? e : "(error)"));
+			lua_pop(L, 1);
+			return false;
+		}
 
-		sol::protected_function fn = chunk;
-		sol::set_environment(env, fn);
+		// Set the chunk's _ENV (upvalue 1 of a main chunk) to the sandboxed env.
+		env.push(L);
+		if (!lua_setupvalue(L, -2, 1))
+			lua_pop(L, 1);   // chunk had no _ENV upvalue: drop the env we pushed
 
 		impl->instrArmed = true;
 		impl->instrCount = 0;
-		sol::protected_function_result r = fn();
+		const int rc = lua_pcall(L, 0, 0, 0);
 		impl->instrArmed = false;
-		if (!r.valid()) { sol::error e = r; self->hostPrint("addon " + name + ": " + e.what()); return false; }
+		if (rc != LUA_OK)
+		{
+			const char* e = lua_tostring(L, -1);
+			self->hostPrint("addon " + name + ": " + (e ? e : "(error)"));
+			lua_pop(L, 1);
+			return false;
+		}
 		return true;
 	}
 }
@@ -385,8 +486,7 @@ void LuaEngine::loadDefaultUI()
 	if (!parseToc(toc, info))
 		return;
 
-	sol::state_view lua(m_impl->L);
-	m_impl->defaultUiEnv = sol::environment(lua, sol::create, m_impl->sandbox);   // shared, falls back to sandbox
+	m_impl->defaultUiEnv = makeChildEnv(m_impl->L, *m_impl->sandbox);   // shared, falls back to sandbox
 
 	for (const auto& file : info.files)
 	{
@@ -396,7 +496,7 @@ void LuaEngine::loadDefaultUI()
 			hostPrint("default UI: missing file " + file);
 			continue;
 		}
-		if (!runChunkInEnv(this, m_impl.get(), "ui/" + file, src, m_impl->defaultUiEnv))
+		if (!runChunkInEnv(this, m_impl.get(), "ui/" + file, src, *m_impl->defaultUiEnv))
 			break;   // a default-UI error stops loading the rest of it
 	}
 	blog(Logger::LOG_INFO, "[lua] default UI loaded");
@@ -416,8 +516,6 @@ void LuaEngine::loadAddons()
 	const fs::path root = "addons";   // relative to the runtime cwd (the provisioned build/.../client dir)
 	if (!fs::is_directory(root, ec))
 		return;
-
-	sol::state_view lua(m_impl->L);
 
 	for (const auto& entry : fs::directory_iterator(root, ec))
 	{
@@ -444,25 +542,29 @@ void LuaEngine::loadAddons()
 		}
 
 		// Per-addon env: reads fall through to the shared sandbox; the addon's own globals stay local.
-		info.env = sol::environment(lua, sol::create, m_impl->sandbox);
-		info.env["addon"] = lua.create_table_with("name", name);
+		luabridge::LuaRef env = makeChildEnv(m_impl->L, *m_impl->sandbox);
+		{
+			luabridge::LuaRef addonTbl = luabridge::newTable(m_impl->L);
+			addonTbl["name"] = name;
+			env["addon"] = addonTbl;
+		}
 
 		// SavedVariables: load the declared table (or start empty) into the env.
 		if (!info.savedVar.empty())
 		{
-			sol::table sv = lua.create_table();
+			luabridge::LuaRef sv = luabridge::newTable(m_impl->L);
 			std::string svContent;
 			if (readWholeFile(dir / "SavedVariables.lua", svContent) && !svContent.empty())
 			{
-				sol::environment tmp(lua, sol::create, m_impl->sandbox);
+				luabridge::LuaRef tmp = makeChildEnv(m_impl->L, *m_impl->sandbox);
 				if (runChunkInEnv(this, m_impl.get(), name + ":SV", svContent, tmp))
 				{
-					sol::object loaded = tmp[info.savedVar];
-					if (loaded.get_type() == sol::type::table)
-						sv = loaded.as<sol::table>();
+					luabridge::LuaRef loaded = tmp[info.savedVar];
+					if (loaded.isTable())
+						sv = loaded;
 				}
 			}
-			info.env[info.savedVar] = sv;
+			env[info.savedVar] = sv;
 		}
 
 		bool ok = true;
@@ -475,7 +577,7 @@ void LuaEngine::loadAddons()
 				ok = false;
 				break;
 			}
-			if (!runChunkInEnv(this, m_impl.get(), name + "/" + file, src, info.env))
+			if (!runChunkInEnv(this, m_impl.get(), name + "/" + file, src, env))
 			{
 				ok = false;   // broken addon: stop loading it, keep the others
 				break;
@@ -483,6 +585,7 @@ void LuaEngine::loadAddons()
 		}
 
 		info.broken = !ok;
+		info.env    = std::move(env);
 		blog(Logger::LOG_INFO, "[lua] addon '%s' %s", name.c_str(), ok ? "loaded" : "DISABLED (error)");
 		m_impl->addons.push_back(std::move(info));
 	}
@@ -504,15 +607,17 @@ void LuaEngine::saveAddons()
 	namespace fs = std::filesystem;
 	for (auto& a : m_impl->addons)
 	{
-		if (a.savedVar.empty() || a.broken)
+		if (a.savedVar.empty() || a.broken || !a.env)
 			continue;
-		sol::object v = a.env[a.savedVar];
-		if (v.get_type() != sol::type::table)
+		luabridge::LuaRef v = (*a.env)[a.savedVar];
+		if (!v.isTable())
 			continue;
 
 		std::ostringstream os;
 		os << a.savedVar << " = ";
-		serializeTable(v.as<sol::table>(), os, 0);
+		v.push(m_impl->L);
+		serializeTableAt(m_impl->L, -1, os, 0);
+		lua_pop(m_impl->L, 1);
 		os << "\n";
 
 		std::ofstream out(fs::path("addons") / a.name / "SavedVariables.lua", std::ios::binary | std::ios::trunc);
@@ -541,10 +646,28 @@ void LuaEngine::reloadAddons()
 	hostPrint("addons reloaded");
 }
 
+// ---------------------------------------------------------------- sandbox + bindings
+
+// print(): join args via luaL_tolstring (respects __tostring) and route to the host console.
+static int lua_print(lua_State* L)
+{
+	const int n = lua_gettop(L);
+	std::string line;
+	for (int i = 1; i <= n; ++i)
+	{
+		if (i > 1) line += '\t';
+		size_t len = 0;
+		const char* s = luaL_tolstring(L, i, &len);   // pushes the string repr
+		line.append(s, len);
+		lua_pop(L, 1);
+	}
+	if (g_engine) g_engine->hostPrint(line);
+	return 0;
+}
+
 void LuaEngine::buildSandbox()
 {
 	lua_State* L = m_impl->L;
-	sol::state_view lua(L);
 
 	// Open ONLY the safe standard libraries. io / os / debug / package are NEVER loaded into the VM.
 	static const luaL_Reg kSafeLibs[] = {
@@ -562,47 +685,46 @@ void LuaEngine::buildSandbox()
 		lua_pop(L, 1);
 	}
 
-	sol::global_table G = lua.globals();
-
 	// Strip the dangerous globals that luaopen_base installs (host mediates loading; addons can't reach disk).
 	for (const char* n : { "dofile", "loadfile", "load", "loadstring", "collectgarbage", "require", "package" })
-		G[n] = sol::lua_nil;
-
-	m_impl->tostring = G["tostring"];
+	{
+		lua_pushnil(L);
+		lua_setglobal(L, n);
+	}
 
 	// Build the whitelisted sandbox env. Addons get THIS as their _ENV; they never see the real _G.
-	sol::environment env(lua, sol::create);
+	luabridge::LuaRef env = luabridge::newTable(L);
 	for (const char* n : { "assert", "error", "ipairs", "pairs", "next", "select", "tonumber", "tostring",
 	                       "type", "pcall", "xpcall", "rawequal", "rawget", "rawset", "rawlen",
 	                       "setmetatable", "getmetatable", "_VERSION" })
-		env[n] = G[n];
+		env[n] = luabridge::getGlobal(L, n);
 
-	env["string"]    = G["string"];
-	env["table"]     = G["table"];
-	env["math"]      = G["math"];
-	env["coroutine"] = G["coroutine"];
-	env["utf8"]      = G["utf8"];
+	env["string"]    = luabridge::getGlobal(L, "string");
+	env["table"]     = luabridge::getGlobal(L, "table");
+	env["math"]      = luabridge::getGlobal(L, "math");
+	env["coroutine"] = luabridge::getGlobal(L, "coroutine");
+	env["utf8"]      = luabridge::getGlobal(L, "utf8");
 
 	// Minimal, safe os.* only (no execute / getenv / remove / rename / exit / tmpname).
-	sol::table osT = lua.create_table();
-	osT["time"]  = []() { return static_cast<long long>(std::time(nullptr)); };
-	osT["clock"] = []() { return static_cast<double>(std::clock()) / CLOCKS_PER_SEC; };
+	luabridge::LuaRef osT = luabridge::newTable(L);
+	osT["time"]  = static_cast<lua_CFunction>([](lua_State* L) -> int {
+		lua_pushinteger(L, static_cast<lua_Integer>(std::time(nullptr))); return 1; });
+	osT["clock"] = static_cast<lua_CFunction>([](lua_State* L) -> int {
+		lua_pushnumber(L, static_cast<lua_Number>(std::clock()) / CLOCKS_PER_SEC); return 1; });
 	env["os"] = osT;
 
 	// Host-routed print() -> log + (optional) console sink.
-	env["print"] = [this](sol::variadic_args va) {
-		std::string line;
-		for (std::size_t i = 0; i < va.size(); ++i)
-		{
-			if (i) line += '\t';
-			sol::protected_function_result r = m_impl->tostring(sol::object(va[i]));
-			line += (r.valid() ? r.get<std::string>() : std::string("?"));
-		}
-		hostPrint(line);
-	};
+	env["print"] = static_cast<lua_CFunction>(&lua_print);
 
 	// In-sandbox _G is the addon's own env: stray globals only pollute the addon itself.
 	env["_G"] = env;
+
+	// Expose the event names to Lua as Events.UNIT_HEALTH etc. (same single source as the C++ fire sites).
+	luabridge::LuaRef events = luabridge::newTable(L);
+#define X(name) events[#name] = std::string(LuaEvents::name);
+	LUA_EVENT_LIST(X)
+#undef X
+	env["Events"] = events;
 
 	// Lock the shared string metatable so an addon can't repoint string.* for everyone.
 	lua_pushliteral(L, "");
@@ -618,204 +740,215 @@ void LuaEngine::buildSandbox()
 	m_impl->sandbox = env;
 }
 
+namespace
+{
+	// SetScript router (kept free so the binding stays captureless).
+	void setScript(int h, const std::string& which, const luabridge::LuaRef& fn)
+	{
+		auto* I = g_impl;
+		if      (which == "OnUpdate")        I->onUpdate.insert_or_assign(h, fn);
+		else if (which == "OnClick")         I->onClick.insert_or_assign(h, fn);
+		else if (which == "OnEnter")         I->onMouseEnter.insert_or_assign(h, fn);   // cursor entered bounds
+		else if (which == "OnLeave")         I->onMouseLeave.insert_or_assign(h, fn);   // cursor left bounds
+		else if (which == "OnEnterPressed")  I->onEnterPressed.insert_or_assign(h, fn); // editbox Enter key
+		else if (which == "OnMouseDown")   { I->onMouseDown.insert_or_assign(h, fn);  LuaUI::setMouseEnabled(h, true); }
+		else if (which == "OnMouseUp")     { I->onMouseUp.insert_or_assign(h, fn);    LuaUI::setMouseEnabled(h, true); }
+		else if (which == "OnMouseWheel")  { I->onMouseWheel.insert_or_assign(h, fn); LuaUI::setMouseEnabled(h, true); }
+		else if (which == "OnDragStart")     I->onDragStart.insert_or_assign(h, fn);
+		else if (which == "OnDragStop")      I->onDragStop.insert_or_assign(h, fn);
+		else if (which == "OnReceiveDrag")   I->onReceiveDrag.insert_or_assign(h, fn);
+		else if (which == "OnShow")          I->onShow.insert_or_assign(h, fn);
+		else if (which == "OnHide")          I->onHide.insert_or_assign(h, fn);
+		else if (which == "OnValueChanged")  I->onValueChanged.insert_or_assign(h, fn);
+		else if (which == "OnMinMaxChanged") I->onMinMaxChanged.insert_or_assign(h, fn);
+		else if (which == "OnSizeChanged")   I->onSizeChanged.insert_or_assign(h, fn);
+		else if (which == "OnEvent")         I->onEvent.insert_or_assign(h, fn);
+	}
+
+	// WoW SetPoint(point [, relativeTo:Frame] [, relativePoint:string] [, x, y]) — variadic/poly, so raw.
+	// self is at stack index 1 (Lua colon call); remaining args at 2.. with type-based dispatch.
+	int frame_SetPoint(lua_State* L)
+	{
+		auto self = luabridge::Stack<FrameHandle>::get(L, 1);
+		if (!self) return 0;
+		const char* pointStr = lua_tostring(L, 2);
+		const int pi = pointToInt(pointStr ? pointStr : "");
+		int relH = 0, relPi = pi;   // default: anchor to owner/screen, relativePoint == point
+		float x = 0.f, y = 0.f;
+		int i = 3;
+		const int top = lua_gettop(L);
+		if (i <= top)
+		{
+			auto rel = luabridge::Stack<FrameHandle>::get(L, i);
+			if (rel) { relH = rel->h; ++i; }
+		}
+		if (i <= top && lua_type(L, i) == LUA_TSTRING) { relPi = pointToInt(lua_tostring(L, i)); ++i; }
+		if (i <= top && lua_isnumber(L, i))            { x = static_cast<float>(lua_tonumber(L, i)); ++i; }
+		if (i <= top && lua_isnumber(L, i))            { y = static_cast<float>(lua_tonumber(L, i)); ++i; }
+		LuaUI::setPoint(self->h, pi, relH, relPi, x, y);
+		return 0;
+	}
+}
+
 void LuaEngine::bindUI()
 {
-	sol::state_view lua(m_impl->L);
+	lua_State* L = m_impl->L;
 
-	// FrameHandle methods live on a global metatable; addons reach them via instances, not the sandbox env.
-	lua.new_usertype<FrameHandle>("__EmberFrame",
-		sol::no_constructor,
-		// WoW SetPoint(point [, relativeTo:Frame] [, relativePoint:string] [, x, y]).
-		"SetPoint", [](FrameHandle self, std::string point, sol::variadic_args va) {
-			const int pi = pointToInt(point);
-			int relH = 0, relPi = pi;   // default: anchor to owner/screen, relativePoint == point
-			float x = 0.f, y = 0.f;
-			std::size_t i = 0;
-			if (i < va.size() && va[i].is<FrameHandle>()) { relH = va[i].as<FrameHandle>().h; ++i; }
-			if (i < va.size() && va[i].is<std::string>()) { relPi = pointToInt(va[i].as<std::string>()); ++i; }
-			if (i < va.size() && va[i].is<double>())      { x = va[i].as<float>(); ++i; }
-			if (i < va.size() && va[i].is<double>())      { y = va[i].as<float>(); ++i; }
-			LuaUI::setPoint(self.h, pi, relH, relPi, x, y);
-		},
-		"SetAllPoints",     [](FrameHandle self, sol::optional<FrameHandle> rel) { LuaUI::setAllPoints(self.h, rel ? rel->h : 0); },
-		"ClearAllPoints",   [](FrameHandle self)                   { LuaUI::clearAllPoints(self.h); },
-		"SetSize",          [](FrameHandle self, float w, float h) { LuaUI::setSize(self.h, w, h); },
-		"SetText",          [](FrameHandle self, std::string t)    { LuaUI::setText(self.h, t); },
-		"GetText",          [](FrameHandle self)                   { return LuaUI::getText(self.h); },
-		"SetPassword",      [](FrameHandle self, bool masked)      { LuaUI::setEditBoxPassword(self.h, masked); },
-		"SetMaxLetters",    [](FrameHandle self, int n)            { LuaUI::setEditBoxMaxLen(self.h, n); },
-		"SetNumeric",       [](FrameHandle self, bool v)           { LuaUI::setEditBoxNumeric(self.h, v); },
-		"SetFontSize",      [](FrameHandle self, int n)            { LuaUI::setEditBoxFontSize(self.h, n); },
-		"SetTextColor",     [](FrameHandle self, sol::variadic_args va) {
-			const int r = va.size() >= 1 ? va[0].as<int>() : 255;
-			const int g = va.size() >= 2 ? va[1].as<int>() : 255;
-			const int b = va.size() >= 3 ? va[2].as<int>() : 255;
-			const int a = va.size() >= 4 ? va[3].as<int>() : 255;
-			LuaUI::setEditBoxColor(self.h, r, g, b, a);
-		},
-		"SetTexture",       [](FrameHandle self, std::string t)    { LuaUI::setTexture(self.h, t); },
-		"SetHoverTexture",  [](FrameHandle self, std::string t)    { LuaUI::setHoverTexture(self.h, t); },
-		"SetFont",          [](FrameHandle self, std::string f)    { LuaUI::setFont(self.h, f); },
-		"SetVertexColor",   [](FrameHandle self, sol::variadic_args va) {
-			const int r = va.size() >= 1 ? va[0].as<int>() : 255;
-			const int g = va.size() >= 2 ? va[1].as<int>() : 255;
-			const int b = va.size() >= 3 ? va[2].as<int>() : 255;
-			const int a = va.size() >= 4 ? va[3].as<int>() : 255;
-			LuaUI::setVertexColor(self.h, r, g, b, a);
-		},
-		"SetStatusBarTexture", [](FrameHandle self, std::string t) { LuaUI::setTexture(self.h, t); },
-		"SetMinMaxValues",  [](FrameHandle self, float mn, float mx) { LuaUI::setMinMax(self.h, mn, mx); },
-		"SetValue",         [](FrameHandle self, float v)          { LuaUI::setValue(self.h, v); },
-		"SetStatusBarColor",[](FrameHandle self, sol::variadic_args va) {
-			const int r = va.size() >= 1 ? va[0].as<int>() : 255;
-			const int g = va.size() >= 2 ? va[1].as<int>() : 255;
-			const int b = va.size() >= 3 ? va[2].as<int>() : 255;
-			const int a = va.size() >= 4 ? va[3].as<int>() : 255;
-			LuaUI::setBarColor(self.h, r, g, b, a);
-		},
-		"Show",             [](FrameHandle self)                   { LuaUI::show(self.h, true); },
-		"Hide",             [](FrameHandle self)                   { LuaUI::show(self.h, false); },
-		"IsValid",          [](FrameHandle self)                   { return LuaUI::valid(self.h); },
-		"SetFrameLevel",    [](FrameHandle self, int level)        { LuaUI::setFrameLevel(self.h, level); },
-		"GetFrameLevel",    [](FrameHandle self)                   { return LuaUI::getFrameLevel(self.h); },
-		"Raise",            [](FrameHandle self)                   { LuaUI::raiseFrame(self.h); },
-		"Lower",            [](FrameHandle self)                   { LuaUI::lowerFrame(self.h); },
-		"SetScript",        [this](FrameHandle self, std::string which, sol::protected_function fn) {
-			if (which == "OnUpdate")            m_impl->onUpdate[self.h]       = fn;
-			else if (which == "OnClick")        m_impl->onClick[self.h]        = fn;
-			else if (which == "OnEnter")        m_impl->onMouseEnter[self.h]   = fn;   // cursor entered bounds (passive)
-			else if (which == "OnLeave")        m_impl->onMouseLeave[self.h]   = fn;   // cursor left bounds (passive)
-			else if (which == "OnEnterPressed") m_impl->onEnterPressed[self.h] = fn;   // editbox Enter key
-			else if (which == "OnMouseDown")  { m_impl->onMouseDown[self.h]    = fn; LuaUI::setMouseEnabled(self.h, true); }
-			else if (which == "OnMouseUp")    { m_impl->onMouseUp[self.h]      = fn; LuaUI::setMouseEnabled(self.h, true); }
-			else if (which == "OnMouseWheel") { m_impl->onMouseWheel[self.h]   = fn; LuaUI::setMouseEnabled(self.h, true); }
-			else if (which == "OnDragStart")    m_impl->onDragStart[self.h]    = fn;
-			else if (which == "OnDragStop")     m_impl->onDragStop[self.h]     = fn;
-			else if (which == "OnReceiveDrag")  m_impl->onReceiveDrag[self.h]  = fn;
-			else if (which == "OnShow")         m_impl->onShow[self.h]         = fn;
-			else if (which == "OnHide")         m_impl->onHide[self.h]         = fn;
-			else if (which == "OnValueChanged")  m_impl->onValueChanged[self.h]  = fn;
-			else if (which == "OnMinMaxChanged") m_impl->onMinMaxChanged[self.h] = fn;
-			else if (which == "OnSizeChanged")   m_impl->onSizeChanged[self.h]   = fn;
-			else if (which == "OnEvent")        m_impl->onEvent[self.h]        = fn;
-		},
-		"RegisterEvent",    [this](FrameHandle self, std::string event) { m_impl->eventSubs[event].insert(self.h); },
-		"UnregisterEvent",  [this](FrameHandle self, std::string event) {
-			auto it = m_impl->eventSubs.find(event);
-			if (it != m_impl->eventSubs.end()) it->second.erase(self.h);
-		},
-		"UnregisterAllEvents", [this](FrameHandle self) { for (auto& kv : m_impl->eventSubs) kv.second.erase(self.h); },
-		"CreateTexture",    [](FrameHandle self)                   { return FrameHandle{ LuaUI::createTexture(self.h) }; },
-		"CreateFontString", [](FrameHandle self)                   { return FrameHandle{ LuaUI::createFontString(self.h) }; },
-		"IsMouseOver",      [](FrameHandle self)                   { return LuaUI::isMouseOver(self.h); },
-		"GetLeft",          [](FrameHandle self)                   { return LuaUI::frameLeft(self.h); },   // current top-left screen X
-		"GetTop",           [](FrameHandle self)                   { return LuaUI::frameTop(self.h); },    // current top-left screen Y
-		"GetWidth",         [](FrameHandle self)                   { return LuaUI::frameWidth(self.h); },
-		"GetHeight",        [](FrameHandle self)                   { return LuaUI::frameHeight(self.h); },
-		"GetParent",        [](FrameHandle self)                   { return FrameHandle{ LuaUI::parentOf(self.h) }; },
-		"GetName",          [](FrameHandle self)                   { return LuaUI::frameName(self.h); },
-		"GetObjectType",    [](FrameHandle self)                   { return LuaUI::objectType(self.h); },
-		"IsShown",          [](FrameHandle self)                   { return LuaUI::isShownSelf(self.h); },
-		"IsVisible",        [](FrameHandle self)                   { return LuaUI::isVisible(self.h); },
-		"SetAlpha",         [](FrameHandle self, float a)          { LuaUI::setAlpha(self.h, a); },
-		"SetTexCoord",      [](FrameHandle self, float l, float r, float t, float b) { LuaUI::setTexCoord(self.h, l, r, t, b); },
-		"SetCircular",      [](FrameHandle self, int radius)        { LuaUI::setTextureCircle(self.h, radius); },
-		"SetCooldown",      [](FrameHandle self, int rem, int dur)  { LuaUI::setCooldown(self.h, rem, dur); },
-		"GetCooldownRemaining", [](FrameHandle self)               { return LuaUI::cooldownRemaining(self.h); },
-		"EnableMouse",      [](FrameHandle self, bool v)           { LuaUI::setMouseEnabled(self.h, v); },
-		"SetMovable",       [](FrameHandle self, bool v)           { LuaUI::setMovable(self.h, v); if (v) LuaUI::setMouseEnabled(self.h, true); },
-		"RegisterForDrag",  [](FrameHandle self, sol::optional<std::string> btn) {
-			// default LeftButton; map name -> sf::Mouse index (0=Left,1=Right,2=Middle)
-			const std::string b = btn.value_or(std::string("LeftButton"));
-			const int sfBtn = (b == "RightButton") ? 1 : (b == "MiddleButton") ? 2 : 0;
-			LuaUI::setDragButton(self.h, sfBtn);
-			LuaUI::setMovable(self.h, true);
-			LuaUI::setMouseEnabled(self.h, true);
-		}
-	);
+	// FrameHandle methods live on a registry metatable; addons reach them via instances, not the sandbox env.
+	luabridge::getGlobalNamespace(L)
+		.beginClass<FrameHandle>("EmberFrame")
+			.addFunction("SetPoint", &frame_SetPoint)
+			.addFunction("SetAllPoints",   [](FrameHandle* self, std::optional<FrameHandle> rel) { LuaUI::setAllPoints(self->h, rel ? rel->h : 0); })
+			.addFunction("ClearAllPoints", [](FrameHandle* self) { LuaUI::clearAllPoints(self->h); })
+			.addFunction("SetSize",        [](FrameHandle* self, float w, float h) { LuaUI::setSize(self->h, w, h); })
+			.addFunction("SetText",        [](FrameHandle* self, std::string t) { LuaUI::setText(self->h, t); })
+			.addFunction("GetText",        [](FrameHandle* self) { return LuaUI::getText(self->h); })
+			.addFunction("SetPassword",    [](FrameHandle* self, bool masked) { LuaUI::setEditBoxPassword(self->h, masked); })
+			.addFunction("SetMaxLetters",  [](FrameHandle* self, int n) { LuaUI::setEditBoxMaxLen(self->h, n); })
+			.addFunction("SetNumeric",     [](FrameHandle* self, bool v) { LuaUI::setEditBoxNumeric(self->h, v); })
+			.addFunction("SetFontSize",    [](FrameHandle* self, int n) { LuaUI::setEditBoxFontSize(self->h, n); })
+			.addFunction("SetTextColor",   [](FrameHandle* self, std::optional<int> r, std::optional<int> g, std::optional<int> b, std::optional<int> a) {
+				LuaUI::setEditBoxColor(self->h, r.value_or(255), g.value_or(255), b.value_or(255), a.value_or(255)); })
+			.addFunction("SetTexture",      [](FrameHandle* self, std::string t) { LuaUI::setTexture(self->h, t); })
+			.addFunction("SetHoverTexture", [](FrameHandle* self, std::string t) { LuaUI::setHoverTexture(self->h, t); })
+			.addFunction("SetFont",         [](FrameHandle* self, std::string f) { LuaUI::setFont(self->h, f); })
+			.addFunction("SetVertexColor",  [](FrameHandle* self, std::optional<int> r, std::optional<int> g, std::optional<int> b, std::optional<int> a) {
+				LuaUI::setVertexColor(self->h, r.value_or(255), g.value_or(255), b.value_or(255), a.value_or(255)); })
+			.addFunction("SetStatusBarTexture", [](FrameHandle* self, std::string t) { LuaUI::setTexture(self->h, t); })
+			.addFunction("SetMinMaxValues", [](FrameHandle* self, float mn, float mx) { LuaUI::setMinMax(self->h, mn, mx); })
+			.addFunction("SetValue",        [](FrameHandle* self, float v) { LuaUI::setValue(self->h, v); })
+			.addFunction("SetStatusBarColor", [](FrameHandle* self, std::optional<int> r, std::optional<int> g, std::optional<int> b, std::optional<int> a) {
+				LuaUI::setBarColor(self->h, r.value_or(255), g.value_or(255), b.value_or(255), a.value_or(255)); })
+			.addFunction("Show",           [](FrameHandle* self) { LuaUI::show(self->h, true); })
+			.addFunction("Hide",           [](FrameHandle* self) { LuaUI::show(self->h, false); })
+			.addFunction("IsValid",        [](FrameHandle* self) { return LuaUI::valid(self->h); })
+			.addFunction("SetFrameLevel",  [](FrameHandle* self, int level) { LuaUI::setFrameLevel(self->h, level); })
+			.addFunction("GetFrameLevel",  [](FrameHandle* self) { return LuaUI::getFrameLevel(self->h); })
+			.addFunction("Raise",          [](FrameHandle* self) { LuaUI::raiseFrame(self->h); })
+			.addFunction("Lower",          [](FrameHandle* self) { LuaUI::lowerFrame(self->h); })
+			.addFunction("SetScript",      [](FrameHandle* self, std::string which, luabridge::LuaRef fn) { setScript(self->h, which, fn); })
+			.addFunction("RegisterEvent",  [](FrameHandle* self, std::string event) { g_impl->eventSubs[event].insert(self->h); })
+			.addFunction("UnregisterEvent",[](FrameHandle* self, std::string event) {
+				auto it = g_impl->eventSubs.find(event);
+				if (it != g_impl->eventSubs.end()) it->second.erase(self->h); })
+			.addFunction("UnregisterAllEvents", [](FrameHandle* self) { for (auto& kv : g_impl->eventSubs) kv.second.erase(self->h); })
+			.addFunction("CreateTexture",    [](FrameHandle* self) { return FrameHandle{ LuaUI::createTexture(self->h) }; })
+			.addFunction("CreateFontString", [](FrameHandle* self) { return FrameHandle{ LuaUI::createFontString(self->h) }; })
+			.addFunction("IsMouseOver",    [](FrameHandle* self) { return LuaUI::isMouseOver(self->h); })
+			.addFunction("GetLeft",        [](FrameHandle* self) { return LuaUI::frameLeft(self->h); })
+			.addFunction("GetTop",         [](FrameHandle* self) { return LuaUI::frameTop(self->h); })
+			.addFunction("GetWidth",       [](FrameHandle* self) { return LuaUI::frameWidth(self->h); })
+			.addFunction("GetHeight",      [](FrameHandle* self) { return LuaUI::frameHeight(self->h); })
+			.addFunction("GetParent",      [](FrameHandle* self) { return FrameHandle{ LuaUI::parentOf(self->h) }; })
+			.addFunction("GetName",        [](FrameHandle* self) { return LuaUI::frameName(self->h); })
+			.addFunction("GetObjectType",  [](FrameHandle* self) { return LuaUI::objectType(self->h); })
+			.addFunction("IsShown",        [](FrameHandle* self) { return LuaUI::isShownSelf(self->h); })
+			.addFunction("IsVisible",      [](FrameHandle* self) { return LuaUI::isVisible(self->h); })
+			.addFunction("SetAlpha",       [](FrameHandle* self, float a) { LuaUI::setAlpha(self->h, a); })
+			.addFunction("SetTexCoord",    [](FrameHandle* self, float l, float r, float t, float b) { LuaUI::setTexCoord(self->h, l, r, t, b); })
+			.addFunction("SetCircular",    [](FrameHandle* self, int radius) { LuaUI::setTextureCircle(self->h, radius); })
+			.addFunction("SetCooldown",    [](FrameHandle* self, int rem, int dur) { LuaUI::setCooldown(self->h, rem, dur); })
+			.addFunction("GetCooldownRemaining", [](FrameHandle* self) { return LuaUI::cooldownRemaining(self->h); })
+			.addFunction("EnableMouse",    [](FrameHandle* self, bool v) { LuaUI::setMouseEnabled(self->h, v); })
+			.addFunction("SetMovable",     [](FrameHandle* self, bool v) { LuaUI::setMovable(self->h, v); if (v) LuaUI::setMouseEnabled(self->h, true); })
+			.addFunction("RegisterForDrag",[](FrameHandle* self, std::optional<std::string> btn) {
+				const std::string b = btn.value_or(std::string("LeftButton"));
+				const int sfBtn = (b == "RightButton") ? 1 : (b == "MiddleButton") ? 2 : 0;
+				LuaUI::setDragButton(self->h, sfBtn);
+				LuaUI::setMovable(self->h, true);
+				LuaUI::setMouseEnabled(self->h, true); })
+		.endClass()
 
-	// CreateFrame(frameType, name, parent) -> Frame. "Button" makes a clickable region; else a Frame.
-	m_impl->sandbox["CreateFrame"] = [](sol::optional<std::string> type, sol::optional<std::string> name, sol::optional<FrameHandle> parent) {
-		const int p = parent ? parent->h : 0;
-		const std::string t = type.value_or(std::string("Frame"));
-		int h;
-		if (t == "Button")         h = LuaUI::createButton(p);
-		else if (t == "StatusBar") h = LuaUI::createStatusBar(p);
-		else if (t == "Cooldown")  h = LuaUI::createCooldown(p);
-		else if (t == "EditBox")   h = LuaUI::createEditBox(p);
-		else                       h = LuaUI::createFrame(p);
-		if (h && name && !name->empty())
-			LuaUI::setName(h, *name);
-		return FrameHandle{ h };
+		// CreateFrame(frameType, name, parent) -> Frame. "Button" makes a clickable region; else a Frame.
+		.addFunction("CreateFrame", [](std::optional<std::string> type, std::optional<std::string> name, std::optional<FrameHandle> parent) {
+			const int p = parent ? parent->h : 0;
+			const std::string t = type.value_or(std::string("Frame"));
+			int h;
+			if (t == "Button")         h = LuaUI::createButton(p);
+			else if (t == "StatusBar") h = LuaUI::createStatusBar(p);
+			else if (t == "Cooldown")  h = LuaUI::createCooldown(p);
+			else if (t == "EditBox")   h = LuaUI::createEditBox(p);
+			else                       h = LuaUI::createFrame(p);
+			if (h && name && !name->empty())
+				LuaUI::setName(h, *name);
+			return FrameHandle{ h };
+		})
+
+		// Game-state getters.
+		.addFunction("UnitHealth",    [](std::string token) { return LuaUI::unitHealth(token); })
+		.addFunction("UnitHealthMax", [](std::string token) { return LuaUI::unitHealthMax(token); })
+		.addFunction("UnitLevel",     [](std::string token) { return LuaUI::unitLevel(token); })
+		.addFunction("UnitPower",     [](std::string token) { return LuaUI::unitPower(token); })
+		.addFunction("UnitPowerMax",  [](std::string token) { return LuaUI::unitPowerMax(token); })
+		.addFunction("UnitName",      [](std::string token) { return LuaUI::unitName(token); })
+		.addFunction("UnitExists",    [](std::string token) { return LuaUI::unitExists(token); })
+		.addFunction("GetXP",         []() { return LuaUI::playerXP(); })
+		.addFunction("GetMaxXP",      []() { return LuaUI::playerMaxXP(); })
+
+		// Unit-frame parity getters.
+		.addFunction("UnitNameColor", [](std::string token) {                          // -> r, g, b (0..255)
+			const int c = LuaUI::unitNameColor(token);
+			return std::make_tuple((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF); })
+		.addFunction("UnitFlag",        [](std::string token, std::string name) { return LuaUI::unitFlag(token, name); })
+		.addFunction("UnitIsDead",      [](std::string token) { return LuaUI::unitIsDead(token); })
+		.addFunction("UnitIsPlayer",    [](std::string token) { return LuaUI::unitIsPlayer(token); })
+		.addFunction("UnitIsPartyLeader", [](std::string token) { return LuaUI::unitIsPartyLeader(token); })
+		.addFunction("UnitHasBrokenEquipment", [](std::string token) { return LuaUI::unitHasBrokenEquipment(token); })
+		.addFunction("UnitPortraitTexture", [](std::string token) { return LuaUI::unitPortraitTexture(token); })
+		.addFunction("UnitCastSpell",   [](std::string token) { return LuaUI::unitCastSpell(token); })
+		.addFunction("UnitCastElapsed", [](std::string token) { return LuaUI::unitCastElapsedMs(token); })
+		.addFunction("UnitCastTotal",   [](std::string token) { return LuaUI::unitCastTotalMs(token); })
+		.addFunction("UnitAuraCount",   [](std::string token, bool harmful) { return LuaUI::unitAuraCount(token, harmful); })
+		.addFunction("UnitAura",        [](std::string token, int index, bool harmful) {  // -> spellId, count, remainingMs, durationMs
+			int spellId = 0, count = 0, remainingMs = 0, durationMs = 0;
+			if (!LuaUI::unitAura(token, index - 1, harmful, spellId, count, remainingMs, durationMs))   // Lua is 1-based
+				return std::make_tuple(0, 0, 0, 0);
+			return std::make_tuple(spellId, count, remainingMs, durationMs); })
+		.addFunction("PartyMemberExists", [](int idx) { return LuaUI::partyMemberExists(idx - 1); })   // Lua 1-based
+		.addFunction("GetSpellTexture", [](int spellId) { return LuaUI::spellTexture(spellId); })
+		.addFunction("GetSpellName",    [](int spellId) { return LuaUI::spellName(spellId); })
+		.addFunction("GetTextureSize",  [](std::string name) { return std::make_tuple(LuaUI::textureWidth(name), LuaUI::textureHeight(name)); })
+
+		// Commands.
+		.addFunction("TargetUnit",    [](std::string token) { LuaUI::targetUnit(token); })
+		.addFunction("ClearTarget",   []() { LuaUI::clearTarget(); })
+		.addFunction("UnitContextMenu", [](std::string token, std::optional<std::string> extra) { LuaUI::unitContextMenu(token, extra.value_or(std::string())); })
+		.addFunction("ShowUnitTooltip", [](std::string token) { LuaUI::showUnitTooltip(token); })
+		.addFunction("ShowSpellTooltip", [](int spellId) { LuaUI::showSpellTooltip(spellId); })
+		.addFunction("SaveUISetting", [](std::string key, int value) { LuaUI::saveUISetting(key, value); })
+		.addFunction("GetUISetting",  [](std::string key, int def) { return LuaUI::getUISetting(key, def); })
+
+		// Hide/show a C++ window that a Lua view replaces.
+		.addFunction("SetGameFrameShown", [](std::string name, bool shown) { LuaUI::setGameFrameShown(name, shown); })
+
+		// Login screen command/getter.
+		.addFunction("SubmitLogin",   [](std::string user, std::string pass, bool remember) { LuaUI::submitLogin(user, pass, remember); })
+		.addFunction("GetSavedLogin", []() { return LuaUI::getSavedLogin(); })
+
+		// Screen metrics for Lua layout.
+		.addFunction("GetScreenWidth",  []() { return LuaUI::screenWidth(); })
+		.addFunction("GetScreenHeight", []() { return LuaUI::screenHeight(); })
+
+		// Debug: DebugBounds(true) outlines every Lua widget.
+		.addFunction("DebugBounds", [](bool v) { LuaUI::setDebugBounds(v); })
+		.endNamespace();
+
+	// Copy the registered API globals into the sandbox env (addons never see _G; they get exactly these).
+	static const char* kApiNames[] = {
+		"CreateFrame", "UnitHealth", "UnitHealthMax", "UnitLevel", "UnitPower", "UnitPowerMax", "UnitName",
+		"UnitExists", "GetXP", "GetMaxXP", "UnitNameColor", "UnitFlag", "UnitIsDead", "UnitIsPlayer",
+		"UnitIsPartyLeader", "UnitHasBrokenEquipment", "UnitPortraitTexture", "UnitCastSpell",
+		"UnitCastElapsed", "UnitCastTotal", "UnitAuraCount", "UnitAura", "PartyMemberExists",
+		"GetSpellTexture", "GetSpellName", "GetTextureSize", "TargetUnit", "ClearTarget", "UnitContextMenu",
+		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",
+		"SubmitLogin", "GetSavedLogin", "GetScreenWidth", "GetScreenHeight", "DebugBounds",
 	};
-
-	// Game-state getters.
-	m_impl->sandbox["UnitHealth"]    = [](std::string token) { return LuaUI::unitHealth(token); };
-	m_impl->sandbox["UnitHealthMax"] = [](std::string token) { return LuaUI::unitHealthMax(token); };
-	m_impl->sandbox["UnitLevel"]     = [](std::string token) { return LuaUI::unitLevel(token); };
-	m_impl->sandbox["UnitPower"]     = [](std::string token) { return LuaUI::unitPower(token); };
-	m_impl->sandbox["UnitPowerMax"]  = [](std::string token) { return LuaUI::unitPowerMax(token); };
-	m_impl->sandbox["UnitName"]      = [](std::string token) { return LuaUI::unitName(token); };
-	m_impl->sandbox["UnitExists"]    = [](std::string token) { return LuaUI::unitExists(token); };
-	m_impl->sandbox["GetXP"]         = []() { return LuaUI::playerXP(); };
-	m_impl->sandbox["GetMaxXP"]      = []() { return LuaUI::playerMaxXP(); };
-
-	// Unit-frame parity getters.
-	m_impl->sandbox["UnitNameColor"] = [](std::string token) {                          // -> r, g, b (0..255)
-		const int c = LuaUI::unitNameColor(token);
-		return std::make_tuple((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
-	};
-	m_impl->sandbox["UnitFlag"]        = [](std::string token, std::string name) { return LuaUI::unitFlag(token, name); };
-	m_impl->sandbox["UnitIsDead"]      = [](std::string token) { return LuaUI::unitIsDead(token); };
-	m_impl->sandbox["UnitIsPlayer"]    = [](std::string token) { return LuaUI::unitIsPlayer(token); };
-	m_impl->sandbox["UnitIsPartyLeader"] = [](std::string token) { return LuaUI::unitIsPartyLeader(token); };
-	m_impl->sandbox["UnitHasBrokenEquipment"] = [](std::string token) { return LuaUI::unitHasBrokenEquipment(token); };
-	m_impl->sandbox["UnitPortraitTexture"] = [](std::string token) { return LuaUI::unitPortraitTexture(token); };
-	m_impl->sandbox["UnitCastSpell"]   = [](std::string token) { return LuaUI::unitCastSpell(token); };
-	m_impl->sandbox["UnitCastElapsed"] = [](std::string token) { return LuaUI::unitCastElapsedMs(token); };
-	m_impl->sandbox["UnitCastTotal"]   = [](std::string token) { return LuaUI::unitCastTotalMs(token); };
-	m_impl->sandbox["UnitAuraCount"]   = [](std::string token, bool harmful) { return LuaUI::unitAuraCount(token, harmful); };
-	m_impl->sandbox["UnitAura"]        = [](std::string token, int index, bool harmful) {  // -> spellId, count, remainingMs, durationMs (or nil)
-		int spellId = 0, count = 0, remainingMs = 0, durationMs = 0;
-		if (!LuaUI::unitAura(token, index - 1, harmful, spellId, count, remainingMs, durationMs))   // Lua is 1-based
-			return std::make_tuple(0, 0, 0, 0);
-		return std::make_tuple(spellId, count, remainingMs, durationMs);
-	};
-	m_impl->sandbox["PartyMemberExists"] = [](int idx) { return LuaUI::partyMemberExists(idx - 1); };   // Lua 1-based
-	m_impl->sandbox["GetSpellTexture"] = [](int spellId) { return LuaUI::spellTexture(spellId); };
-	m_impl->sandbox["GetSpellName"]    = [](int spellId) { return LuaUI::spellName(spellId); };
-	m_impl->sandbox["GetTextureSize"]  = [](std::string name) { return std::make_tuple(LuaUI::textureWidth(name), LuaUI::textureHeight(name)); };
-
-	// Commands.
-	m_impl->sandbox["TargetUnit"]    = [](std::string token) { LuaUI::targetUnit(token); };
-	m_impl->sandbox["ClearTarget"]   = []() { LuaUI::clearTarget(); };
-	m_impl->sandbox["UnitContextMenu"] = [](std::string token, sol::optional<std::string> extra) { LuaUI::unitContextMenu(token, extra.value_or(std::string())); };
-	m_impl->sandbox["ShowUnitTooltip"] = [](std::string token) { LuaUI::showUnitTooltip(token); };
-	m_impl->sandbox["ShowSpellTooltip"] = [](int spellId) { LuaUI::showSpellTooltip(spellId); };
-	m_impl->sandbox["SaveUISetting"]   = [](std::string key, int value) { LuaUI::saveUISetting(key, value); };
-	m_impl->sandbox["GetUISetting"]    = [](std::string key, int def) { return LuaUI::getUISetting(key, def); };
-
-	// Hide/show a C++ window that a Lua view replaces.
-	m_impl->sandbox["SetGameFrameShown"] = [](std::string name, bool shown) { LuaUI::setGameFrameShown(name, shown); };
-
-	// Login screen command/getter.
-	m_impl->sandbox["SubmitLogin"]   = [](std::string user, std::string pass, bool remember) { LuaUI::submitLogin(user, pass, remember); };
-	m_impl->sandbox["GetSavedLogin"] = []() { return LuaUI::getSavedLogin(); };
-
-	// Screen metrics for Lua layout.
-	m_impl->sandbox["GetScreenWidth"]  = []() { return LuaUI::screenWidth(); };
-	m_impl->sandbox["GetScreenHeight"] = []() { return LuaUI::screenHeight(); };
-
-	// Debug: DebugBounds(true) outlines every Lua widget.
-	m_impl->sandbox["DebugBounds"] = [](bool v) { LuaUI::setDebugBounds(v); };
-
-	// Expose the event names to Lua as Events.UNIT_HEALTH etc. (same single source as the C++ fire sites).
-	sol::table events = lua.create_table();
-#define X(name) events[#name] = std::string(LuaEvents::name);
-	LUA_EVENT_LIST(X)
-#undef X
-	m_impl->sandbox["Events"] = events;
+	luabridge::LuaRef& env = *m_impl->sandbox;
+	for (const char* n : kApiNames)
+		env[n] = luabridge::getGlobal(L, n);
 }
+
+// ---------------------------------------------------------------- event dispatch + per-frame pump
 
 void LuaEngine::fire(const std::string& event, const std::string& arg)
 {
@@ -833,13 +966,9 @@ void LuaEngine::fire(const std::string& event, const std::string& arg)
 	for (int h : handles)
 	{
 		auto hit = m_impl->onEvent.find(h);
-		if (hit == m_impl->onEvent.end() || !hit->second.valid())
+		if (hit == m_impl->onEvent.end())
 			continue;
-		m_impl->instrArmed = true;
-		m_impl->instrCount = 0;
-		sol::protected_function_result r = hit->second(FrameHandle{ h }, event, arg);
-		m_impl->instrArmed = false;
-		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnEvent error: ") + e.what()); }
+		callLua("OnEvent error", hit->second, FrameHandle{ h }, event, arg);
 	}
 }
 
@@ -876,42 +1005,26 @@ void LuaEngine::onFrame(float dt)
 	}
 
 	// OnUpdate(self, dt) for every frame that registered one (snapshot so handlers may mutate the set).
-	std::vector<std::pair<int, sol::protected_function>> updates(m_impl->onUpdate.begin(), m_impl->onUpdate.end());
-	for (auto& [h, fn] : updates)
 	{
-		if (!fn.valid())
-			continue;
-		m_impl->instrArmed = true;
-		m_impl->instrCount = 0;
-		sol::protected_function_result r = fn(FrameHandle{ h }, dt);
-		m_impl->instrArmed = false;
-		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnUpdate error: ") + e.what()); }
+		std::vector<std::pair<int, luabridge::LuaRef>> updates(m_impl->onUpdate.begin(), m_impl->onUpdate.end());
+		for (auto& [h, fn] : updates)
+			callLua("OnUpdate error", fn, FrameHandle{ h }, dt);
 	}
 
 	// Drain clicked buttons and fire OnClick(self, "LeftButton").
 	for (int h = LuaUI::popClickedHandle(); h != 0; h = LuaUI::popClickedHandle())
 	{
 		auto it = m_impl->onClick.find(h);
-		if (it == m_impl->onClick.end() || !it->second.valid())
-			continue;
-		m_impl->instrArmed = true;
-		m_impl->instrCount = 0;
-		sol::protected_function_result r = it->second(FrameHandle{ h }, std::string("LeftButton"));
-		m_impl->instrArmed = false;
-		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnClick error: ") + e.what()); }
+		if (it != m_impl->onClick.end())
+			callLua("OnClick error", it->second, FrameHandle{ h }, std::string("LeftButton"));
 	}
 
 	// Drain Enter-submitted editboxes and fire OnEnterPressed(self).
 	for (int h = LuaUI::popSubmittedHandle(); h != 0; h = LuaUI::popSubmittedHandle())
 	{
 		auto it = m_impl->onEnterPressed.find(h);
-		if (it == m_impl->onEnterPressed.end() || !it->second.valid())
-			continue;
-		m_impl->instrArmed = true;
-		m_impl->instrCount = 0;
-		sol::protected_function_result r = it->second(FrameHandle{ h });
-		m_impl->instrArmed = false;
-		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnEnterPressed error: ") + e.what()); }
+		if (it != m_impl->onEnterPressed.end())
+			callLua("OnEnterPressed error", it->second, FrameHandle{ h });
 	}
 
 	// Drain clicked context-menu lines and fire CONTEXT_MENU_CLICK(line) so Lua can handle its own entries
@@ -937,13 +1050,8 @@ void LuaEngine::onFrame(float dt)
 
 			auto& tbl = over ? m_impl->onMouseEnter : m_impl->onMouseLeave;
 			auto it = tbl.find(h);
-			if (it == tbl.end() || !it->second.valid())
-				continue;
-			m_impl->instrArmed = true;
-			m_impl->instrCount = 0;
-			sol::protected_function_result r = it->second(FrameHandle{ h });
-			m_impl->instrArmed = false;
-			if (!r.valid()) { sol::error e = r; hostPrint(std::string(over ? "OnEnter error: " : "OnLeave error: ") + e.what()); }
+			if (it != tbl.end())
+				callLua(over ? "OnEnter error" : "OnLeave error", it->second, FrameHandle{ h });
 		}
 	}
 
@@ -952,7 +1060,7 @@ void LuaEngine::onFrame(float dt)
 		auto buttonName = [](int b) -> std::string { return b == 1 ? "RightButton" : b == 2 ? "MiddleButton" : "LeftButton"; };
 		for (LuaUI::WidgetMouseEvent e; LuaUI::popMouseEvent(e); )
 		{
-			std::map<int, sol::protected_function>* tbl = nullptr;
+			std::map<int, luabridge::LuaRef>* tbl = nullptr;
 			switch (e.kind)
 			{
 				case LuaUI::WE_MouseDown:   tbl = &m_impl->onMouseDown;   break;
@@ -964,15 +1072,13 @@ void LuaEngine::onFrame(float dt)
 			}
 			if (!tbl) continue;
 			auto it = tbl->find(e.handle);
-			if (it == tbl->end() || !it->second.valid()) continue;
-			m_impl->instrArmed = true;
-			m_impl->instrCount = 0;
-			sol::protected_function_result r =
-				(e.kind == LuaUI::WE_MouseDown || e.kind == LuaUI::WE_MouseUp) ? it->second(FrameHandle{ e.handle }, buttonName(e.button))
-				: (e.kind == LuaUI::WE_MouseWheel)                            ? it->second(FrameHandle{ e.handle }, e.delta)
-				                                                              : it->second(FrameHandle{ e.handle });
-			m_impl->instrArmed = false;
-			if (!r.valid()) { sol::error err = r; hostPrint(std::string("mouse/drag handler error: ") + err.what()); }
+			if (it == tbl->end()) continue;
+			if (e.kind == LuaUI::WE_MouseDown || e.kind == LuaUI::WE_MouseUp)
+				callLua("mouse/drag handler error", it->second, FrameHandle{ e.handle }, buttonName(e.button));
+			else if (e.kind == LuaUI::WE_MouseWheel)
+				callLua("mouse/drag handler error", it->second, FrameHandle{ e.handle }, e.delta);
+			else
+				callLua("mouse/drag handler error", it->second, FrameHandle{ e.handle });
 		}
 	}
 
@@ -989,63 +1095,46 @@ void LuaEngine::onFrame(float dt)
 			if (shown) m_impl->shownState.insert(h); else m_impl->shownState.erase(h);
 			auto& tbl = shown ? m_impl->onShow : m_impl->onHide;
 			auto it = tbl.find(h);
-			if (it == tbl.end() || !it->second.valid()) continue;
-			m_impl->instrArmed = true;
-			m_impl->instrCount = 0;
-			sol::protected_function_result r = it->second(FrameHandle{ h });
-			m_impl->instrArmed = false;
-			if (!r.valid()) { sol::error e = r; hostPrint(std::string(shown ? "OnShow error: " : "OnHide error: ") + e.what()); }
+			if (it != tbl.end())
+				callLua(shown ? "OnShow error" : "OnHide error", it->second, FrameHandle{ h });
 		}
 	}
 
 	// OnValueChanged (StatusBar value), edge-detected against a cache. First sighting seeds, doesn't fire.
 	for (auto& [h, fn] : m_impl->onValueChanged)
 	{
-		if (!fn.valid()) continue;
 		const float v = LuaUI::statusBarValue(h);
 		const bool seen = m_impl->lastValue.count(h) != 0;
 		const float prev = seen ? m_impl->lastValue[h] : 0.f;
 		m_impl->lastValue[h] = v;
 		if (!seen || prev == v) continue;
-		m_impl->instrArmed = true;
-		m_impl->instrCount = 0;
-		sol::protected_function_result r = fn(FrameHandle{ h }, v);
-		m_impl->instrArmed = false;
-		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnValueChanged error: ") + e.what()); }
+		callLua("OnValueChanged error", fn, FrameHandle{ h }, v);
 	}
 
 	// OnMinMaxChanged (StatusBar min/max).
 	for (auto& [h, fn] : m_impl->onMinMaxChanged)
 	{
-		if (!fn.valid()) continue;
 		const std::pair<float,float> mm{ LuaUI::statusBarMin(h), LuaUI::statusBarMax(h) };
 		const bool seen = m_impl->lastMinMax.count(h) != 0;
 		const std::pair<float,float> prev = seen ? m_impl->lastMinMax[h] : std::pair<float,float>{};
 		m_impl->lastMinMax[h] = mm;
 		if (!seen || prev == mm) continue;
-		m_impl->instrArmed = true;
-		m_impl->instrCount = 0;
-		sol::protected_function_result r = fn(FrameHandle{ h }, mm.first, mm.second);
-		m_impl->instrArmed = false;
-		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnMinMaxChanged error: ") + e.what()); }
+		callLua("OnMinMaxChanged error", fn, FrameHandle{ h }, mm.first, mm.second);
 	}
 
 	// OnSizeChanged (any frame's current size).
 	for (auto& [h, fn] : m_impl->onSizeChanged)
 	{
-		if (!fn.valid()) continue;
 		const std::pair<int,int> sz{ LuaUI::frameWidth(h), LuaUI::frameHeight(h) };
 		const bool seen = m_impl->lastSize.count(h) != 0;
 		const std::pair<int,int> prev = seen ? m_impl->lastSize[h] : std::pair<int,int>{};
 		m_impl->lastSize[h] = sz;
 		if (!seen || prev == sz) continue;
-		m_impl->instrArmed = true;
-		m_impl->instrCount = 0;
-		sol::protected_function_result r = fn(FrameHandle{ h }, sz.first, sz.second);
-		m_impl->instrArmed = false;
-		if (!r.valid()) { sol::error e = r; hostPrint(std::string("OnSizeChanged error: ") + e.what()); }
+		callLua("OnSizeChanged error", fn, FrameHandle{ h }, sz.first, sz.second);
 	}
 }
+
+// ---------------------------------------------------------------- console / selftest
 
 bool LuaEngine::runString(const std::string& chunkName, const std::string& source)
 {
@@ -1060,30 +1149,7 @@ bool LuaEngine::runString(const std::string& chunkName, const std::string& sourc
 		return false;
 	}
 
-	sol::state_view lua(m_impl->L);
-	sol::load_result chunk = lua.load_buffer(source.data(), source.size(), ("=" + chunkName).c_str(), sol::load_mode::text);
-	if (!chunk.valid())
-	{
-		sol::error e = chunk;
-		hostPrint(std::string("compile error: ") + e.what());
-		return false;
-	}
-
-	sol::protected_function fn = chunk;
-	sol::set_environment(m_impl->sandbox, fn);
-
-	m_impl->instrArmed = true;
-	m_impl->instrCount = 0;
-	sol::protected_function_result r = fn();
-	m_impl->instrArmed = false;
-
-	if (!r.valid())
-	{
-		sol::error e = r;
-		hostPrint(std::string("error: ") + e.what());
-		return false;
-	}
-	return true;
+	return runChunkInEnv(this, m_impl.get(), chunkName, source, *m_impl->sandbox);
 }
 
 void LuaEngine::consoleExec(const std::string& code)

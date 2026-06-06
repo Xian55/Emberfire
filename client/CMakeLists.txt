@@ -5,8 +5,8 @@
 file(GLOB EMBERFIRE_CLIENT_SRC CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/lua/*.cpp")
-# Vendored Lua 5.4 — compiled as C (the standalone mains lua.c/luac.c were not vendored).
-file(GLOB EMBERFIRE_LUA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/deps/lua/*.c")
+# Vendored minilua (Lua 5.5, single-file) — one C TU includes the amalgamation with LUA_IMPL.
+set(EMBERFIRE_LUA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/deps/minilua/minilua_impl.c")
 # Stocks.cpp = standalone easter-egg, nothing references it (the in-game editors ARE referenced, keep them).
 list(FILTER EMBERFIRE_CLIENT_SRC EXCLUDE REGEX "(Stocks)\\.cpp$")
 
@@ -26,8 +26,8 @@ target_include_directories(emberfire_client PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/deps/sqlite"
     "${CMAKE_CURRENT_SOURCE_DIR}/deps/zip"
     "${CMAKE_CURRENT_SOURCE_DIR}/deps/stubs"
-    "${CMAKE_CURRENT_SOURCE_DIR}/deps/lua"
-    "${CMAKE_CURRENT_SOURCE_DIR}/deps/sol2"
+    "${CMAKE_CURRENT_SOURCE_DIR}/deps/minilua"
+    "${CMAKE_CURRENT_SOURCE_DIR}/deps/luabridge"
     "${EMBERFIRE_SFML_ROOT}/include"
 )
 
@@ -39,20 +39,21 @@ target_precompile_headers(emberfire_client PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/
 set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/deps/sqlite/sqlite3.c" ${EMBERFIRE_LUA_SRC}
     PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
-# LuaEngine.cpp is the sol2 boundary: it needs std::byte (the client disables it via _HAS_STD_BYTE=0 to
-# avoid a bare `byte` clash under `using namespace std`). Compile it isolated — no client PCH, byte re-enabled.
+# LuaEngine.cpp is the LuaBridge3 boundary: it needs std::byte (the client disables it via _HAS_STD_BYTE=0
+# to avoid a bare `byte` clash under `using namespace std`). LuaBridge uses std::byte, so compile this TU
+# isolated — no client PCH, byte re-enabled, /bigobj (the amalgamated LuaBridge + minilua decls are large).
 set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/lua/LuaEngine.cpp" PROPERTIES
     SKIP_PRECOMPILE_HEADERS ON
-    COMPILE_OPTIONS "/U_HAS_STD_BYTE;/D_HAS_STD_BYTE=1")
+    COMPILE_OPTIONS "/U_HAS_STD_BYTE;/D_HAS_STD_BYTE=1;/bigobj")
 
 # Force-include the NTSTATUS shim (Machinespecs.h uses NTSTATUS without <winternl.h>).
-target_compile_options(emberfire_client PRIVATE /FIdmyst_ntstatus.h /MP /Zi /bigobj)  # /bigobj: sol2 header is large
+target_compile_options(emberfire_client PRIVATE /FIdmyst_ntstatus.h /MP /Zi /bigobj)  # /bigobj: minilua amalgamation + LuaBridge TU are large
 target_link_options(emberfire_client PRIVATE /DEBUG)
 
 # No WIN32_LEAN_AND_MEAN — the client relies on full windows.h (timeBeginPeriod from mmsystem).
 target_compile_definitions(emberfire_client PRIVATE
     NOMINMAX _CRT_SECURE_NO_WARNINGS _HAS_STD_BYTE=0
-    EMBERFIRE_LUA_ENGINE_LUA54     # Lua engine seam (default PUC Lua 5.4; swappable to LuaJIT later)
+    EMBERFIRE_LUA_ENGINE_LUA55     # Lua engine seam (minilua / PUC Lua 5.5; swappable to LuaJIT/Luau later)
     DMYST_NO_LOADING_POPUP)        # skip the 300s "Loading" fallback overlays that gate the UI
 
 target_link_directories(emberfire_client PRIVATE
