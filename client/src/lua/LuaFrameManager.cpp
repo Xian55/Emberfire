@@ -346,6 +346,14 @@ void LuaCooldown::render()
 	drawCooldownPie(m_topLeftCorner, m_topLeftCorner + sf::Vector2i(m_w, m_h), degree, sf::Color(0, 0, 0, 150));
 }
 
+// ---------------------------------------------------------------- LuaScrollFrame
+
+LuaScrollFrame::LuaScrollFrame(RenderObject& owner, const int id) : RenderObjectHolder(&owner, id)
+{
+	setMouseable(false);   // not a click target; wheel is handled via the manager's mouse-enabled hit-test.
+	setMultiInput(true);   // route input to the content child + its rows (buttons/editboxes).
+}
+
 // ---------------------------------------------------------------- LuaEditBox
 
 // The currently focused editbox. Application clears the current-prompt every frame, so the focused box
@@ -468,6 +476,7 @@ void LuaFrameManager::dumpBounds() const
 		               : dynamic_cast<LuaStatusBar*>(obj.get())  ? "StatusBar"
 		               : dynamic_cast<LuaTexture*>(obj.get())    ? "Texture"
 		               : dynamic_cast<LuaFontString*>(obj.get()) ? "FontString"
+		               : dynamic_cast<LuaScrollFrame*>(obj.get()) ? "ScrollFrame"
 		               : dynamic_cast<LuaFrame*>(obj.get())      ? "Frame" : "?";
 		blog(Logger::LOG_INFO, "[lua]  h=%d %-10s pos=(%d,%d) size=(%d,%d)",
 			h, ty, tl.x, tl.y, br.x - tl.x, br.y - tl.y);
@@ -651,6 +660,76 @@ int LuaFrameManager::createEditBox(int parentHandle)
 	return h;
 }
 
+int LuaFrameManager::createScrollFrame(int parentHandle)
+{
+	RenderObjectHolder* parent = this;
+	if (parentHandle != 0)
+	{
+		parent = dynamic_cast<RenderObjectHolder*>(lookup(parentHandle));
+		if (!parent)
+			return 0;
+	}
+
+	const int h = m_nextHandle++;
+	attachChild(*parent, make_shared<LuaScrollFrame>(*parent, h), h);
+	m_parent[h] = parentHandle;
+	m_scrollFrames.insert(h);
+	m_inputState[h].mouseEnabled = true;   // wheel needs it to be the hit target in topMouseHandleAt
+	return h;
+}
+
+void LuaFrameManager::setScrollChild(int scrollFrameHandle, int childHandle)
+{
+	// The child must already be a child of the scroll frame (CreateFrame(parent=scrollFrame)); we just record
+	// which one is the content so render() can move it. The scroll frame owns the child's offset thereafter.
+	if (auto sc = dynamic_cast<LuaScrollFrame*>(lookup(scrollFrameHandle)))
+		sc->setScrollChild(childHandle);
+}
+
+float LuaFrameManager::verticalScrollRange(int handle) const
+{
+	auto* sc = dynamic_cast<LuaScrollFrame*>(lookup(handle));
+	if (!sc)
+		return 0.f;
+	auto* child = dynamic_cast<LuaFrame*>(lookup(sc->scrollChild()));
+	const int contentH = child ? child->logicalSize().y : 0;
+	const int r = contentH - sc->viewportSize().y;
+	return r > 0 ? static_cast<float>(r) : 0.f;
+}
+
+float LuaFrameManager::horizontalScrollRange(int handle) const
+{
+	auto* sc = dynamic_cast<LuaScrollFrame*>(lookup(handle));
+	if (!sc)
+		return 0.f;
+	auto* child = dynamic_cast<LuaFrame*>(lookup(sc->scrollChild()));
+	const int contentW = child ? child->logicalSize().x : 0;
+	const int r = contentW - sc->viewportSize().x;
+	return r > 0 ? static_cast<float>(r) : 0.f;
+}
+
+void LuaFrameManager::setVerticalScroll(int handle, float v)
+{
+	auto* sc = dynamic_cast<LuaScrollFrame*>(lookup(handle));
+	if (!sc)
+		return;
+	const float range = verticalScrollRange(handle);
+	sc->setVScroll(v < 0.f ? 0.f : v > range ? range : v);
+}
+
+void LuaFrameManager::setHorizontalScroll(int handle, float v)
+{
+	auto* sc = dynamic_cast<LuaScrollFrame*>(lookup(handle));
+	if (!sc)
+		return;
+	const float range = horizontalScrollRange(handle);
+	sc->setHScroll(v < 0.f ? 0.f : v > range ? range : v);
+}
+
+float LuaFrameManager::verticalScroll(int handle) const   { auto* sc = dynamic_cast<LuaScrollFrame*>(lookup(handle)); return sc ? sc->vScroll() : 0.f; }
+float LuaFrameManager::horizontalScroll(int handle) const { auto* sc = dynamic_cast<LuaScrollFrame*>(lookup(handle)); return sc ? sc->hScroll() : 0.f; }
+void  LuaFrameManager::setScrollWheelStep(int handle, float px) { if (auto sc = dynamic_cast<LuaScrollFrame*>(lookup(handle))) sc->setWheelStep(px); }
+
 int LuaFrameManager::popClickedHandle()
 {
 	for (auto& [h, obj] : m_objects)
@@ -739,6 +818,7 @@ sf::Vector2i LuaFrameManager::sizeOf(RenderObject* o) const
 	if (auto sb = dynamic_cast<LuaStatusBar*>(o)) return sb->barSize();
 	if (auto cd = dynamic_cast<LuaCooldown*>(o))  return cd->cooldownSize();
 	if (auto e = dynamic_cast<LuaEditBox*>(o))    return e->boxSize();
+	if (auto sc = dynamic_cast<LuaScrollFrame*>(o)) return sc->viewportSize();
 	return { 0, 0 };
 }
 
@@ -853,6 +933,7 @@ void LuaFrameManager::setSize(int handle, float w, float h)
 	else if (auto sb = dynamic_cast<LuaStatusBar*>(o)) sb->setBarSize(static_cast<int>(w), static_cast<int>(h));
 	else if (auto cd = dynamic_cast<LuaCooldown*>(o))  cd->setCooldownSize(static_cast<int>(w), static_cast<int>(h));
 	else if (auto e = dynamic_cast<LuaEditBox*>(o))   e->setBoxSize(static_cast<int>(w), static_cast<int>(h));
+	else if (auto sc = dynamic_cast<LuaScrollFrame*>(o)) sc->setViewportSize(static_cast<int>(w), static_cast<int>(h));
 }
 
 void LuaFrameManager::setText(int handle, const std::string& text)
@@ -890,6 +971,7 @@ void LuaFrameManager::clearAll()
 	m_menuResults.clear();
 	m_anchors.clear();
 	m_dynamicAnchored.clear();
+	m_scrollFrames.clear();
 	m_parent.clear();
 	m_name.clear();
 	m_dragHandle = 0;
@@ -902,7 +984,52 @@ void LuaFrameManager::render()
 {
 	for (int h : m_dynamicAnchored)
 		relayout(h);
+	layoutScrollFrames();   // position each scroll child by its offset + hide rows outside the viewport
 	RenderObjectHolder::render();
+}
+
+// For each ScrollFrame: move its content child by the (clamped) scroll offset and hide any of the content's
+// direct rows whose box doesn't overlap the viewport. Off-screen rows then skip attemptRender entirely (the
+// faux-scroll perf win). Row screen positions are derived from offsets (reliable), not the render-updated
+// top-left corners (which lag a frame), so culling matches the offset we set this same frame.
+void LuaFrameManager::layoutScrollFrames()
+{
+	for (int h : m_scrollFrames)
+	{
+		auto* sc = dynamic_cast<LuaScrollFrame*>(lookup(h));
+		if (!sc)
+			continue;
+		auto* child = lookup(sc->scrollChild());
+		if (!child)
+			continue;
+
+		// Re-clamp (content size may have changed since the last SetVerticalScroll), then move the content.
+		setVerticalScroll(h, sc->vScroll());
+		setHorizontalScroll(h, sc->hScroll());
+		const int hOfs = static_cast<int>(sc->hScroll());
+		const int vOfs = static_cast<int>(sc->vScroll());
+		child->setOffset({ -hOfs, -vOfs });
+
+		// Viewport rect + content child top-left, both in screen space (child rides at viewport TL - scroll).
+		const sf::Vector2i vtl = sc->getTopLeftCornerRef();
+		const sf::Vector2i vsz = sc->viewportSize();
+		const int vL = vtl.x, vT = vtl.y, vR = vtl.x + vsz.x, vB = vtl.y + vsz.y;
+		const sf::Vector2i ctl{ vtl.x - hOfs, vtl.y - vOfs };
+
+		for (auto& [rh, par] : m_parent)
+		{
+			if (par != sc->scrollChild())
+				continue;
+			auto* row = lookup(rh);
+			if (!row)
+				continue;
+			const sf::Vector2i ro = row->getOffset();
+			const sf::Vector2i rtl{ ctl.x + ro.x, ctl.y + ro.y };
+			const sf::Vector2i rsz = sizeOf(row);
+			const bool outside = (rtl.x >= vR) || (rtl.x + rsz.x <= vL) || (rtl.y >= vB) || (rtl.y + rsz.y <= vT);
+			row->setHidden(outside);
+		}
+	}
 }
 
 // ---- introspection / visual primitives ----
@@ -934,6 +1061,7 @@ std::string LuaFrameManager::objectType(int handle) const
 	if (dynamic_cast<LuaEditBox*>(o))    return "EditBox";
 	if (dynamic_cast<LuaTexture*>(o))    return "Texture";
 	if (dynamic_cast<LuaFontString*>(o)) return "FontString";
+	if (dynamic_cast<LuaScrollFrame*>(o)) return "ScrollFrame";
 	if (dynamic_cast<LuaFrame*>(o))      return "Frame";
 	return "";
 }
@@ -1070,6 +1198,10 @@ void LuaFrameManager::input()
 		const float delta = sApplication->getMouseWheelEvent().delta;
 		if (delta != 0.f)
 		{
+			// Engine-driven scroll: a ScrollFrame consumes the wheel to move its content (wheel up = toward
+			// the top = smaller offset). Still queue the event so a Lua OnMouseWheel can sync a scrollbar.
+			if (auto sc = dynamic_cast<LuaScrollFrame*>(lookup(hit)))
+				setVerticalScroll(hit, sc->vScroll() - delta * sc->wheelStep());
 			m_mouseQueue.push_back({ hit, LuaUI::WE_MouseWheel, 0, delta });
 			sApplication->clearMouseWheelEvent();
 		}
@@ -1140,6 +1272,21 @@ namespace LuaUI
 		auto cd = dynamic_cast<LuaCooldown*>(m ? m->lookup(handle) : nullptr);
 		return cd ? cd->remainingMs() : 0;
 	}
+
+	int createScrollFrame(int parentHandle)
+	{
+		auto* m = LuaFrameManager::instance();
+		return m ? m->createScrollFrame(parentHandle) : 0;
+	}
+
+	void  setScrollChild(int sfH, int childH)      { if (auto* m = LuaFrameManager::instance()) m->setScrollChild(sfH, childH); }
+	void  setVerticalScroll(int handle, float v)   { if (auto* m = LuaFrameManager::instance()) m->setVerticalScroll(handle, v); }
+	float verticalScroll(int handle)               { auto* m = LuaFrameManager::instance(); return m ? m->verticalScroll(handle) : 0.f; }
+	float verticalScrollRange(int handle)          { auto* m = LuaFrameManager::instance(); return m ? m->verticalScrollRange(handle) : 0.f; }
+	void  setHorizontalScroll(int handle, float v) { if (auto* m = LuaFrameManager::instance()) m->setHorizontalScroll(handle, v); }
+	float horizontalScroll(int handle)             { auto* m = LuaFrameManager::instance(); return m ? m->horizontalScroll(handle) : 0.f; }
+	float horizontalScrollRange(int handle)        { auto* m = LuaFrameManager::instance(); return m ? m->horizontalScrollRange(handle) : 0.f; }
+	void  setScrollWheelStep(int handle, float px) { if (auto* m = LuaFrameManager::instance()) m->setScrollWheelStep(handle, px); }
 
 	int createEditBox(int parentHandle)
 	{

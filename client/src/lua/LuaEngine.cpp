@@ -849,6 +849,14 @@ void LuaEngine::bindUI()
 			.addFunction("SetCircular",    [](FrameHandle* self, int radius) { LuaUI::setTextureCircle(self->h, radius); })
 			.addFunction("SetCooldown",    [](FrameHandle* self, int rem, int dur) { LuaUI::setCooldown(self->h, rem, dur); })
 			.addFunction("GetCooldownRemaining", [](FrameHandle* self) { return LuaUI::cooldownRemaining(self->h); })
+			.addFunction("SetScrollChild",          [](FrameHandle* self, std::optional<FrameHandle> child) { LuaUI::setScrollChild(self->h, child ? child->h : 0); })
+			.addFunction("SetVerticalScroll",       [](FrameHandle* self, float v) { LuaUI::setVerticalScroll(self->h, v); })
+			.addFunction("GetVerticalScroll",       [](FrameHandle* self) { return LuaUI::verticalScroll(self->h); })
+			.addFunction("GetVerticalScrollRange",  [](FrameHandle* self) { return LuaUI::verticalScrollRange(self->h); })
+			.addFunction("SetHorizontalScroll",     [](FrameHandle* self, float v) { LuaUI::setHorizontalScroll(self->h, v); })
+			.addFunction("GetHorizontalScroll",     [](FrameHandle* self) { return LuaUI::horizontalScroll(self->h); })
+			.addFunction("GetHorizontalScrollRange",[](FrameHandle* self) { return LuaUI::horizontalScrollRange(self->h); })
+			.addFunction("SetScrollWheelStep",      [](FrameHandle* self, float px) { LuaUI::setScrollWheelStep(self->h, px); })
 			.addFunction("EnableMouse",    [](FrameHandle* self, bool v) { LuaUI::setMouseEnabled(self->h, v); })
 			.addFunction("SetMovable",     [](FrameHandle* self, bool v) { LuaUI::setMovable(self->h, v); if (v) LuaUI::setMouseEnabled(self->h, true); })
 			.addFunction("RegisterForDrag",[](FrameHandle* self, std::optional<std::string> btn) {
@@ -868,6 +876,7 @@ void LuaEngine::bindUI()
 			else if (t == "StatusBar") h = LuaUI::createStatusBar(p);
 			else if (t == "Cooldown")  h = LuaUI::createCooldown(p);
 			else if (t == "EditBox")   h = LuaUI::createEditBox(p);
+			else if (t == "ScrollFrame") h = LuaUI::createScrollFrame(p);
 			else                       h = LuaUI::createFrame(p);
 			if (h && name && !name->empty())
 				LuaUI::setName(h, *name);

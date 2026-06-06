@@ -15,6 +15,7 @@ namespace LuaUI
 	int  createButton(int parentHandle);       // a clickable region (OnClick via the poll bridge)
 	int  createStatusBar(int parentHandle);    // a fill-bar (SetMinMaxValues/SetValue)
 	int  createCooldown(int parentHandle);     // a radial cooldown sweep (SetCooldown)
+	int  createScrollFrame(int parentHandle);  // a scroll viewport (SetScrollChild + Set/GetVerticalScroll)
 	int  createTexture(int frameHandle);       // a texture region owned by the frame
 	int  createFontString(int frameHandle);    // a text region owned by the frame
 	int  createEditBox(int parentHandle);      // a single-line text input (wraps PromptBox)
@@ -155,6 +156,16 @@ namespace LuaUI
 	void  setTextureCircle(int handle, int radius);                     // render a texture clipped to a circle
 	void  setCooldown(int handle, int remainingMs, int durationMs);     // drive a Cooldown widget's radial sweep
 	int   cooldownRemaining(int handle);                               // live remaining ms (for the text label)
+
+	// ---- scroll frame (faux-scroll: content child moved by offset, off-screen rows hidden) ----
+	void  setScrollChild(int scrollFrameHandle, int childHandle);   // designate an existing child as the content
+	void  setVerticalScroll(int handle, float v);                   // clamped to [0, range]
+	float verticalScroll(int handle);
+	float verticalScrollRange(int handle);                          // max(0, contentH - viewportH)
+	void  setHorizontalScroll(int handle, float v);
+	float horizontalScroll(int handle);
+	float horizontalScrollRange(int handle);
+	void  setScrollWheelStep(int handle, float px);                 // px moved per wheel notch (default 40)
 
 	// ---- z-order within the parent (WoW SetFrameLevel/GetFrameLevel/Raise/Lower) ----
 	void setFrameLevel(int handle, int level);

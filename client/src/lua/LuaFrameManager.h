@@ -153,6 +153,45 @@ class LuaCooldown : public RenderObject
 		long long m_endMs{0};
 };
 
+// A scroll viewport: a fixed-size holder that shows a tall content child ("scrollChild") through a window.
+// Faux-scroll (no GL clip): the manager moves the scrollChild by the scroll offset and HIDES any of the
+// scrollChild's rows that fall outside the viewport. Hiding off-screen rows (not GPU clipping) is the real
+// saver here — the renderer has no draw-call batching, so a hidden row submits nothing. Wheel is engine-
+// driven (a ScrollFrame consumes the wheel to move its content, clamped); Lua reads GetVerticalScroll to
+// drive a scrollbar thumb. The position+cull pass runs each frame in LuaFrameManager::render().
+class LuaScrollFrame : public RenderObjectHolder
+{
+	public:
+		LuaScrollFrame(RenderObject& owner, const int id);
+
+		void setViewportSize(const int w, const int h)
+		{
+			m_vw = w; m_vh = h;
+			m_bottomRightCorner = { m_topLeftCorner.x + w, m_topLeftCorner.y + h };
+		}
+		sf::Vector2i viewportSize() const { return { m_vw, m_vh }; }
+
+		void setScrollChild(const int handle) { m_scrollChild = handle; }
+		int  scrollChild() const { return m_scrollChild; }
+
+		void  setVScroll(const float v) { m_vScroll = v; }
+		float vScroll() const { return m_vScroll; }
+		void  setHScroll(const float h) { m_hScroll = h; }
+		float hScroll() const { return m_hScroll; }
+
+		void  setWheelStep(const float px) { m_wheelStep = px; }
+		float wheelStep() const { return m_wheelStep; }
+
+	private:
+		// render() inherited from RenderObjectHolder (draws children); position + cull done by the manager.
+		int   m_vw{0};
+		int   m_vh{0};
+		int   m_scrollChild{0};
+		float m_hScroll{0.f};
+		float m_vScroll{0.f};
+		float m_wheelStep{40.f};
+};
+
 // A single-line text input: wraps a C++ PromptBox child. Click focuses it (setCurrentPrompt),
 // type to edit, Enter submits (drained into OnEnter). Password masking + max length supported.
 class LuaEditBox : public RenderObjectHolder
@@ -195,6 +234,7 @@ class LuaFrameManager : public RenderObjectHolder
 		int  createButton(int parentHandle);
 		int  createStatusBar(int parentHandle);
 		int  createCooldown(int parentHandle);
+		int  createScrollFrame(int parentHandle);
 		int  createTexture(int frameHandle);
 		int  createFontString(int frameHandle);
 		int  createEditBox(int parentHandle);
@@ -211,6 +251,14 @@ class LuaFrameManager : public RenderObjectHolder
 		void setMinMax(int handle, float mn, float mx);
 		void setValue(int handle, float v);
 		void setColor(int handle, int r, int g, int b, int a);
+		void  setScrollChild(int scrollFrameHandle, int childHandle);
+		void  setVerticalScroll(int handle, float v);     // clamped to [0, range]
+		float verticalScroll(int handle) const;
+		float verticalScrollRange(int handle) const;      // max(0, contentH - viewportH)
+		void  setHorizontalScroll(int handle, float v);
+		float horizontalScroll(int handle) const;
+		float horizontalScrollRange(int handle) const;
+		void  setScrollWheelStep(int handle, float px);
 		void setPoint(int handle, int point, int relHandle, int relPoint, float x, float y);
 		void setAllPoints(int handle, int relHandle);
 		void clearAllPoints(int handle);
@@ -270,6 +318,9 @@ class LuaFrameManager : public RenderObjectHolder
 		void attachChild(RenderObjectHolder& parent, shared_ptr<RenderObject> child, int handle);
 		sf::Vector2i sizeOf(RenderObject* o) const;
 
+		// Position each ScrollFrame's content child by its scroll offset and hide rows outside the viewport.
+		void layoutScrollFrames();
+
 		int m_nextHandle{100000};   // reserved Lua id range (no collision with World/Application ids)
 		std::map<int, shared_ptr<RenderObject>> m_objects;
 
@@ -279,6 +330,7 @@ class LuaFrameManager : public RenderObjectHolder
 		struct Anchor { int point; int relHandle; int relPoint; int x; int y; };
 		std::map<int, std::vector<Anchor>> m_anchors;
 		std::set<int>                      m_dynamicAnchored;
+		std::set<int>                      m_scrollFrames;   // handles of LuaScrollFrame (position+cull each frame)
 		std::map<int, int>                 m_parent;   // handle -> parent handle (GetParent)
 		std::map<int, std::string>         m_name;     // handle -> name (GetName)
 
