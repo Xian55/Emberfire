@@ -5,13 +5,15 @@
 -- v1 deviations (tune in the live client): no quality border (set EmberUI._slotBg to skin the slots); fixed
 -- CENTER position; no money display; no equip/sell/destroy wiring (the commands exist, add menus later).
 
-local COLS, SIZE, PAD = 7, 40, 4
+-- Grid geometry copied from the C++ Inventory::attachIcon so the icons land in inventory.png's printed cells:
+-- first slot at (27,75), 45px pitch, 40px icons, 7 columns.
+local COLS, SIZE, PITCH = 7, 40, 45
+local OX, OY = 27, 75
 local NUM = GetContainerNumSlots()
-local rows = math.ceil(NUM / COLS)
-local W = COLS * (SIZE + PAD) + PAD
-local H = rows * (SIZE + PAD) + PAD
 
--- Movable backdrop window (inventory.png is the C++ bag art — a confirmed asset).
+-- Movable backdrop window sized to the real art (inventory.png is the C++ bag art — a confirmed asset).
+local W, H = GetTextureSize('inventory.png')
+if W <= 0 then W, H = 300, 420 end
 local root = CreateFrame('Frame', 'EmberInventory', nil)
 root:SetSize(W, H)
 root:SetPoint('CENTER')
@@ -29,7 +31,7 @@ for i = 1, NUM do
 	local col  = (i - 1) % COLS
 	local rowi = math.floor((i - 1) / COLS)
 	local s = EmberUI.CreateItemButton(root, i, SIZE)
-	s.frame:SetPoint('TOPLEFT', root, 'TOPLEFT', PAD + col * (SIZE + PAD), PAD + rowi * (SIZE + PAD))
+	s.frame:SetPoint('TOPLEFT', root, 'TOPLEFT', OX + col * PITCH, OY + rowi * PITCH)
 	s.frame:EnableMouse(true)
 	s.frame:SetScript('OnMouseDown', function(_, btn) if btn == 'LeftButton' then dragFrom = i end end)
 	s.frame:SetScript('OnMouseUp', function(_, btn)
