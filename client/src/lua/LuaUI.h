@@ -92,6 +92,17 @@ namespace LuaUI
 
 	int playerXP();
 	int playerMaxXP();
+	int playerMoney();   // copper (ObjDefines::Variable::Money); 0 if not in world
+
+	// ---- bag / equipment / item data (read-only; reuses the force-hidden C++ Inventory + ClientPlayer) ----
+	int  containerNumSlots();   // total bag slots (PlayerDefines::Inventory::NumSlots)
+	// fills item at bag `slot` (0-based); false if no inventory / out of range. itemId 0 => empty slot.
+	bool containerItem(int slot, int& itemId, int& count, int& durability, int& enchant, bool& soulbound);
+	// fills the item in equip `slot` (UnitDefines::EquipSlot 1..12); false if no player. itemId 0 => empty.
+	bool equipItem(int equipSlot, int& itemId, int& durability, int& enchant);
+	// item_template lookups by entry (local DB — no server needed).
+	void itemInfo(int entry, std::string& name, std::string& icon, int& quality, int& sellPrice, int& maxDurability);
+	int  itemQualityColor(int entry);   // packed 0xRRGGBB (ItemIcon::itemColor for the quality)
 
 	// ---- commands ----
 	void targetUnit(const std::string& token);

@@ -32,7 +32,10 @@
     X(CHARCREATE_RESULT)          \
     X(UI_POPUP)                   \
     X(UI_POPUP_CLEAR)             \
-    X(ZONE_CHANGED)
+    X(ZONE_CHANGED)               \
+    X(BAG_UPDATE)                 \
+    X(PLAYER_MONEY)               \
+    X(PLAYER_EQUIPMENT_CHANGED)
 
 namespace LuaEvents
 {

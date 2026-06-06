@@ -1636,6 +1636,8 @@ void Game::processPacket_Server_Inventory(StlBuffer& data)
 	// Inventory comes after spellbook
 	if (world->popEmptyToolbars())
 		mainToolbar->saveCache();
+
+	sLua->fire(LuaEvents::BAG_UPDATE, "");   // Lua addon layer: bags refreshed
 }
 
 void Game::processPacket_Server_EquipItem(StlBuffer& data)
@@ -1662,6 +1664,8 @@ void Game::processPacket_Server_EquipItem(StlBuffer& data)
 
 			if (!pk.m_silent)
 				playItemSound(pk.m_itemId.m_itemId);
+
+			sLua->fire(LuaEvents::PLAYER_EQUIPMENT_CHANGED, "");   // Lua addon layer: local player gear changed
 		}
 	}
 	else
@@ -1949,6 +1953,10 @@ void Game::processPacket_Server_ObjectVariable(StlBuffer& data)
 		// XP progression (local player only).
 		if (isPlayer && static_cast<ObjDefines::Variable>(pk.m_variableId) == ObjDefines::Variable::Progression)
 			sLua->fire(LuaEvents::PLAYER_XP_UPDATE, "");
+
+		// Money (local player only).
+		if (isPlayer && static_cast<ObjDefines::Variable>(pk.m_variableId) == ObjDefines::Variable::Money)
+			sLua->fire(LuaEvents::PLAYER_MONEY, "");
 	}
 }
 

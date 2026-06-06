@@ -15,6 +15,8 @@
 #include "ClientPlayer.h"
 #include "ClientUnit.h"
 #include "UnitFrame.h"
+#include "Inventory.h"
+#include "ItemIcon.h"
 #include "ContextMenu.h"
 #include "Tooltip.h"
 #include "CooldownPie.h"
@@ -1571,6 +1573,70 @@ namespace LuaUI
 			return 0;
 		const int req = atoi(sContentMgr->db("player_exp_levels").data(w->myself()->getLevel() + 1, "exp").c_str());
 		return req > 0 ? req : 0;
+	}
+
+	int playerMoney()
+	{
+		auto* w = currentWorld();
+		return (w && w->myself()) ? w->myself()->getVariable(ObjDefines::Variable::Money) : 0;
+	}
+
+	// ---- bag / equipment / item data ----
+
+	// The live (force-hidden when migrated) C++ Inventory holds the per-slot ItemIcons the server populates.
+	static Inventory* resolveInventory()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<Inventory*>(w->getRenderObject(World::InventoryPanel).get()) : nullptr;
+	}
+
+	int containerNumSlots() { return PlayerDefines::Inventory::NumSlots; }
+
+	bool containerItem(int slot, int& itemId, int& count, int& durability, int& enchant, bool& soulbound)
+	{
+		auto* inv = resolveInventory();
+		if (!inv || slot < 0 || slot >= PlayerDefines::Inventory::NumSlots)
+			return false;
+		auto icon = dynamic_pointer_cast<ItemIcon>(inv->getRenderObject(Inventory::Slot1 + slot));
+		if (!icon)
+			return false;
+		const auto& def = icon->getItemDef();
+		itemId     = def.m_itemId;
+		count      = icon->getStackCount();
+		durability = def.m_durability;
+		enchant    = def.m_enchantLvl;
+		soulbound  = def.m_soulbound;
+		return true;
+	}
+
+	bool equipItem(int equipSlot, int& itemId, int& durability, int& enchant)
+	{
+		auto* w = currentWorld();
+		auto* p = w ? dynamic_cast<ClientPlayer*>(w->myself()) : nullptr;
+		if (!p || equipSlot < UnitDefines::Helm || equipSlot > UnitDefines::Ranged)
+			return false;
+		const auto def = p->getEquipmentItemId(static_cast<UnitDefines::EquipSlot>(equipSlot));
+		itemId     = def.m_itemId;
+		durability = def.m_durability;
+		enchant    = def.m_enchantLvl;
+		return true;
+	}
+
+	void itemInfo(int entry, std::string& name, std::string& icon, int& quality, int& sellPrice, int& maxDurability)
+	{
+		auto& db = sContentMgr->db("item_template");
+		name          = db.data(entry, "name");
+		icon          = db.data(entry, "icon");
+		quality       = atoi(db.data(entry, "quality").c_str());
+		sellPrice     = atoi(db.data(entry, "sell_price").c_str());
+		maxDurability = atoi(db.data(entry, "durability").c_str());
+	}
+
+	int itemQualityColor(int entry)
+	{
+		const int q = atoi(sContentMgr->db("item_template").data(entry, "quality").c_str());
+		const sf::Color c = ItemIcon::itemColor(static_cast<ItemDefines::Quality>(q));
+		return (int(c.r) << 16) | (int(c.g) << 8) | int(c.b);
 	}
 
 	void targetUnit(const std::string& token)

@@ -893,6 +893,27 @@ void LuaEngine::bindUI()
 		.addFunction("UnitExists",    [](std::string token) { return LuaUI::unitExists(token); })
 		.addFunction("GetXP",         []() { return LuaUI::playerXP(); })
 		.addFunction("GetMaxXP",      []() { return LuaUI::playerMaxXP(); })
+		.addFunction("GetMoney",      []() { return LuaUI::playerMoney(); })
+
+		// Bag / equipment / item data (read-only).
+		.addFunction("GetContainerNumSlots", []() { return LuaUI::containerNumSlots(); })
+		.addFunction("GetContainerItem", [](int slot) {   // slot 1-based -> (itemId, count, durability, enchant, soulbound)
+			int id = 0, count = 0, dur = 0, ench = 0; bool sb = false;
+			if (!LuaUI::containerItem(slot - 1, id, count, dur, ench, sb))
+				return std::make_tuple(0, 0, 0, 0, false);
+			return std::make_tuple(id, count, dur, ench, sb); })
+		.addFunction("GetInventorySlotItem", [](int equipSlot) {   // EquipSlot 1..12 -> (itemId, durability, enchant)
+			int id = 0, dur = 0, ench = 0;
+			if (!LuaUI::equipItem(equipSlot, id, dur, ench))
+				return std::make_tuple(0, 0, 0);
+			return std::make_tuple(id, dur, ench); })
+		.addFunction("GetItemInfo", [](int entry) {   // -> name, icon, quality, sellPrice, maxDurability
+			std::string name, icon; int q = 0, sp = 0, md = 0;
+			LuaUI::itemInfo(entry, name, icon, q, sp, md);
+			return std::make_tuple(name, icon, q, sp, md); })
+		.addFunction("GetItemQualityColor", [](int entry) {   // -> r, g, b (0..255)
+			const int c = LuaUI::itemQualityColor(entry);
+			return std::make_tuple((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF); })
 
 		// Unit-frame parity getters.
 		.addFunction("UnitNameColor", [](std::string token) {                          // -> r, g, b (0..255)
@@ -945,7 +966,9 @@ void LuaEngine::bindUI()
 	// Copy the registered API globals into the sandbox env (addons never see _G; they get exactly these).
 	static const char* kApiNames[] = {
 		"CreateFrame", "UnitHealth", "UnitHealthMax", "UnitLevel", "UnitPower", "UnitPowerMax", "UnitName",
-		"UnitExists", "GetXP", "GetMaxXP", "UnitNameColor", "UnitFlag", "UnitIsDead", "UnitIsPlayer",
+		"UnitExists", "GetXP", "GetMaxXP", "GetMoney", "GetContainerNumSlots", "GetContainerItem",
+		"GetInventorySlotItem", "GetItemInfo", "GetItemQualityColor",
+		"UnitNameColor", "UnitFlag", "UnitIsDead", "UnitIsPlayer",
 		"UnitIsPartyLeader", "UnitHasBrokenEquipment", "UnitPortraitTexture", "UnitCastSpell",
 		"UnitCastElapsed", "UnitCastTotal", "UnitAuraCount", "UnitAura", "PartyMemberExists",
 		"GetSpellTexture", "GetSpellName", "GetTextureSize", "TargetUnit", "ClearTarget", "UnitContextMenu",
