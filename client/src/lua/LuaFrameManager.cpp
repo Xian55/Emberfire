@@ -22,9 +22,11 @@
 #include "ConfirmMessageBox.h"
 #include "Tooltip.h"
 #include "CooldownPie.h"
+#include "..\..\StringHelpers.h"
 #include "..\..\SqlConnector\QueryResult.h"
 #include "..\..\Shared\Config.h"
 #include "..\..\Shared\GamePacketClient.h"
+#include "..\..\Shared\SpellDefines.h"
 
 #include <assert.h>
 #include <climits>
@@ -1754,6 +1756,33 @@ namespace LuaUI
 	{
 		auto icon = inventoryIcon(slot);
 		return icon && icon->getItemDef().m_itemId != 0 && icon->isErrorIcon();
+	}
+
+	// True if using this item targets ANOTHER item (gem/orb: right-click -> pick a target item). Mirrors the
+	// Inventory::input TargetsItem check (the casted spell's spell_template.attributes has bit 35).
+	bool containerItemTargetsItem(int slot)
+	{
+		auto icon = inventoryIcon(slot);
+		if (!icon)
+			return false;
+		const int spellId = icon->getCastedSpellId();
+		if (spellId == 0)
+			return false;
+		const uint64_t attr = _atoi64(sContentMgr->db("spell_template").data(spellId, "attributes").c_str());
+		return Util::maskHas(attr, SpellDefines::Attributes::TargetsItem);
+	}
+
+	// Use a target-an-item consumable (sourceSlot) on a bag item (targetSlot): UseItem with m_target_InvSlot.
+	void useContainerItemOnItem(int sourceSlot, int targetSlot)
+	{
+		auto icon = inventoryIcon(sourceSlot);
+		if (!icon || icon->getItemDef().m_itemId == 0 || targetSlot < 0)
+			return;
+		GP_Client_UseItem pk;
+		pk.m_slot           = sourceSlot;
+		pk.m_itemId         = icon->getItemDef();
+		pk.m_target_InvSlot = targetSlot;   // m_target_EquipSlot keeps its 0xff default (bag targets only)
+		sConnector->sendPacket(pk.build(StlBuffer{}));
 	}
 
 	bool mouseButtonDown(int sfBtn)

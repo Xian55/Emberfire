@@ -23,13 +23,14 @@ root:SetMovable(true); root:RegisterForDrag('LeftButton')   -- drag the window b
 root:Hide()
 
 -- Forward-declared so the handlers created below (before the loop + refresh) capture the right upvalues.
-local dragFrom, hoverSlot, refresh
+-- dragFrom = a left-drag move in progress; applyFrom = a target-an-item consumable awaiting a target click.
+local dragFrom, applyFrom, hoverSlot, refresh
 local slots = {}
 
--- releasing a held item over the backdrop (not a slot) returns it to its source.
+-- releasing a held item over the backdrop (not a slot) returns it to its source / cancels targeting.
 root:SetScript('OnMouseUp', function(_, btn)
 	if btn == 'LeftButton' and EmberUI.HasCursorItem() then
-		dragFrom = nil; EmberUI.ClearCursor(); if refresh then refresh() end
+		dragFrom = nil; applyFrom = nil; EmberUI.ClearCursor(); if refresh then refresh() end
 	end
 end)
 
@@ -61,6 +62,7 @@ for i = 1, NUM do
 	-- Press to pick up (grey the slot + put the icon on the cursor), release over a slot to drop/move.
 	s.frame:SetScript('OnMouseDown', function(_, btn)
 		if btn ~= 'LeftButton' then return end
+		if applyFrom then return end                -- targeting mode: left-press picks a target, not a drag
 		local id = GetContainerItem(i)
 		if id == 0 then return end                  -- nothing to pick up from an empty slot
 		dragFrom = i
@@ -69,12 +71,30 @@ for i = 1, NUM do
 	end)
 	s.frame:SetScript('OnMouseUp', function(_, btn)
 		if btn == 'RightButton' then
-			if UseOrEquipContainerItem then UseOrEquipContainerItem(i) else UseContainerItem(i) end
+			if applyFrom then                                       -- right-click again cancels targeting
+				applyFrom = nil; EmberUI.ClearCursor(); refresh()
+			elseif ContainerItemTargetsItem and ContainerItemTargetsItem(i) then
+				local id = GetContainerItem(i)
+				if id ~= 0 then                                     -- gem/orb: enter targeting (orb on cursor)
+					applyFrom = i
+					local _, tex = GetItemInfo(id)
+					EmberUI.PickupItem(tex, s.icon)
+				end
+			elseif UseOrEquipContainerItem then
+				UseOrEquipContainerItem(i)
+			else
+				UseContainerItem(i)
+			end
 		elseif btn == 'LeftButton' then
-			if dragFrom and dragFrom ~= i then MoveContainerItem(dragFrom, i) end
-			dragFrom = nil
-			EmberUI.ClearCursor()
-			refresh()   -- restore tints (ClearCursor reset the dragged icon to white)
+			if applyFrom then                                       -- apply the targeting item to this slot
+				if GetContainerItem(i) ~= 0 and UseContainerItemOnItem then UseContainerItemOnItem(applyFrom, i) end
+				applyFrom = nil; EmberUI.ClearCursor(); refresh()
+			else
+				if dragFrom and dragFrom ~= i then MoveContainerItem(dragFrom, i) end
+				dragFrom = nil
+				EmberUI.ClearCursor()
+				refresh()   -- restore tints (ClearCursor reset the dragged icon to white)
+			end
 		end
 	end)
 	s.frame:SetScript('OnEnter', function() hoverSlot = i end)
@@ -102,7 +122,7 @@ local shown = false
 local function setShown(v)
 	if v == shown then return end
 	shown = v
-	if v then root:Show(); refresh() else root:Hide(); EmberUI.ClearCursor() end   -- closing drops any held item
+	if v then root:Show(); refresh() else root:Hide(); dragFrom = nil; applyFrom = nil; EmberUI.ClearCursor() end   -- closing drops any held item
 end
 
 local stage = CreateFrame('Frame', nil, nil)
@@ -137,8 +157,8 @@ poll:SetScript('OnUpdate', function(_, dt)
 	if IsMouseButtonDown then
 		local down = IsMouseButtonDown('LeftButton')
 		if wasDown and not down and EmberUI.HasCursorItem() and not root:IsMouseOver() then
-			local slot = dragFrom
-			dragFrom = nil
+			local slot = dragFrom                      -- only a MOVE (dragFrom) can destroy; targeting just cancels
+			dragFrom = nil; applyFrom = nil
 			EmberUI.ClearCursor(); refresh()
 			if slot and ShowConfirm then
 				pendingDestroy = { code = ShowConfirm('This will DESTROY the item. Accept?'), slot = slot }

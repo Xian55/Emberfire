@@ -119,6 +119,8 @@ namespace LuaUI
 	void showItemTooltip(int slot);                     // re-assert the C++ item tooltip (call while hovering)
 	void useOrEquipContainerItem(int slot);             // right-click: use a consumable/quest item or equip gear
 	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
+	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)
+	void useContainerItemOnItem(int sourceSlot, int targetSlot);   // apply a target-item consumable to a bag item
 
 	// ---- input + confirm dialog (for drag-out destroy etc.) ----
 	bool mouseButtonDown(int sfBtn);                    // raw button state (0=Left 1=Right 2=Middle)

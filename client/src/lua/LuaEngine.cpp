@@ -953,6 +953,8 @@ void LuaEngine::bindUI()
 		.addFunction("ShowItemTooltip",      [](int slot) { LuaUI::showItemTooltip(slot - 1); })
 		.addFunction("UseOrEquipContainerItem", [](int slot) { LuaUI::useOrEquipContainerItem(slot - 1); })
 		.addFunction("IsContainerItemUsable",   [](int slot) { return !LuaUI::containerItemUnusable(slot - 1); })
+		.addFunction("ContainerItemTargetsItem",[](int slot) { return LuaUI::containerItemTargetsItem(slot - 1); })
+		.addFunction("UseContainerItemOnItem",  [](int src, int tgt) { LuaUI::useContainerItemOnItem(src - 1, tgt - 1); })
 		.addFunction("IsMouseButtonDown",       [](std::string btn) {
 			const int b = (btn == "RightButton") ? 1 : (btn == "MiddleButton") ? 2 : 0;
 			return LuaUI::mouseButtonDown(b); })
@@ -995,7 +997,8 @@ void LuaEngine::bindUI()
 		"GetSpellTexture", "GetSpellName", "GetTextureSize", "TargetUnit", "ClearTarget",
 		"MoveContainerItem", "UseContainerItem", "EquipContainerItem", "SellContainerItem",
 		"DestroyContainerItem", "UnequipInventoryItem", "ShowItemTooltip", "UseOrEquipContainerItem",
-		"IsContainerItemUsable", "IsMouseButtonDown", "ShowConfirm", "PopConfirm", "UnitContextMenu",
+		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",
+		"IsMouseButtonDown", "ShowConfirm", "PopConfirm", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",
 		"IsGameFrameShown",
 		"SubmitLogin", "GetSavedLogin", "GetScreenWidth", "GetScreenHeight", "GetCursorPosition", "DebugBounds",
