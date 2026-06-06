@@ -96,15 +96,19 @@ local function ensureCursor()
 	return EmberUI.cursor
 end
 
--- iconTexture: the item's icon name to ride the cursor; sourceIcon: the source slot's icon Texture to grey.
-function EmberUI.PickupItem(iconTexture, sourceIcon)
+-- iconTexture: the item's icon to ride the cursor; sourceIcon: the source slot's icon Texture to grey;
+-- payload: a table describing what is held (e.g. {from='bag', slot=i} / {from='equip', slot=e}) so a DIFFERENT
+-- window's slots can react to a cross-window drop (bag <-> equipment).
+function EmberUI.PickupItem(iconTexture, sourceIcon, payload)
 	if GetCursorPosition and iconTexture and iconTexture ~= '' then
 		local c = ensureCursor()
 		c.tex:SetTexture(iconTexture); c.tex:Show(); c.frame:Show()
 	end
 	if sourceIcon then sourceIcon:SetVertexColor(80, 80, 80, 255) end   -- grey overlay on the picked-up item
-	EmberUI._held = { source = sourceIcon }
+	EmberUI._held = { source = sourceIcon, payload = payload }
 end
+
+function EmberUI.HeldPayload() return EmberUI._held and EmberUI._held.payload end
 
 function EmberUI.ClearCursor()
 	if EmberUI.cursor then EmberUI.cursor.frame:Hide() end

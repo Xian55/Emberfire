@@ -67,7 +67,7 @@ for i = 1, NUM do
 		if id == 0 then return end                  -- nothing to pick up from an empty slot
 		dragFrom = i
 		local _, tex = GetItemInfo(id)
-		EmberUI.PickupItem(tex, s.icon)             -- grey this slot + put the icon on the cursor
+		EmberUI.PickupItem(tex, s.icon, { from = 'bag', slot = i })   -- grey + icon on cursor; payload for cross-window
 	end)
 	s.frame:SetScript('OnMouseUp', function(_, btn)
 		if btn == 'RightButton' then
@@ -90,7 +90,12 @@ for i = 1, NUM do
 				if GetContainerItem(i) ~= 0 and UseContainerItemOnItem then UseContainerItemOnItem(applyFrom, i) end
 				applyFrom = nil; EmberUI.ClearCursor(); refresh()
 			else
-				if dragFrom and dragFrom ~= i then MoveContainerItem(dragFrom, i) end
+				local p = EmberUI.HeldPayload and EmberUI.HeldPayload()
+				if p and p.from == 'equip' and UnequipInventoryItem then
+					UnequipInventoryItem(p.slot, i)             -- drop an equipped item into this bag slot
+				elseif dragFrom and dragFrom ~= i then
+					MoveContainerItem(dragFrom, i)
+				end
 				dragFrom = nil
 				EmberUI.ClearCursor()
 				refresh()   -- restore tints (ClearCursor reset the dragged icon to white)
