@@ -1755,10 +1755,26 @@ namespace LuaUI
 		             : (name == "Party2Frame") ? World::Party2UnitFrame
 		             : (name == "Party3Frame") ? World::Party3UnitFrame
 		             : (name == "CastBar")     ? World::PlayerCastBar
-		             : (name == "XPBar")       ? World::ToolbarXpObj : 0;
+		             : (name == "XPBar")       ? World::ToolbarXpObj
+		             : (name == "InventoryFrame") ? World::InventoryPanel
+		             : (name == "EquipmentFrame") ? World::EquipmentPanel : 0;
 		if (!id) return;
 		if (auto ro = w->getRenderObject(id))
 			ro->setForceHidden(!shown);   // survives the window re-showing itself each frame
+	}
+
+	// The C++ window's LOGICAL shown state (its own !isHidden, ignoring forceHidden), so a Lua replacement can
+	// MIRROR a toggled window (e.g. the bag): the C++ open button still flips isHidden while the window is
+	// force-hidden, and the Lua view shows/hides to match.
+	bool gameFrameShown(const std::string& name)
+	{
+		auto* w = currentWorld();
+		if (!w) return false;
+		const int id = (name == "InventoryFrame") ? World::InventoryPanel
+		             : (name == "EquipmentFrame") ? World::EquipmentPanel : 0;
+		if (!id) return false;
+		auto ro = w->getRenderObject(id);
+		return ro && !ro->isHidden();
 	}
 
 	// ---- login command/getter (drives the C++ Login while it is force-hidden) ----

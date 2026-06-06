@@ -958,6 +958,7 @@ void LuaEngine::bindUI()
 
 		// Hide/show a C++ window that a Lua view replaces.
 		.addFunction("SetGameFrameShown", [](std::string name, bool shown) { LuaUI::setGameFrameShown(name, shown); })
+		.addFunction("IsGameFrameShown",  [](std::string name) { return LuaUI::gameFrameShown(name); })
 
 		// Login screen command/getter.
 		.addFunction("SubmitLogin",   [](std::string user, std::string pass, bool remember) { LuaUI::submitLogin(user, pass, remember); })
@@ -983,6 +984,7 @@ void LuaEngine::bindUI()
 		"MoveContainerItem", "UseContainerItem", "EquipContainerItem", "SellContainerItem",
 		"DestroyContainerItem", "UnequipInventoryItem", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",
+		"IsGameFrameShown",
 		"SubmitLogin", "GetSavedLogin", "GetScreenWidth", "GetScreenHeight", "DebugBounds",
 	};
 	luabridge::LuaRef& env = *m_impl->sandbox;

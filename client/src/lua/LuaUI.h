@@ -119,7 +119,10 @@ namespace LuaUI
 
 	// ---- hide/show the C++ windows a Lua view replaces ----
 	// HUD: "PlayerFrame"|"TargetFrame"|"XPBar"; screens: "LoginScreen"|"CharSelectScreen"|"CharCreateScreen"
+	// windows: "InventoryFrame"|"EquipmentFrame"
 	void setGameFrameShown(const std::string& name, bool shown);
+	// logical shown state of a toggled C++ window (InventoryFrame/EquipmentFrame), for the Lua mirror.
+	bool gameFrameShown(const std::string& name);
 
 	// ---- login screen ----
 	void submitLogin(const std::string& user, const std::string& pass, bool remember);

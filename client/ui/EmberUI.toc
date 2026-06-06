@@ -10,3 +10,4 @@ XPBar.lua
 ZoneNotification.lua
 Popups.lua
 LoadingScreen.lua
+Inventory.lua
