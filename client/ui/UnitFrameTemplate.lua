@@ -167,6 +167,7 @@ local function makeRefresh(token, st, show)
 		vis(st.elite,  UnitFlag(token, 'Elite') ~= 0)
 		vis(st.boss,   UnitFlag(token, 'Boss') ~= 0)
 		vis(st.leader, UnitIsPartyLeader(token))
+		vis(st.repairI, UnitHasBrokenEquipment(token))
 		vis(st.arenaI, UnitFlag(token, 'InArenaQueue') ~= 0)
 
 		for filterIdx = 0, 1 do

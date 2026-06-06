@@ -1209,6 +1209,12 @@ namespace LuaUI
 		return w && u && w->isPartyLeader(u->getGuid());
 	}
 
+	bool unitHasBrokenEquipment(const std::string& token)
+	{
+		auto* p = dynamic_cast<ClientPlayer*>(resolveUnit(token));
+		return p && p->hasBrokenEquipment();
+	}
+
 	std::string unitPortraitTexture(const std::string& token)
 	{
 		auto* f = resolveUnitFrame(token);

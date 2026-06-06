@@ -61,6 +61,7 @@ namespace LuaUI
 	bool unitIsDead(const std::string& token);
 	bool unitIsPlayer(const std::string& token);                  // false => NPC (or absent)
 	bool unitIsPartyLeader(const std::string& token);
+	bool unitHasBrokenEquipment(const std::string& token);       // player repair icon (ClientPlayer)
 	std::string unitPortraitTexture(const std::string& token);    // square portrait texture name
 	int  unitCastSpell(const std::string& token);                 // casting spell id (0 = not casting)
 	int  unitCastElapsedMs(const std::string& token);

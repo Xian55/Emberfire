@@ -765,6 +765,7 @@ void LuaEngine::bindUI()
 	m_impl->sandbox["UnitIsDead"]      = [](std::string token) { return LuaUI::unitIsDead(token); };
 	m_impl->sandbox["UnitIsPlayer"]    = [](std::string token) { return LuaUI::unitIsPlayer(token); };
 	m_impl->sandbox["UnitIsPartyLeader"] = [](std::string token) { return LuaUI::unitIsPartyLeader(token); };
+	m_impl->sandbox["UnitHasBrokenEquipment"] = [](std::string token) { return LuaUI::unitHasBrokenEquipment(token); };
 	m_impl->sandbox["UnitPortraitTexture"] = [](std::string token) { return LuaUI::unitPortraitTexture(token); };
 	m_impl->sandbox["UnitCastSpell"]   = [](std::string token) { return LuaUI::unitCastSpell(token); };
 	m_impl->sandbox["UnitCastElapsed"] = [](std::string token) { return LuaUI::unitCastElapsedMs(token); };
