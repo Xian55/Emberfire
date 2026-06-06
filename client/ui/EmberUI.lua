@@ -43,6 +43,7 @@ function EmberUI.CreateItemButton(parent, index, size)
 	local b = CreateFrame('Button', nil, parent)
 	b:SetSize(size, size)
 	if EmberUI._slotBg then b:SetTexture(EmberUI._slotBg) end
+	b:SetHoverTexture(EmberUI._slotHover or 'gameicon40_hover.png')   -- reddish edge highlight on mouseover
 
 	local icon = b:CreateTexture()
 	icon:SetPoint('TOPLEFT', b, 'TOPLEFT', 2, 2)
@@ -71,5 +72,46 @@ function EmberUI.CreateItemButton(parent, index, size)
 	obj.Clear()
 	return obj
 end
+
+-- Cursor item: a reusable "held on the cursor" icon + grey-out of the source slot, for drag-pickup across
+-- windows (inventory now; equipment/spellbook/actionbar as they migrate). Call EmberUI.PickupItem on drag
+-- start and EmberUI.ClearCursor on drop/cancel; EmberUI.HasCursorItem() reports whether something is held.
+EmberUI._held = nil
+
+local function ensureCursor()
+	if EmberUI.cursor then return EmberUI.cursor end
+	local c = CreateFrame('Frame', 'EmberCursorItem', nil)
+	c:SetSize(36, 36)
+	c:SetFrameLevel(10000)   -- above everything
+	local tex = c:CreateTexture()
+	tex:SetAllPoints(c)
+	c.tex = tex
+	c:Hide()
+	c:SetScript('OnUpdate', function()
+		if not GetCursorPosition then return end
+		local x, y = GetCursorPosition()
+		c:SetPoint('TOPLEFT', x - 18, y - 18)   -- center the icon on the cursor
+	end)
+	EmberUI.cursor = c
+	return c
+end
+
+-- iconTexture: the item's icon name to ride the cursor; sourceIcon: the source slot's icon Texture to grey.
+function EmberUI.PickupItem(iconTexture, sourceIcon)
+	if GetCursorPosition and iconTexture and iconTexture ~= '' then
+		local c = ensureCursor()
+		c.tex:SetTexture(iconTexture); c.tex:Show(); c:Show()
+	end
+	if sourceIcon then sourceIcon:SetVertexColor(80, 80, 80, 255) end   -- grey overlay on the picked-up item
+	EmberUI._held = { source = sourceIcon }
+end
+
+function EmberUI.ClearCursor()
+	if EmberUI.cursor then EmberUI.cursor:Hide() end
+	if EmberUI._held and EmberUI._held.source then EmberUI._held.source:SetVertexColor(255, 255, 255, 255) end
+	EmberUI._held = nil
+end
+
+function EmberUI.HasCursorItem() return EmberUI._held ~= nil end
 
 print('EmberUI core loaded')

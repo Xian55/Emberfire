@@ -1727,6 +1727,13 @@ namespace LuaUI
 		sConnector->sendPacket(pk.build(StlBuffer{}));
 	}
 
+	void showItemTooltip(int slot)
+	{
+		auto icon = inventoryIcon(slot);
+		if (icon && icon->getItemDef().m_itemId != 0)
+			icon->useTooltip();   // re-assert each frame while hovering (Application clears tooltips per frame)
+	}
+
 	void setGameFrameShown(const std::string& name, bool shown)
 	{
 		// Game-stage screens (login / character) resolve against Game; HUD frames against World.
@@ -1798,6 +1805,9 @@ namespace LuaUI
 
 	int screenWidth()  { return sApplication->sW(); }
 	int screenHeight() { return sApplication->sH(); }
+
+	int cursorX() { return sApplication->mousePos().x; }
+	int cursorY() { return sApplication->mousePos().y; }
 
 	bool isInWorld() { auto* w = currentWorld(); return w && w->myself(); }
 

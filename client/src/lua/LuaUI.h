@@ -116,6 +116,7 @@ namespace LuaUI
 	void sellContainerItem(int slot);                   // requires an open vendor server-side
 	void destroyContainerItem(int slot);
 	void unequipItem(int equipSlot, int invDest);       // equipSlot 1..12 -> bag slot
+	void showItemTooltip(int slot);                     // re-assert the C++ item tooltip (call while hovering)
 
 	// ---- hide/show the C++ windows a Lua view replaces ----
 	// HUD: "PlayerFrame"|"TargetFrame"|"XPBar"; screens: "LoginScreen"|"CharSelectScreen"|"CharCreateScreen"
@@ -131,6 +132,8 @@ namespace LuaUI
 	// ---- screen metrics (for Lua layout) ----
 	int screenWidth();
 	int screenHeight();
+	int cursorX();   // mouse position in render space (for a cursor-follow item icon)
+	int cursorY();
 
 	// True once the player is spawned in the world (HUD should be visible). Used by /reload to decide
 	// whether to re-fire the in-world events (WORLD_SHOWN/PLAYER_LOGIN) that reveal the HUD.

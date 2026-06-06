@@ -950,6 +950,7 @@ void LuaEngine::bindUI()
 		.addFunction("SellContainerItem",    [](int slot) { LuaUI::sellContainerItem(slot - 1); })
 		.addFunction("DestroyContainerItem", [](int slot) { LuaUI::destroyContainerItem(slot - 1); })
 		.addFunction("UnequipInventoryItem", [](int equipSlot, int invDest) { LuaUI::unequipItem(equipSlot, invDest - 1); })
+		.addFunction("ShowItemTooltip",      [](int slot) { LuaUI::showItemTooltip(slot - 1); })
 		.addFunction("UnitContextMenu", [](std::string token, std::optional<std::string> extra) { LuaUI::unitContextMenu(token, extra.value_or(std::string())); })
 		.addFunction("ShowUnitTooltip", [](std::string token) { LuaUI::showUnitTooltip(token); })
 		.addFunction("ShowSpellTooltip", [](int spellId) { LuaUI::showSpellTooltip(spellId); })
@@ -967,6 +968,7 @@ void LuaEngine::bindUI()
 		// Screen metrics for Lua layout.
 		.addFunction("GetScreenWidth",  []() { return LuaUI::screenWidth(); })
 		.addFunction("GetScreenHeight", []() { return LuaUI::screenHeight(); })
+		.addFunction("GetCursorPosition", []() { return std::make_tuple(LuaUI::cursorX(), LuaUI::cursorY()); })
 
 		// Debug: DebugBounds(true) outlines every Lua widget.
 		.addFunction("DebugBounds", [](bool v) { LuaUI::setDebugBounds(v); })
@@ -982,10 +984,10 @@ void LuaEngine::bindUI()
 		"UnitCastElapsed", "UnitCastTotal", "UnitAuraCount", "UnitAura", "PartyMemberExists",
 		"GetSpellTexture", "GetSpellName", "GetTextureSize", "TargetUnit", "ClearTarget",
 		"MoveContainerItem", "UseContainerItem", "EquipContainerItem", "SellContainerItem",
-		"DestroyContainerItem", "UnequipInventoryItem", "UnitContextMenu",
+		"DestroyContainerItem", "UnequipInventoryItem", "ShowItemTooltip", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",
 		"IsGameFrameShown",
-		"SubmitLogin", "GetSavedLogin", "GetScreenWidth", "GetScreenHeight", "DebugBounds",
+		"SubmitLogin", "GetSavedLogin", "GetScreenWidth", "GetScreenHeight", "GetCursorPosition", "DebugBounds",
 	};
 	luabridge::LuaRef& env = *m_impl->sandbox;
 	for (const char* n : kApiNames)
