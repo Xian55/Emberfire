@@ -148,6 +148,7 @@ local poll = CreateFrame('Frame', nil, nil)
 local acc = 0
 local wasDown = false
 local pendingDestroy = nil   -- { code, slot } while a destroy confirm is open
+local dropCheck = nil        -- { slot } a release-on-nothing pending the next-frame "was it consumed?" check
 poll:SetScript('OnUpdate', function(_, dt)
 	if not EmberUI.inWorld then if shown then setShown(false) end return end
 	acc = acc + dt
@@ -156,18 +157,26 @@ poll:SetScript('OnUpdate', function(_, dt)
 	-- guarded so a /reload on an exe without ShowItemTooltip (pre-relink) doesn't error on hover.
 	if shown and hoverSlot and ShowItemTooltip then ShowItemTooltip(hoverSlot) end
 
-	-- Holding an item + LEFT released OUTSIDE the bag => destroy confirm (reuses the C++ ConfirmMessageBox).
-	-- (This OnUpdate runs before the mouse-event drain, so over-slot/over-bag releases — where IsMouseOver is
-	-- true — are skipped here and handled by the slot/backdrop OnMouseUp instead.)
+	-- Holding an item + LEFT released OUTSIDE the bag => maybe destroy. But the release might instead be a
+	-- cross-window drop (e.g. onto the Equipment window), whose slot OnMouseUp runs in the mouse-event drain
+	-- AFTER this OnUpdate. So we DEFER one frame: flag the release now, then next frame destroy only if the
+	-- item is STILL held (nothing consumed it = truly dropped on the world). Bag-internal/over-bag releases
+	-- keep IsMouseOver true and never flag here.
 	if IsMouseButtonDown then
+		if dropCheck then
+			local pending = dropCheck; dropCheck = nil
+			if EmberUI.HasCursorItem() then
+				local p = EmberUI.HeldPayload and EmberUI.HeldPayload()
+				dragFrom = nil; applyFrom = nil
+				EmberUI.ClearCursor(); refresh()
+				if pending.slot and p and p.from == 'bag' and ShowConfirm then
+					pendingDestroy = { code = ShowConfirm('This will DESTROY the item. Accept?'), slot = pending.slot }
+				end
+			end
+		end
 		local down = IsMouseButtonDown('LeftButton')
 		if wasDown and not down and EmberUI.HasCursorItem() and not root:IsMouseOver() then
-			local slot = dragFrom                      -- only a MOVE (dragFrom) can destroy; targeting just cancels
-			dragFrom = nil; applyFrom = nil
-			EmberUI.ClearCursor(); refresh()
-			if slot and ShowConfirm then
-				pendingDestroy = { code = ShowConfirm('This will DESTROY the item. Accept?'), slot = slot }
-			end
+			dropCheck = { slot = dragFrom }   -- decide next frame, after slot handlers get a chance to consume
 		end
 		wasDown = down
 	end

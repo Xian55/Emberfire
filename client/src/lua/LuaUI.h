@@ -94,6 +94,12 @@ namespace LuaUI
 	int playerMaxXP();
 	int playerMoney();   // copper (ObjDefines::Variable::Money); 0 if not in world
 
+	// ---- character sheet (Equipment) ----
+	int playerVariable(int varId);          // any ObjDefines::Variable (stats = StatsStart 0x0e + index)
+	std::string playerClassName();          // "Paladin"/"Mage"/...
+	std::string playerRankName();           // player_exp_levels[level].name
+	void showEquipTooltip(int equipSlot);   // re-assert an equipped item's tooltip (call while hovering)
+
 	// ---- bag / equipment / item data (read-only; reuses the force-hidden C++ Inventory + ClientPlayer) ----
 	int  containerNumSlots();   // total bag slots (PlayerDefines::Inventory::NumSlots)
 	// fills item at bag `slot` (0-based); false if no inventory / out of range. itemId 0 => empty slot.

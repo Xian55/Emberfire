@@ -894,6 +894,10 @@ void LuaEngine::bindUI()
 		.addFunction("GetXP",         []() { return LuaUI::playerXP(); })
 		.addFunction("GetMaxXP",      []() { return LuaUI::playerMaxXP(); })
 		.addFunction("GetMoney",      []() { return LuaUI::playerMoney(); })
+		.addFunction("GetPlayerVariable", [](int varId) { return LuaUI::playerVariable(varId); })
+		.addFunction("GetPlayerClassName", []() { return LuaUI::playerClassName(); })
+		.addFunction("GetPlayerRankName",  []() { return LuaUI::playerRankName(); })
+		.addFunction("ShowEquipTooltip",   [](int equipSlot) { LuaUI::showEquipTooltip(equipSlot); })
 
 		// Bag / equipment / item data (read-only).
 		.addFunction("GetContainerNumSlots", []() { return LuaUI::containerNumSlots(); })
@@ -989,7 +993,8 @@ void LuaEngine::bindUI()
 	// Copy the registered API globals into the sandbox env (addons never see _G; they get exactly these).
 	static const char* kApiNames[] = {
 		"CreateFrame", "UnitHealth", "UnitHealthMax", "UnitLevel", "UnitPower", "UnitPowerMax", "UnitName",
-		"UnitExists", "GetXP", "GetMaxXP", "GetMoney", "GetContainerNumSlots", "GetContainerItem",
+		"UnitExists", "GetXP", "GetMaxXP", "GetMoney", "GetPlayerVariable", "GetPlayerClassName",
+		"GetPlayerRankName", "ShowEquipTooltip", "GetContainerNumSlots", "GetContainerItem",
 		"GetInventorySlotItem", "GetItemInfo", "GetItemQualityColor",
 		"UnitNameColor", "UnitFlag", "UnitIsDead", "UnitIsPlayer",
 		"UnitIsPartyLeader", "UnitHasBrokenEquipment", "UnitPortraitTexture", "UnitCastSpell",

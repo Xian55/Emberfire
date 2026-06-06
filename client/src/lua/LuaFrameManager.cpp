@@ -17,6 +17,7 @@
 #include "UnitFrame.h"
 #include "Inventory.h"
 #include "ItemIcon.h"
+#include "Equipment.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -1735,6 +1736,59 @@ namespace LuaUI
 		auto icon = inventoryIcon(slot);
 		if (icon && icon->getItemDef().m_itemId != 0)
 			icon->useTooltip();   // re-assert each frame while hovering (Application clears tooltips per frame)
+	}
+
+	// ---- character sheet (Equipment window) getters ----
+
+	int playerVariable(int varId)
+	{
+		auto* w = currentWorld();
+		return (w && w->myself()) ? w->myself()->getVariable(static_cast<ObjDefines::Variable>(varId)) : 0;
+	}
+
+	std::string playerClassName()
+	{
+		auto* w = currentWorld();
+		auto* p = w ? dynamic_cast<ClientPlayer*>(w->myself()) : nullptr;
+		return p ? PlayerFunctions::className(static_cast<PlayerDefines::Classes>(p->getClass())) : std::string();
+	}
+
+	std::string playerRankName()
+	{
+		auto* w = currentWorld();
+		if (!w || !w->myself())
+			return std::string();
+		return sContentMgr->db("player_exp_levels").data(w->myself()->getLevel(), "name");
+	}
+
+	// Tooltip for an equipped item: reuse the live (force-hidden) Equipment window's ItemIcon.
+	void showEquipTooltip(int equipSlot)
+	{
+		auto* w = currentWorld();
+		if (!w)
+			return;
+		auto* eq = dynamic_cast<Equipment*>(w->getRenderObject(World::EquipmentPanel).get());
+		if (!eq)
+			return;
+		int iface = -1;
+		switch (equipSlot)
+		{
+			case UnitDefines::Helm:     iface = Equipment::HelmIcon;     break;
+			case UnitDefines::Necklace: iface = Equipment::NecklaceIcon; break;
+			case UnitDefines::Chest:    iface = Equipment::ChestIcon;    break;
+			case UnitDefines::Belt:     iface = Equipment::BeltIcon;     break;
+			case UnitDefines::Legs:     iface = Equipment::LegsIcon;     break;
+			case UnitDefines::Feet:     iface = Equipment::FeetIcon;     break;
+			case UnitDefines::Hands:    iface = Equipment::GlovesIcon;   break;
+			case UnitDefines::Ring1:    iface = Equipment::Ring1Icon;    break;
+			case UnitDefines::Ring2:    iface = Equipment::Ring2Icon;    break;
+			case UnitDefines::Weapon1:  iface = Equipment::WeaponIcon;   break;
+			case UnitDefines::Offhand:  iface = Equipment::ShieldIcon;   break;
+			case UnitDefines::Ranged:   iface = Equipment::RangedIcon;   break;
+			default: return;
+		}
+		if (auto icon = dynamic_pointer_cast<ItemIcon>(eq->getRenderObject(iface)))
+			icon->useTooltip();
 	}
 
 	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or
