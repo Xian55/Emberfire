@@ -89,7 +89,17 @@ local function buildIcons(f, fw, L, mirror, show, st)
 		return t
 	end
 	st.combat = icon('unitframe_combat.png', L.combat)
-	if show.elite  then st.elite = icon('unit_frame_elite.png', L.elite); st.boss = icon('unit_frame_boss.png', L.elite) end
+	-- elite/boss are decorative borders that wrap the PORTRAIT, so anchor them on it (mirror-proof) rather
+	-- than a mirrored absolute position.
+	if show.elite then
+		local function border(tex)
+			local t = f:CreateTexture(); t:SetTexture(tex)
+			t:SetPoint('CENTER', st.portrait, 'CENTER', 0, -4); t:Hide()
+			return t
+		end
+		st.elite = border('unit_frame_elite.png')
+		st.boss  = border('unit_frame_boss.png')
+	end
 	if show.leader then st.leader = icon('unitframe_party_leader.png', L.leader) end
 	if show.repair then
 		st.repairI = icon('broken_item_uframe_icon.png', L.repairPos)
@@ -139,8 +149,8 @@ local function makeRefresh(token, st, show)
 		if not UnitExists(token) then st.frame:Hide(); return end
 		st.frame:Show()
 
-		st.hpPct:SetText(math.floor((UnitHealth(token) * 100) / math.max(1, UnitHealthMax(token)) + 0.5) .. '%')
-		st.mpPct:SetText(math.floor((UnitPower(token) * 100) / math.max(1, UnitPowerMax(token)) + 0.5) .. '%')
+		st.hpPct:SetText(math.min(100, math.floor((UnitHealth(token) * 100) / math.max(1, UnitHealthMax(token)) + 0.5)) .. '%')
+		st.mpPct:SetText(math.min(100, math.floor((UnitPower(token) * 100) / math.max(1, UnitPowerMax(token)) + 0.5)) .. '%')
 		st.hpTxt:SetText(UnitHealth(token) .. ' / ' .. UnitHealthMax(token))
 		st.mpTxt:SetText(UnitPower(token) .. ' / ' .. UnitPowerMax(token))
 		st.lvl:SetText('' .. UnitLevel(token))
@@ -187,8 +197,8 @@ local function wireScripts(token, st)
 	st.hpR, st.mpR, st.hovering, st.hoverAura = 1, 1, false, nil
 	st.frame:SetScript('OnUpdate', function(_, dt)
 		if not EmberUI.inWorld or not UnitExists(token) then return end
-		local hpT = UnitHealth(token) / math.max(1, UnitHealthMax(token))
-		local mpT = UnitPower(token)  / math.max(1, UnitPowerMax(token))
+		local hpT = math.min(1, UnitHealth(token) / math.max(1, UnitHealthMax(token)))
+		local mpT = math.min(1, UnitPower(token)  / math.max(1, UnitPowerMax(token)))
 		local step = 2 * dt
 		st.hpR = (st.hpR < hpT) and math.min(hpT, st.hpR + step) or math.max(hpT, st.hpR - step)
 		st.mpR = (st.mpR < mpT) and math.min(mpT, st.mpR + step) or math.max(mpT, st.mpR - step)

@@ -1188,10 +1188,11 @@ namespace LuaUI
 	{
 		auto* u = resolveUnit(token);
 		if (!u) return 0;
+		// Elite/Boss come from the NPC template (bool_elite/bool_boss), not an object variable.
+		if (name == "Elite") return atoi(sContentMgr->db("npc_template").data(u->getEntry(), "bool_elite").c_str());
+		if (name == "Boss")  return atoi(sContentMgr->db("npc_template").data(u->getEntry(), "bool_boss").c_str());
 		const ObjDefines::Variable v =
-			  (name == "Elite")         ? ObjDefines::Variable::Elite
-			: (name == "Boss")          ? ObjDefines::Variable::Boss
-			: (name == "InCombat")      ? ObjDefines::Variable::InCombat
+			  (name == "InCombat")      ? ObjDefines::Variable::InCombat
 			: (name == "InArenaQueue")  ? ObjDefines::Variable::InArenaQueue
 			: (name == "DynGreyTagged") ? ObjDefines::Variable::DynGreyTagged
 			: ObjDefines::Variable::Health;   // unknown name => harmless read
