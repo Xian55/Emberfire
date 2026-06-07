@@ -1957,6 +1957,17 @@ void Game::processPacket_Server_ObjectVariable(StlBuffer& data)
 		// Money (local player only).
 		if (isPlayer && static_cast<ObjDefines::Variable>(pk.m_variableId) == ObjDefines::Variable::Money)
 			sLua->fire(LuaEvents::PLAYER_MONEY, "");
+
+		// Character-sheet stats (local player): any stat variable, or the equipment-shown extras. Lets the
+		// Equipment window refresh on an event instead of polling.
+		if (isPlayer)
+		{
+			const int vid = pk.m_variableId;
+			if ((vid >= ObjDefines::Variable::StatsStart && vid <= ObjDefines::Variable::StatsEnd)
+			    || vid == ObjDefines::Variable::Experience || vid == ObjDefines::Variable::ArenaRating
+			    || vid == ObjDefines::Variable::PkCount)
+				sLua->fire(LuaEvents::PLAYER_STATS, "");
+		}
 	}
 }
 

@@ -35,7 +35,10 @@
     X(ZONE_CHANGED)               \
     X(BAG_UPDATE)                 \
     X(PLAYER_MONEY)               \
-    X(PLAYER_EQUIPMENT_CHANGED)
+    X(PLAYER_EQUIPMENT_CHANGED)   \
+    X(PLAYER_STATS)               \
+    X(PANEL_OPENED)               \
+    X(PANEL_CLOSED)
 
 namespace LuaEvents
 {

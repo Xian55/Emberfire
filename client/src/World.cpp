@@ -883,6 +883,17 @@ void World::switchDialogPanel(const Interface id)
 		ptr->refreshDockPosition();
 }
 
+// The Lua name a migrated panel mirrors (matches LuaUI::setGameFrameShown). "" => no Lua view; Lua ignores.
+static const char* panelLuaName(const World::Interface id)
+{
+	switch (id)
+	{
+		case World::Interface::InventoryPanel: return "InventoryFrame";
+		case World::Interface::EquipmentPanel: return "EquipmentFrame";
+		default: return "";
+	}
+}
+
 void World::openPanel(const Interface id, const bool playsound)
 {
 	if (isPanelOpen(id))
@@ -898,6 +909,8 @@ void World::openPanel(const Interface id, const bool playsound)
 		firstPanel->onOpen();
 		firstPanel->setHidden(false);
 		frontInsert = firstPanel->isFrontInsertPanel();
+
+		sLua->fire(LuaEvents::PANEL_OPENED, panelLuaName(id));   // Lua views show on this (no IsGameFrameShown poll)
 
 		if (firstPanel->independant())
 			return;
@@ -936,6 +949,8 @@ void World::closePanel(const Interface id, const bool playsound)
 		panel->setHidden(true);
 		panel->resetPosition();
 		panel->onClose();
+
+		sLua->fire(LuaEvents::PANEL_CLOSED, panelLuaName(id));   // Lua views hide on this
 
 		if (panel->independant())
 			return;
