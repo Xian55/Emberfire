@@ -1879,6 +1879,9 @@ void Game::processPacket_Server_LvlResponse(StlBuffer& data)
 	{
 		equipment->clearPendingServerSend();
 	}
+
+	// Lua addon layer: spend resolved — "1" lets the Lua Equipment leave its spend UI, "0" keeps it (rejected).
+	sLua->fire(LuaEvents::LEVELUP_RESULT, pk.m_bool ? "1" : "0");
 }
 
 void Game::processPacket_Server_OfferDuel(StlBuffer& data)

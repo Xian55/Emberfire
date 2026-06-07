@@ -1796,6 +1796,13 @@ namespace LuaUI
 		return sContentMgr->db("player_exp_levels").data(w->myself()->getLevel(), "name");
 	}
 
+	// The live (force-hidden) C++ Equipment window — the spend model the Lua view drives + reads.
+	static Equipment* equipmentPanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<Equipment*>(w->getRenderObject(World::EquipmentPanel).get()) : nullptr;
+	}
+
 	// Tooltip for an equipped item: reuse the live (force-hidden) Equipment window's ItemIcon.
 	void showEquipTooltip(int equipSlot, int ownerHandle, int anchor)
 	{
@@ -1897,13 +1904,45 @@ namespace LuaUI
 			return false;
 		const StatRowDef& r = t[index];
 		label = r.label;
-		const int v = playerVariable(r.valueVar);
-		if (r.speed) { char b[32]; snprintf(b, sizeof(b), "%.2f", v / 1000.0); value = b; }
-		else         value = std::to_string(v);
+		// Route the value through the live Equipment so it matches the C++ sheet byte-for-byte, incl. the
+		// spend-mode preview (base+bonus+pending) and the Melee/Ranged-speed formatting. Fall back to the raw
+		// variable only when there's no Equipment object (e.g. not in world).
+		if (auto* eq = equipmentPanel())
+		{
+			value = eq->sheetValue(r.valueVar);
+			// Health's row shows MaxHealth (var 0x03), NOT the invested stat var (0x10), so sheetValue can't
+			// reflect the queued points. Add the pending count so the row previews while spending — every other
+			// row displays its own stat var and previews natively. (Targets only rows where display != invest.)
+			if (eq->isSpendingPoints() && r.tooltipVar != 0 && r.tooltipVar != r.valueVar)
+			{
+				const int pend = eq->pendingStatPoints(r.tooltipVar);
+				if (pend != 0)
+					value = std::to_string(playerVariable(r.valueVar) + pend);
+			}
+		}
+		else
+		{
+			const int v = playerVariable(r.valueVar);
+			if (r.speed) { char b[32]; snprintf(b, sizeof(b), "%.2f", v / 1000.0); value = b; }
+			else         value = std::to_string(v);
+		}
 		rgb = (r.r << 16) | (r.g << 8) | r.b;
 		tooltipVar = r.tooltipVar;
 		return true;
 	}
+
+	// ---- stat-point spending: thin delegation to the live Equipment object (all math stays in C++) ----
+	bool isSpendingPoints()            { auto* eq = equipmentPanel(); return eq && eq->isSpendingPoints(); }
+	void beginStatSpend()              { if (auto* eq = equipmentPanel()) eq->beginStatSpend(); }
+	void cancelStatSpend()             { if (auto* eq = equipmentPanel()) eq->cancelStatSpend(); }
+	bool addStatPoint(int statVar)     { auto* eq = equipmentPanel(); return eq && eq->addStatPoint(statVar); }
+	bool removeStatPoint(int statVar)  { auto* eq = equipmentPanel(); return eq && eq->removeStatPoint(statVar); }
+	bool canAddStat(int statVar)       { auto* eq = equipmentPanel(); return eq && eq->canAddStatVar(statVar); }
+	bool canMinusStat(int statVar)     { auto* eq = equipmentPanel(); return eq && eq->canMinusStatVar(statVar); }
+	int  pendingStatPoints(int statVar){ auto* eq = equipmentPanel(); return eq ? eq->pendingStatPoints(statVar) : 0; }
+	void confirmStatSpend()            { if (auto* eq = equipmentPanel()) eq->confirmStatSpend(); }
+	bool hasUnspentPoints()            { auto* eq = equipmentPanel(); return eq && eq->hasUnspentPoints(); }
+	int  pendingLevelupCost()          { auto* w = currentWorld(); return w ? w->getCachedPendingLevelupCost() : 0; }
 
 	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or
 	// a quest item is USED; gear (equip_type>0) is EQUIPPED; otherwise nothing (unusable).

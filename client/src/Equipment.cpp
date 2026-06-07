@@ -343,6 +343,110 @@ void Equipment::toggleSpendingPoints(const bool v)
 	}
 }
 
+// --- Lua-driven stat-point spending (stats only) ----------------------------------------------------------
+// Lean entry points the Lua Equipment view calls while the C++ window is force-hidden. They reuse the spend
+// machinery (pending map + calculateBaseStats + cost recompute + requestLevelup) but deliberately SKIP the
+// panel/spellbook coupling toggleSpendingPoints does (openPanel/closePanels/Abilities/setStatView) — the Lua
+// view owns the layout, and the spend covers stats only (the Abilities window isn't migrated).
+void Equipment::beginStatSpend()
+{
+	if (m_spendingPoints)
+		return;
+
+	m_pendingStatInvestments.clear();
+	m_spendingPoints = true;
+	m_pendingServerSpend = false;
+	m_lastKnownLevelupCost = 0;
+
+	calculateBaseStats();
+	world().computePendingLevelupCost();
+}
+
+void Equipment::cancelStatSpend()
+{
+	if (!m_spendingPoints)
+		return;
+
+	m_spendingPoints = false;
+	m_pendingStatInvestments.clear();
+	m_pendingServerSpend = false;
+	m_lastKnownLevelupCost = 0;
+
+	calculateBaseStats();
+	world().computePendingLevelupCost();
+}
+
+bool Equipment::addStatPoint(const int statVar)
+{
+	if (statVar < ObjDefines::Variable::StatsStart || statVar > ObjDefines::Variable::StatsEnd)
+		return false;
+
+	const UnitDefines::Stat stat = UnitDefines::Stat(statVar - ObjDefines::Variable::StatsStart);
+
+	if (!isAllow_AddStat(stat))
+		return false;
+
+	m_pendingStatInvestments[stat] += 1;
+	calculateBaseStats();
+	world().computePendingLevelupCost();
+	return true;
+}
+
+bool Equipment::removeStatPoint(const int statVar)
+{
+	if (statVar < ObjDefines::Variable::StatsStart || statVar > ObjDefines::Variable::StatsEnd)
+		return false;
+
+	const UnitDefines::Stat stat = UnitDefines::Stat(statVar - ObjDefines::Variable::StatsStart);
+
+	if (!isAllow_MinusStat(stat))
+		return false;
+
+	m_pendingStatInvestments[stat] -= 1;
+	calculateBaseStats();
+	world().computePendingLevelupCost();
+	return true;
+}
+
+bool Equipment::canAddStatVar(const int statVar) const
+{
+	if (statVar < ObjDefines::Variable::StatsStart || statVar > ObjDefines::Variable::StatsEnd)
+		return false;
+
+	return isAllow_AddStat(UnitDefines::Stat(statVar - ObjDefines::Variable::StatsStart));
+}
+
+bool Equipment::canMinusStatVar(const int statVar) const
+{
+	if (statVar < ObjDefines::Variable::StatsStart || statVar > ObjDefines::Variable::StatsEnd)
+		return false;
+
+	return isAllow_MinusStat(UnitDefines::Stat(statVar - ObjDefines::Variable::StatsStart));
+}
+
+int Equipment::pendingStatPoints(const int statVar) const
+{
+	if (statVar < ObjDefines::Variable::StatsStart || statVar > ObjDefines::Variable::StatsEnd)
+		return 0;
+
+	const auto itr = m_pendingStatInvestments.find(UnitDefines::Stat(statVar - ObjDefines::Variable::StatsStart));
+	return itr == m_pendingStatInvestments.end() ? 0 : itr->second;
+}
+
+bool Equipment::hasUnspentPoints() const
+{
+	return m_levelupButton != nullptr && m_levelupButton->isExclaimNotice();
+}
+
+void Equipment::confirmStatSpend()
+{
+	if (m_pendingServerSpend)
+		return;
+
+	world().requestLevelup();
+	m_pendingServerSpend = true;
+}
+
 /*static*/
 shared_ptr<Tooltip> Equipment::spawnUpgradeTooltip(const int totalInvest, const int cost, const string& itemName, const string& pointName)
 {

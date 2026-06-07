@@ -105,6 +105,20 @@ namespace LuaUI
 	// fills row `index` of `tab`: label, formatted value, packed 0xRRGGBB, tooltipVar (0=none). false if oob.
 	bool statRow(int tab, int index, std::string& label, std::string& value, int& rgb, int& tooltipVar);
 
+	// ---- stat-point spending (drives the live force-hidden C++ Equipment; stats only) ----
+	// statVar is a stat's variable id (= StatsStart + Stat) — the same value statRow returns as tooltipVar.
+	bool isSpendingPoints();
+	void beginStatSpend();                  // enter spend mode (clears pending, recomputes cost)
+	void cancelStatSpend();                 // leave without committing
+	bool addStatPoint(int statVar);         // queue +1 (gated by cost/cap/skill); false if not allowed
+	bool removeStatPoint(int statVar);      // queue -1; false if nothing pending
+	bool canAddStat(int statVar);           // may the +1 button show?
+	bool canMinusStat(int statVar);         // may the -1 button show?
+	int  pendingStatPoints(int statVar);    // points currently queued on this stat
+	int  pendingLevelupCost();              // total queued XP cost (World::getCachedPendingLevelupCost)
+	void confirmStatSpend();                // commit (sends op40); server replies LEVELUP_RESULT
+	bool hasUnspentPoints();                // server flagged spendable points (the exclaim notice)
+
 	// ---- bag / equipment / item data (read-only; reuses the force-hidden C++ Inventory + ClientPlayer) ----
 	int  containerNumSlots();   // total bag slots (PlayerDefines::Inventory::NumSlots)
 	// fills item at bag `slot` (0-based); false if no inventory / out of range. itemId 0 => empty slot.

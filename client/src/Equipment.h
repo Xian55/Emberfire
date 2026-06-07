@@ -81,6 +81,22 @@ class Equipment : public WorldPanel
 
 		const auto& getPendingStatInvestments() const { return m_pendingStatInvestments; }
 
+		// --- Lua-driven stat-point spending (stats only; no Abilities/panel coupling) ---
+		// The Lua Equipment view drives the spend flow through these while the C++ window is force-hidden.
+		// They reuse the same machinery as input()/toggleSpendingPoints but skip the panel/spellbook juggling.
+		void beginStatSpend();
+		void cancelStatSpend();
+		bool addStatPoint(const int statVar);
+		bool removeStatPoint(const int statVar);
+		bool canAddStatVar(const int statVar) const;
+		bool canMinusStatVar(const int statVar) const;
+		int  pendingStatPoints(const int statVar) const;
+		bool isSpendingPoints() const { return m_spendingPoints; }
+		bool hasUnspentPoints() const;
+		void confirmStatSpend();
+		// Passthrough so the Lua sheet value mirrors the C++ value byte-for-byte (spend preview + speed fmt).
+		string sheetValue(const int var) { return getEquipmentValue(var); }
+
 		static UnitDefines::EquipSlot convertInterface(const Interface id);
 
 		static shared_ptr<Tooltip> spawnUpgradeTooltip(const int totalInvest, const int cost, const string& itemName, const string& pointName);

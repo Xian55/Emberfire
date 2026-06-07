@@ -935,14 +935,26 @@ void LuaEngine::bindUI()
 		.addFunction("GetExperience", []() { return LuaUI::playerExperience(); })
 		.addFunction("GetPlayerClassName", []() { return LuaUI::playerClassName(); })
 		.addFunction("GetPlayerRankName",  []() { return LuaUI::playerRankName(); })
-		.addFunction("ShowEquipTooltip",   [](int equipSlot) { LuaUI::showEquipTooltip(equipSlot); })
-		.addFunction("ShowStatTooltip",    [](int varId) { LuaUI::showStatTooltip(varId); })
 		.addFunction("GetStatRowCount",    [](int tab) { return LuaUI::statRowCount(tab); })
 		.addFunction("GetStatRow",         [](int tab, int index) {   // -> label, value, r, g, b, tooltipVar
 			std::string label, value; int rgb = 0, tv = 0;
 			if (!LuaUI::statRow(tab, index, label, value, rgb, tv))
 				return std::make_tuple(std::string(), std::string(), 0, 0, 0, 0);
 			return std::make_tuple(label, value, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, tv); })
+
+			// Stat-point spending (drives the live force-hidden C++ Equipment; stats only).
+			// statVar = a stat's variable id = the tooltipVar GetStatRow returns (0 rows are non-investable).
+			.addFunction("IsSpendingPoints",      []() { return LuaUI::isSpendingPoints(); })
+			.addFunction("BeginStatSpend",        []() { LuaUI::beginStatSpend(); })
+			.addFunction("CancelStatSpend",       []() { LuaUI::cancelStatSpend(); })
+			.addFunction("AddStatPoint",          [](int statVar) { return LuaUI::addStatPoint(statVar); })
+			.addFunction("RemoveStatPoint",       [](int statVar) { return LuaUI::removeStatPoint(statVar); })
+			.addFunction("CanAddStat",            [](int statVar) { return LuaUI::canAddStat(statVar); })
+			.addFunction("CanMinusStat",          [](int statVar) { return LuaUI::canMinusStat(statVar); })
+			.addFunction("GetPendingStatPoints",  [](int statVar) { return LuaUI::pendingStatPoints(statVar); })
+			.addFunction("GetPendingLevelupCost", []() { return LuaUI::pendingLevelupCost(); })
+			.addFunction("ConfirmStatSpend",      []() { LuaUI::confirmStatSpend(); })
+			.addFunction("HasUnspentPoints",      []() { return LuaUI::hasUnspentPoints(); })
 
 		// Bag / equipment / item data (read-only).
 		.addFunction("GetContainerNumSlots", []() { return LuaUI::containerNumSlots(); })
@@ -999,7 +1011,6 @@ void LuaEngine::bindUI()
 		.addFunction("SellContainerItem",    [](int slot) { LuaUI::sellContainerItem(slot - 1); })
 		.addFunction("DestroyContainerItem", [](int slot) { LuaUI::destroyContainerItem(slot - 1); })
 		.addFunction("UnequipInventoryItem", [](int equipSlot, int invDest) { LuaUI::unequipItem(equipSlot, invDest - 1); })
-		.addFunction("ShowItemTooltip",      [](int slot) { LuaUI::showItemTooltip(slot - 1); })
 		.addFunction("UseOrEquipContainerItem", [](int slot) { LuaUI::useOrEquipContainerItem(slot - 1); })
 		.addFunction("IsContainerItemUsable",   [](int slot) { return !LuaUI::containerItemUnusable(slot - 1); })
 		.addFunction("ContainerItemTargetsItem",[](int slot) { return LuaUI::containerItemTargetsItem(slot - 1); })
@@ -1039,7 +1050,10 @@ void LuaEngine::bindUI()
 	static const char* kApiNames[] = {
 		"CreateFrame", "UnitHealth", "UnitHealthMax", "UnitLevel", "UnitPower", "UnitPowerMax", "UnitName",
 		"UnitExists", "GetXP", "GetMaxXP", "GetMoney", "GetExperience", "GetPlayerClassName",
-		"GetPlayerRankName", "ShowEquipTooltip", "ShowStatTooltip", "GetStatRowCount", "GetStatRow",
+		"GetPlayerRankName", "GetStatRowCount", "GetStatRow",
+		"IsSpendingPoints", "BeginStatSpend", "CancelStatSpend", "AddStatPoint", "RemoveStatPoint",
+		"CanAddStat", "CanMinusStat", "GetPendingStatPoints", "GetPendingLevelupCost", "ConfirmStatSpend",
+		"HasUnspentPoints",
 		"GetContainerNumSlots", "GetContainerItem",
 		"GetInventorySlotItem", "GetItemInfo", "GetItemQualityColor",
 		"UnitNameColor", "UnitFlag", "UnitIsDead", "UnitIsPlayer",
@@ -1047,7 +1061,7 @@ void LuaEngine::bindUI()
 		"UnitCastElapsed", "UnitCastTotal", "UnitAuraCount", "UnitAura", "PartyMemberExists",
 		"GetSpellTexture", "GetSpellName", "GetTextureSize", "TargetUnit", "ClearTarget",
 		"MoveContainerItem", "UseContainerItem", "EquipContainerItem", "SellContainerItem",
-		"DestroyContainerItem", "UnequipInventoryItem", "ShowItemTooltip", "UseOrEquipContainerItem",
+		"DestroyContainerItem", "UnequipInventoryItem", "UseOrEquipContainerItem",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",
 		"IsMouseButtonDown", "ShowConfirm", "PopConfirm", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",
