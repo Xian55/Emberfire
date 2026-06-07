@@ -1,4 +1,4 @@
--- XP bar: fills toward the next level. Driven by PLAYER_XP_UPDATE + a 0.5s poll.
+-- XP bar: fills toward the next level. Fully event-driven (PLAYER_XP_UPDATE + UNIT_LEVEL) — no OnUpdate.
 -- Visible only in-world (the frame manager is persistent across all screens now).
 
 local W = math.floor(GetScreenWidth() * 0.225)   -- 22.5% of screen width, centered at the bottom
@@ -18,11 +18,6 @@ label:SetFont('Palatino'); label:SetFontSize(12)
 label:SetTextColor(255, 255, 255, 255)
 label:Hide()
 
-local function refresh()
-	local mx = GetMaxXP(); if mx <= 0 then mx = 1 end
-	bar:SetMinMaxValues(0, mx); bar:SetValue(GetXP())
-end
-
 local function refreshLabel()
 	local cur = GetXP()
 	local mx = GetMaxXP(); if mx <= 0 then mx = 1 end
@@ -31,15 +26,17 @@ local function refreshLabel()
 	label:SetPoint('CENTER', 0, 0)   -- re-anchor after text (size known) -> centered ON the bar
 end
 
+local function refresh()
+	local mx = GetMaxXP(); if mx <= 0 then mx = 1 end
+	bar:SetMinMaxValues(0, mx); bar:SetValue(GetXP())
+	if label:IsShown() then refreshLabel() end   -- keep the hover readout fresh on XP/level change
+end
+
+-- Event-driven: XP value (PLAYER_XP_UPDATE) + next-level requirement on level (UNIT_LEVEL). No OnUpdate.
 local d = CreateFrame('Frame', nil, nil)
 d:SetScript('OnEvent', refresh)
 d:RegisterEvent(Events.PLAYER_XP_UPDATE)
-local acc = 0
-d:SetScript('OnUpdate', function(_, dt)
-	if not EmberUI.inWorld then return end
-	acc = acc + dt
-	if acc >= 0.5 then acc = 0; refresh(); if f:IsMouseOver() then refreshLabel() end end  -- keep readout fresh while hovering
-end)
+d:RegisterEvent(Events.UNIT_LEVEL)
 
 -- Hover is engine-driven (edge-detected OnEnter/OnLeave) — no per-frame polling in addon code.
 f:SetScript('OnEnter', function() refreshLabel(); label:Show() end)
