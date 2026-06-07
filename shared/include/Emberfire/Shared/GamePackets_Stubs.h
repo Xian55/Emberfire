@@ -466,19 +466,15 @@ struct GP_Client_LevelUp : GamePacket {
     // and Equipment::getPendingStatInvestments() (map<UnitDefines::Stat,int>).
     std::map<int, int> m_spellInvestments;
     std::map<UnitDefines::Stat, int> m_statInvestments;
-    // Wire statId = the stat's 1-based position in the SPEND list, which skips the non-spendable
-    // WeaponValue (var 0x18, index 10). general (Health..Meditate, idx 0-9) -> idx+1; combat/skills
-    // (idx >= MeleeValue=11) -> idx (WeaponValue absorbs the +1). CONFIRMED: Strength idx3->4,
-    // Bartering idx25->25, Maces idx29->29 (Gooday conn36/37).
+    // Wire statId = the stat's enum/var index (UnitDefines::Stat): Mana=1, Health=2, ArmorValue=3,
+    // Strength=4, ... Bartering=25, Maces=29. WeaponValue=0 is non-spendable. CONFIRMED: Strength->4,
+    // Bartering->25, Maces->29 (Gooday conn36/37); Health->2 / Mana->1 (live original-server spend test).
     static int spendId(UnitDefines::Stat s) {
-        // var index == wire spend-id for EVERY stat except Health/Mana, which are swapped: the var block is
-        // (Mana=0x0f, Health=0x10) but the spend order is (Health=1, Mana=2) -- conn13. ArmorValue is index 3
-        // == spend-id 3 already (never actually spent). Everything else returns its enum/var index verbatim.
-        switch (s) {
-            case UnitDefines::Stat::Health: return 1;
-            case UnitDefines::Stat::Mana:   return 2;
-            default: return static_cast<int>(s);
-        }
+        // Wire spend-id == the stat's enum/var index for EVERY stat (Mana=1, Health=2, ArmorValue=3,
+        // Strength=4, ...). An earlier version swapped Health<->Mana (Health=1/Mana=2) from a mis-read conn13
+        // capture; LIVE on the original server that made an invested-Health point land on Mana — statId 1 is
+        // Mana, statId 2 is Health (plain enum order). The swap is removed; do NOT reintroduce it.
+        return static_cast<int>(s);
     }
 
     StlBuffer& build(StlBuffer&& b) {

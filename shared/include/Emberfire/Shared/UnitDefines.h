@@ -18,13 +18,13 @@ namespace UnitDefines
 		// experiment + 0x1a=2000=MeleeCooldown / 0x27=Bartering anchors): var = StatsStart(0x0e) + enum index,
 		// fully contiguous. Measured: 0x0e=WeaponValue(non-spendable melee item dmg, 0 for casters),
 		// 0x0f=Mana, 0x10=Health, 0x11=ArmorValue, 0x12=Strength ... 0x18=Meditate, 0x19=MeleeValue,
-		// 0x1a=MeleeCooldown. The op40 SPEND-id order is DIFFERENT (Health=1,Mana=2,ArmorValue=3,Strength=4,
-		// ... -- Health/Mana swapped vs the var order). That swap + the wire ids live ONLY in
-		// GP_Client_LevelUp::spendId, never here. (Earlier this enum had ArmorValue=0 at 0x0e, so getStat read
+		// 0x1a=MeleeCooldown. The op40 SPEND-id == this enum/var index for every stat (NO Health/Mana swap —
+		// an earlier swap from a mis-read capture made invested-Health land on Mana live; removed). The wire id
+		// lives in GP_Client_LevelUp::spendId. (Earlier this enum had ArmorValue=0 at 0x0e, so getStat read
 		// one var too low and the whole stat panel was shifted by one row; fixed.) RangedWeaponValue=phantom.
 		WeaponValue = 0,    // var 0x0e  item melee weapon damage (0 for casters); NON-spendable
-		Mana = 1,           // var 0x0f  = MaxMana; spend-id 2
-		Health = 2,         // var 0x10  = MaxHealth (mirror of 0x03); spend-id 1
+		Mana = 1,           // var 0x0f  = MaxMana; spend-id 1
+		Health = 2,         // var 0x10  = MaxHealth (mirror of 0x03); spend-id 2
 		ArmorValue = 3,     // var 0x11  real armor (NOT investable); spend-id 3
 		Strength = 4,       // var 0x12  spend-id 4
 		Agility = 5,        // var 0x13  spend-id 5

@@ -128,12 +128,10 @@ public:
     int computeLevelupCost(const std::map<UnitDefines::Stat, int>& statInvestments,
                            const std::map<int, int>& spellInvestments) const
     {
-        // wire spend-id == GP_Client_LevelUp::spendId (kept inline to avoid a packet-header include).
+        // wire spend-id == GP_Client_LevelUp::spendId (kept inline to avoid a packet-header include):
+        // the stat's enum/var index for every stat, Health/Mana included (no swap — see spendId note).
         auto wireId = [](UnitDefines::Stat s) -> int {
-            using S = UnitDefines::Stat;
-            if (s == S::Health) return 1;
-            if (s == S::Mana)   return 2;
-            return static_cast<int>(s);   // enum/var index == wire spend-id (Health/Mana swapped above)
+            return static_cast<int>(s);
         };
 
         long long total = 0;
