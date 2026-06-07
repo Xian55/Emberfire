@@ -18,6 +18,7 @@
 #include "Inventory.h"
 #include "ItemIcon.h"
 #include "Equipment.h"
+#include "LootWindow.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -1981,6 +1982,47 @@ namespace LuaUI
 	bool hasUnspentPoints()            { auto* eq = equipmentPanel(); return eq && eq->hasUnspentPoints(); }
 	int  pendingLevelupCost()          { auto* w = currentWorld(); return w ? w->getCachedPendingLevelupCost() : 0; }
 
+	// ---- loot window: read + drive the live (force-hidden) LootWindow ----
+	static LootWindow* lootPanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<LootWindow*>(w->getRenderObject(World::LootWindowPanel).get()) : nullptr;
+	}
+
+	int lootSlotCount() { auto* lw = lootPanel(); return lw ? lw->lootCount() : 0; }
+
+	bool lootSlot(int index, int& itemId, int& affix, int& count, bool& isGold)
+	{
+		auto* lw = lootPanel();
+		if (!lw)
+			return false;
+		ItemDefines::ItemDefinition def; int stack = 0; bool gold = false;
+		if (!lw->lootAt(index, def, stack, gold))
+			return false;
+		itemId = def.m_itemId;
+		affix  = def.m_affixId;
+		count  = stack;
+		isGold = gold;
+		return true;
+	}
+
+	void lootSlotTake(int index) { if (auto* lw = lootPanel()) lw->lootIndex(index); }
+	void lootTakeAll()           { if (auto* lw = lootPanel()) lw->lootAll(); }
+	void lootSlotLink(int index) { if (auto* lw = lootPanel()) lw->linkIndex(index); }
+	void lootClose()             { if (auto* w = currentWorld()) w->closePanel(World::LootWindowPanel); }
+
+	void showLootTooltip(int index, int ownerHandle, int anchor)
+	{
+		auto* lw = lootPanel();
+		if (!lw)
+			return;
+		auto tip = lw->buildLootTooltip(index);
+		if (!tip)
+			return;
+		positionTooltip(tip, ownerHandle, anchor);
+		sApplication->setTooltip(tip);
+	}
+
 	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or
 	// a quest item is USED; gear (equip_type>0) is EQUIPPED; otherwise nothing (unusable).
 	void useOrEquipContainerItem(int slot)
@@ -2032,6 +2074,11 @@ namespace LuaUI
 	bool mouseButtonDown(int sfBtn)
 	{
 		return sf::Mouse::isButtonPressed(static_cast<sf::Mouse::Button>(sfBtn < 0 ? 0 : sfBtn));
+	}
+
+	bool isShiftDown()
+	{
+		return sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) || sf::Keyboard::isKeyPressed(sf::Keyboard::RShift);
 	}
 
 	// Reusable confirm dialog (reuses the C++ ConfirmMessageBox so it looks native). showConfirm spawns a
@@ -2090,7 +2137,8 @@ namespace LuaUI
 		             : (name == "CastBar")     ? World::PlayerCastBar
 		             : (name == "XPBar")       ? World::ToolbarXpObj
 		             : (name == "InventoryFrame") ? World::InventoryPanel
-		             : (name == "EquipmentFrame") ? World::EquipmentPanel : 0;
+		             : (name == "EquipmentFrame") ? World::EquipmentPanel
+		             : (name == "LootFrame")      ? World::LootWindowPanel : 0;
 		if (!id) return;
 		if (auto ro = w->getRenderObject(id))
 			ro->setForceHidden(!shown);   // survives the window re-showing itself each frame

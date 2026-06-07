@@ -890,7 +890,7 @@ static const char* panelLuaName(const World::Interface id)
 	{
 		case World::Interface::InventoryPanel: return "InventoryFrame";
 		case World::Interface::EquipmentPanel: return "EquipmentFrame";
-		default: return "";
+		default: return "";   // Loot uses WoW-style LOOT_READY/LOOT_CLOSED instead of the generic panel events
 	}
 }
 
@@ -951,6 +951,8 @@ void World::closePanel(const Interface id, const bool playsound)
 		panel->onClose();
 
 		sLua->fire(LuaEvents::PANEL_CLOSED, panelLuaName(id));   // Lua views hide on this
+		if (id == LootWindowPanel)
+			sLua->fire(LuaEvents::LOOT_CLOSED, "");             // WoW-style loot close (X button or server-empty)
 
 		if (panel->independant())
 			return;

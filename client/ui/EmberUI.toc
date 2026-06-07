@@ -12,3 +12,4 @@ Popups.lua
 LoadingScreen.lua
 Inventory.lua
 Equipment.lua
+LootWindow.lua

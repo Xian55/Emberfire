@@ -248,7 +248,21 @@ void GameIconList::addItemIcon(const ItemDefines::ItemDefinition def, const int 
 
 	m_entries.push_back({ ptr, true });
 
-	refreshView();	
+	refreshView();
+}
+
+bool GameIconList::itemEntryAt(int index, ItemDefines::ItemDefinition& def, int& stack) const
+{
+	if (index < 0 || index >= static_cast<int>(m_entries.size()))
+		return false;
+
+	auto item = dynamic_pointer_cast<ItemEntry>(m_entries[index].first);
+	if (!item)
+		return false;
+
+	def   = item->def;
+	stack = item->stack;
+	return true;
 }
 
 void GameIconList::addSpellIcon(const int entry, const int lvl, const vector<pair<int16_t, int16_t>>& bpoints)

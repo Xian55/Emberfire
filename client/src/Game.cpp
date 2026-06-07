@@ -2186,10 +2186,14 @@ void Game::processPacket_Server_OpenLootWindow(StlBuffer& data)
 			lootWindow->addItem(itr.first, itr.second);
 
 		world->openPanel(World::LootWindowPanel);
+
+		// Lua addon layer (WoW-style): loot is available -> the Lua view shows + (re)populates. Fires on every
+		// non-empty OpenLootWindow, so it also drives the refresh after looting a single item.
+		sLua->fire(LuaEvents::LOOT_READY, "");
 	}
 	else
 	{
-		world->closePanel(World::LootWindowPanel);
+		world->closePanel(World::LootWindowPanel);   // closePanel fires LOOT_CLOSED
 	}
 }
 

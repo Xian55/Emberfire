@@ -46,6 +46,10 @@ class GameIconList : public WorldChild
 		int numVerticalElements() const { return m_numVerticalElements; }
 		int numEntries() const { return static_cast<int>(m_entries.size()); }
 
+		// Read item entry `index`'s def + stack (false if oob / not an item entry). Lets a Lua view mirror the
+		// list contents without the C++ viewport (m_iconBgFades is only the visible window, not 1:1 m_entries).
+		bool itemEntryAt(int index, ItemDefines::ItemDefinition& def, int& stack) const;
+
 		pair<shared_ptr<GameIcon>, int> popClickedGameIcon();
 		pair<shared_ptr<GameIcon>, int> popClickedDongle(const string& dongleName);
 

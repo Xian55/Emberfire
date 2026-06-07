@@ -29,6 +29,10 @@ LootWindow::LootWindow(World& owner, const int id) :
 	m_upButton->setFlashing(true);
 	m_downButton->setFlashing(true);
 
+	// Off-screen scratch icon: set its def + build a tooltip on demand (loot tooltips for the Lua view).
+	// Not added to the render holder — it never draws/inputs.
+	m_tooltipIcon = make_shared<ItemIcon>(*this, Interface::TooltipScratch, "gameicon40");
+
 	reset();
 }
 
@@ -148,4 +152,62 @@ void LootWindow::input()
 			break;
 		}
 	}
+}
+
+// --- Lua-facing loot API (the Lua LootWindow.lua drives these while this C++ window is force-hidden) -------
+int LootWindow::lootCount() const
+{
+	return m_gameIconList ? m_gameIconList->numEntries() : 0;
+}
+
+bool LootWindow::lootAt(const int index, ItemDefines::ItemDefinition& def, int& stack, bool& isGold) const
+{
+	if (!m_gameIconList || !m_gameIconList->itemEntryAt(index, def, stack))
+		return false;
+	isGold = (def.m_itemId == ItemDefines::StaticItems::GoldItem);
+	return true;
+}
+
+void LootWindow::lootIndex(const int index)
+{
+	ItemDefines::ItemDefinition def; int stack = 0; bool gold = false;
+	if (!lootAt(index, def, stack, gold))
+		return;
+
+	GP_Client_LootItem packet;
+	packet.m_sourceGuid = m_sourceGuid;
+	packet.m_itemId     = def;
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+	sContentMgr->playSound(SfxId::AlertEntry);
+}
+
+void LootWindow::lootAll()
+{
+	GP_Client_LootItem packet;
+	packet.m_sourceGuid = m_sourceGuid;
+	packet.m_itemId     = { uint16_t(GP_Client_LootItem::TakeAll) };
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+}
+
+void LootWindow::linkIndex(const int index)
+{
+	ItemDefines::ItemDefinition def; int stack = 0; bool gold = false;
+	if (!lootAt(index, def, stack, gold))
+		return;
+
+	if (auto gameChat = dynamic_pointer_cast<GameChat>(world().getRenderObject(World::GameChatBox)))
+	{
+		sContentMgr->playSound(SfxId::ButtonClick);
+		gameChat->promptLinkAnItem(def);
+	}
+}
+
+shared_ptr<Tooltip> LootWindow::buildLootTooltip(const int index)
+{
+	ItemDefines::ItemDefinition def; int stack = 0; bool gold = false;
+	if (!lootAt(index, def, stack, gold) || !m_tooltipIcon)
+		return nullptr;
+
+	m_tooltipIcon->setItemDef(def);
+	return m_tooltipIcon->buildTooltip();
 }

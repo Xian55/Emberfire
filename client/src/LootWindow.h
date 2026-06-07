@@ -6,6 +6,8 @@
 
 class DraggableNode;
 class GameIconList;
+class ItemIcon;
+class Tooltip;
 
 class LootWindow : public WorldPanel
 {
@@ -15,7 +17,8 @@ class LootWindow : public WorldPanel
 			ScrollUp,
 			ScrollDown,
 			IconList,
-			TakeAll
+			TakeAll,
+			TooltipScratch   // off-screen ItemIcon used only to build loot tooltips by def
 		};
 
 	public:
@@ -29,6 +32,14 @@ class LootWindow : public WorldPanel
 
 		int getSourceGuid() const { return m_sourceGuid; }
 
+		// --- read + drive the loot list from Lua (the live window stays the model; force-hidden) ---
+		int  lootCount() const;
+		bool lootAt(const int index, ItemDefines::ItemDefinition& def, int& stack, bool& isGold) const;
+		void lootIndex(const int index);   // click slot index -> GP_Client_LootItem (item identity)
+		void lootAll();                    // Take All
+		void linkIndex(const int index);   // shift-click: link the item into chat
+		shared_ptr<Tooltip> buildLootTooltip(const int index);
+
 	private:
 		void input() final;
 		void render() final;
@@ -39,5 +50,6 @@ class LootWindow : public WorldPanel
 		shared_ptr<Button> m_downButton;
 		shared_ptr<Button> m_takeallButton;
 		shared_ptr<GameIconList> m_gameIconList;
+		shared_ptr<ItemIcon> m_tooltipIcon;   // scratch, not rendered; setItemDef + buildTooltip on demand
 		unique_ptr<DraggableNode> m_dragNode;
 };

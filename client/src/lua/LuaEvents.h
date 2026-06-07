@@ -39,7 +39,9 @@
     X(PLAYER_STATS)               \
     X(PANEL_OPENED)               \
     X(PANEL_CLOSED)               \
-    X(LEVELUP_RESULT)
+    X(LEVELUP_RESULT)             \
+    X(LOOT_READY)                 \
+    X(LOOT_CLOSED)
 
 namespace LuaEvents
 {

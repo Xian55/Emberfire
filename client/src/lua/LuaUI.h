@@ -144,6 +144,17 @@ namespace LuaUI
 	// Tooltip anchor: 0=cursor, 1=right of owner frame, 2=left, 3=top, 4=bottom.
 	void showItemTooltip(int slot, int ownerHandle, int anchor);   // re-assert the item tooltip (while hovering)
 	bool containerItemMerchantAction(int slot);         // bank/trade/vendor open -> move/add/sell; true if handled
+
+	// ---- loot window (reads + drives the live force-hidden LootWindow's GameIconList) ----
+	int  lootSlotCount();                                            // number of loot entries (items + money)
+	// fills loot entry `index` (0-based): itemId, affix, count, isGold (money entry). false if oob / no window.
+	bool lootSlot(int index, int& itemId, int& affix, int& count, bool& isGold);
+	void lootSlotTake(int index);                                   // click an entry -> loot it
+	void lootTakeAll();                                             // Take All
+	void lootSlotLink(int index);                                  // shift-click -> chat link
+	void lootClose();                                              // close the loot panel (X button)
+	void showLootTooltip(int index, int ownerHandle, int anchor);  // re-assert a loot item's tooltip
+	bool isShiftDown();                                            // LShift/RShift held (shift-click chat link)
 	void useOrEquipContainerItem(int slot);             // right-click: use a consumable/quest item or equip gear
 	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)
