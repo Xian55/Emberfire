@@ -227,17 +227,12 @@ bool ItemIcon::computeHasErrorIcon()
 	return false;
 }
 
-void ItemIcon::useTooltip()
+shared_ptr<Tooltip> ItemIcon::buildTooltip()
 {
 	if (getEntry() == 0)
-		return;
-	fillTooltip();              // rebuilds m_tooltip (via setTooltip) from the current item
-	auto t = getTooltip();
-	if (!t)
-		return;
-	const auto mp = sApplication->mousePos();
-	t->moveTo({ mp.x + 16, mp.y + 16 });
-	sApplication->setTooltip(t);
+		return nullptr;
+	fillTooltip();              // rebuilds m_tooltip from the current item
+	return getTooltip();
 }
 
 void ItemIcon::fillTooltip() /*final*/

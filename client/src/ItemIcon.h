@@ -24,9 +24,9 @@ class ItemIcon : public GameIcon
 	
 		bool hasEquipErrors() const { return m_hasEquipErrors; }
 
-		// Build this item's tooltip and assert it to the Application at the cursor. The Lua bag force-hides the
-		// C++ Inventory, so the icon's own hover path never runs; the Lua view calls this while hovering.
-		void useTooltip();
+		// Build this item's tooltip and return it (the Lua view positions + asserts it, since the bag is
+		// force-hidden and the icon's own hover path never runs). nullptr if the slot is empty.
+		shared_ptr<Tooltip> buildTooltip();
 
 		const auto& getItemDef() const { return m_itemDef; }
 

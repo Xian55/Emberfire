@@ -95,10 +95,15 @@ namespace LuaUI
 	int playerMoney();   // copper (ObjDefines::Variable::Money); 0 if not in world
 
 	// ---- character sheet (Equipment) ----
-	int playerVariable(int varId);          // any ObjDefines::Variable (stats = StatsStart 0x0e + index)
+	int playerVariable(int varId);          // INTERNAL (statRow); not exposed as a Lua global (raw var id)
+	int playerExperience();                 // total accumulated Experience (named alias; GetXP = Progression)
 	std::string playerClassName();          // "Paladin"/"Mage"/...
 	std::string playerRankName();           // player_exp_levels[level].name
-	void showEquipTooltip(int equipSlot);   // re-assert an equipped item's tooltip (call while hovering)
+	void showEquipTooltip(int equipSlot, int ownerHandle, int anchor);   // re-assert an equipped item's tooltip
+	void showStatTooltip(int varId, int ownerHandle, int anchor);        // stat-description tooltip
+	int  statRowCount(int tab);             // per-tab stat-row count (tab 0=General 1=Combat 2=Skills)
+	// fills row `index` of `tab`: label, formatted value, packed 0xRRGGBB, tooltipVar (0=none). false if oob.
+	bool statRow(int tab, int index, std::string& label, std::string& value, int& rgb, int& tooltipVar);
 
 	// ---- bag / equipment / item data (read-only; reuses the force-hidden C++ Inventory + ClientPlayer) ----
 	int  containerNumSlots();   // total bag slots (PlayerDefines::Inventory::NumSlots)
@@ -122,7 +127,8 @@ namespace LuaUI
 	void sellContainerItem(int slot);                   // requires an open vendor server-side
 	void destroyContainerItem(int slot);
 	void unequipItem(int equipSlot, int invDest);       // equipSlot 1..12 -> bag slot
-	void showItemTooltip(int slot);                     // re-assert the C++ item tooltip (call while hovering)
+	// Tooltip anchor: 0=cursor, 1=right of owner frame, 2=left, 3=top, 4=bottom.
+	void showItemTooltip(int slot, int ownerHandle, int anchor);   // re-assert the item tooltip (while hovering)
 	void useOrEquipContainerItem(int slot);             // right-click: use a consumable/quest item or equip gear
 	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)

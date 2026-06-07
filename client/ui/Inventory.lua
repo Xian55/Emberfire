@@ -24,7 +24,7 @@ root:Hide()
 
 -- Forward-declared so the handlers created below (before the loop + refresh) capture the right upvalues.
 -- dragFrom = a left-drag move in progress; applyFrom = a target-an-item consumable awaiting a target click.
-local dragFrom, applyFrom, hoverSlot, refresh
+local dragFrom, applyFrom, refresh
 local slots = {}
 
 -- releasing a held item over the backdrop (not a slot) returns it to its source / cancels targeting.
@@ -51,14 +51,15 @@ money:SetTextColor(255, 215, 0, 255)
 money:SetPoint('TOPLEFT', root, 'TOPLEFT', 53, 399)
 local function refreshMoney() money:SetText(commas(GetMoney())) end
 
--- Item drag-swap: record the pressed slot, act on the released slot (no physical frame move).
--- hoverSlot tracks the slot under the cursor so the OnUpdate pump can re-assert its tooltip each frame.
+-- Item drag-swap: record the pressed slot, act on the released slot (no physical frame move). Each slot
+-- registers its item tooltip via SetTooltipItem; the engine re-asserts it while hovered (no poll here).
 for i = 1, NUM do
 	local col  = (i - 1) % COLS
 	local rowi = math.floor((i - 1) / COLS)
 	local s = EmberUI.CreateItemButton(root, i, SIZE)
 	s.frame:SetPoint('TOPLEFT', root, 'TOPLEFT', OX + col * PITCH, OY + rowi * PITCH)
 	s.frame:EnableMouse(true)
+	s.frame:SetTooltipItem(i)   -- engine re-asserts the item tooltip while this slot is hovered
 	-- Press to pick up (grey the slot + put the icon on the cursor), release over a slot to drop/move.
 	s.frame:SetScript('OnMouseDown', function(_, btn)
 		if btn ~= 'LeftButton' then return end
@@ -102,8 +103,6 @@ for i = 1, NUM do
 			end
 		end
 	end)
-	s.frame:SetScript('OnEnter', function() hoverSlot = i end)
-	s.frame:SetScript('OnLeave', function() if hoverSlot == i then hoverSlot = nil end end)
 	slots[i] = s
 end
 
@@ -130,32 +129,38 @@ local function setShown(v)
 	if v then root:Show(); refresh() else root:Hide(); dragFrom = nil; applyFrom = nil; EmberUI.ClearCursor() end   -- closing drops any held item
 end
 
+-- Show/hide is event-driven (PANEL_OPENED/CLOSED, WoW Show()->OnShow); data refreshes on its events; glue
+-- screens hide on leaving the world. No visibility polling.
 local stage = CreateFrame('Frame', nil, nil)
-stage:SetScript('OnEvent', function(_, event)
+stage:SetScript('OnEvent', function(_, event, arg)
 	if event == Events.WORLD_SHOWN then
 		SetGameFrameShown('InventoryFrame', false)   -- retire the C++ bag; we render it now
+	elseif event == Events.PANEL_OPENED then
+		if arg == 'InventoryFrame' then setShown(true) end
+	elseif event == Events.PANEL_CLOSED then
+		if arg == 'InventoryFrame' then setShown(false) end
+	elseif event == Events.LOGIN_SHOWN or event == Events.CHARSELECT_SHOWN or event == Events.CHARCREATE_SHOWN then
+		setShown(false)   -- left the world
 	elseif event == Events.BAG_UPDATE then
 		if shown then refresh() end
 	elseif event == Events.PLAYER_MONEY then
 		if shown then refreshMoney() end
 	end
 end)
-stage:RegisterEvent(Events.WORLD_SHOWN)
-stage:RegisterEvent(Events.BAG_UPDATE)
-stage:RegisterEvent(Events.PLAYER_MONEY)
+for _, e in ipairs({ Events.WORLD_SHOWN, Events.PANEL_OPENED, Events.PANEL_CLOSED,
+                     Events.LOGIN_SHOWN, Events.CHARSELECT_SHOWN, Events.CHARCREATE_SHOWN,
+                     Events.BAG_UPDATE, Events.PLAYER_MONEY }) do
+	stage:RegisterEvent(e)
+end
 
+-- The only OnUpdate left here: drag-destroy is INPUT (no "released over the world" event), so it must watch
+-- the mouse. Early-out unless actually holding / mid-confirm, so it's idle the rest of the time.
 local poll = CreateFrame('Frame', nil, nil)
-local acc = 0
 local wasDown = false
 local pendingDestroy = nil   -- { code, slot } while a destroy confirm is open
 local dropCheck = nil        -- { slot } a release-on-nothing pending the next-frame "was it consumed?" check
 poll:SetScript('OnUpdate', function(_, dt)
-	if not EmberUI.inWorld then if shown then setShown(false) end return end
-	acc = acc + dt
-	if acc >= 0.15 then acc = 0; setShown(IsGameFrameShown('InventoryFrame')) end
-	-- re-assert the hovered item's tooltip every frame (the Application clears tooltips per frame).
-	-- guarded so a /reload on an exe without ShowItemTooltip (pre-relink) doesn't error on hover.
-	if shown and hoverSlot and ShowItemTooltip then ShowItemTooltip(hoverSlot) end
+	if not (EmberUI.HasCursorItem() or dropCheck or pendingDestroy) then return end
 
 	-- Holding an item + LEFT released OUTSIDE the bag => maybe destroy. But the release might instead be a
 	-- cross-window drop (e.g. onto the Equipment window), whose slot OnMouseUp runs in the mouse-event drain

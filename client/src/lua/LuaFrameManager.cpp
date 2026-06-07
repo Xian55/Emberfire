@@ -1731,11 +1731,44 @@ namespace LuaUI
 		sConnector->sendPacket(pk.build(StlBuffer{}));
 	}
 
-	void showItemTooltip(int slot)
+	// Place a tooltip per its anchor relative to the owner frame. anchor: 0=cursor, 1=right, 2=left, 3=top,
+	// 4=bottom (8px gap). Falls back to the cursor if there's no owner.
+	static void positionTooltip(const shared_ptr<Tooltip>& tip, int ownerHandle, int anchor)
+	{
+		if (!tip)
+			return;
+		auto* m = LuaFrameManager::instance();
+		auto* o = (m && ownerHandle) ? m->lookup(ownerHandle) : nullptr;
+		if (anchor == 0 || !o)   // cursor (or no owner to anchor to)
+		{
+			const auto mp = sApplication->mousePos();
+			tip->moveTo({ mp.x + 16, mp.y + 16 });
+			return;
+		}
+		const sf::Vector2i tl = o->getTopLeftCornerRef();
+		const sf::Vector2i sz = m->frameSize(ownerHandle);
+		const int w = tip->getWidth(), h = tip->getHeight();
+		int x = tl.x, y = tl.y;
+		switch (anchor)
+		{
+			case 1: x = tl.x + sz.x + 8; y = tl.y;            break;   // right of the frame
+			case 2: x = tl.x - w - 8;    y = tl.y;            break;   // left
+			case 3: x = tl.x;            y = tl.y - h - 8;    break;   // above
+			case 4: x = tl.x;            y = tl.y + sz.y + 8; break;   // below
+		}
+		tip->moveTo({ x, y });
+	}
+
+	void showItemTooltip(int slot, int ownerHandle, int anchor)
 	{
 		auto icon = inventoryIcon(slot);
-		if (icon && icon->getItemDef().m_itemId != 0)
-			icon->useTooltip();   // re-assert each frame while hovering (Application clears tooltips per frame)
+		if (!icon || icon->getItemDef().m_itemId == 0)
+			return;
+		auto tip = icon->buildTooltip();
+		if (!tip)
+			return;
+		positionTooltip(tip, ownerHandle, anchor);
+		sApplication->setTooltip(tip);   // re-asserted each frame while hovering (Application clears per frame)
 	}
 
 	// ---- character sheet (Equipment window) getters ----
@@ -1745,6 +1778,8 @@ namespace LuaUI
 		auto* w = currentWorld();
 		return (w && w->myself()) ? w->myself()->getVariable(static_cast<ObjDefines::Variable>(varId)) : 0;
 	}
+
+	int playerExperience() { return playerVariable(ObjDefines::Variable::Experience); }
 
 	std::string playerClassName()
 	{
@@ -1762,7 +1797,7 @@ namespace LuaUI
 	}
 
 	// Tooltip for an equipped item: reuse the live (force-hidden) Equipment window's ItemIcon.
-	void showEquipTooltip(int equipSlot)
+	void showEquipTooltip(int equipSlot, int ownerHandle, int anchor)
 	{
 		auto* w = currentWorld();
 		if (!w)
@@ -1787,8 +1822,87 @@ namespace LuaUI
 			case UnitDefines::Ranged:   iface = Equipment::RangedIcon;   break;
 			default: return;
 		}
-		if (auto icon = dynamic_pointer_cast<ItemIcon>(eq->getRenderObject(iface)))
-			icon->useTooltip();
+		auto icon = dynamic_pointer_cast<ItemIcon>(eq->getRenderObject(iface));
+		auto tip = icon ? icon->buildTooltip() : nullptr;
+		if (!tip)
+			return;
+		positionTooltip(tip, ownerHandle, anchor);
+		sApplication->setTooltip(tip);
+	}
+
+	// Description tooltip for a stat row (varId = StatsStart+index). Reuses sContentMgr->getStatTooltip.
+	void showStatTooltip(int varId, int ownerHandle, int anchor)
+	{
+		auto* w = currentWorld();
+		auto* p = w ? dynamic_cast<ClientPlayer*>(w->myself()) : nullptr;
+		if (!p)
+			return;
+		if (varId < ObjDefines::Variable::StatsStart || varId > ObjDefines::Variable::StatsEnd)
+			return;
+		auto tip = sContentMgr->getStatTooltip(p->getClass(), varId - ObjDefines::Variable::StatsStart);
+		if (!tip)
+			return;
+		positionTooltip(tip, ownerHandle, anchor);
+		sApplication->setTooltip(tip);
+	}
+
+	// Per-tab character-sheet stat rows (the data the C++ Equipment::setStatView lists). Lives here so Lua
+	// QUERIES it instead of duplicating the stat lists/labels/colours. {valueVar, label, r,g,b, tooltipVar
+	// (0=none), speed}. Health shows MaxHealth (0x03) but its tooltip is the Health stat (0x10).
+	struct StatRowDef { int valueVar; const char* label; int r, g, b; int tooltipVar; bool speed; };
+	static const StatRowDef* statTab(int tab, int& count)
+	{
+		static const StatRowDef kGeneral[] = {
+			{ 0x03, "Health", 156, 74, 51, 0x10, false }, { 0x0f, "Mana", 55, 111, 184, 0x0f, false },
+			{ 0x11, "Armor Value", 148, 133, 116, 0x11, false }, { 0x12, "Strength", 148, 133, 116, 0x12, false },
+			{ 0x13, "Agility", 148, 133, 116, 0x13, false }, { 0x14, "Willpower", 148, 133, 116, 0x14, false },
+			{ 0x15, "Intelligence", 148, 133, 116, 0x15, false }, { 0x16, "Courage", 148, 133, 116, 0x16, false },
+			{ 0x17, "Regeneration", 148, 133, 116, 0x17, false }, { 0x18, "Meditate", 148, 133, 116, 0x18, false },
+			{ 0x29, "Fortitude", 148, 133, 116, 0x29, false }, { 0xb3, "Player Kills", 148, 133, 116, 0, false },
+			{ 0xb1, "Arena Rating", 148, 133, 116, 0, false },
+		};
+		static const StatRowDef kCombat[] = {
+			{ 0x19, "Melee Value", 148, 133, 116, 0x19, false }, { 0x1a, "Melee Speed", 148, 133, 116, 0x1a, true },
+			{ 0x1b, "Ranged Value", 148, 133, 116, 0x1b, false }, { 0x1c, "Ranged Speed", 148, 133, 116, 0x1c, true },
+			{ 0x1d, "Melee Critical", 148, 133, 116, 0x1d, false }, { 0x1e, "Ranged Critical", 148, 133, 116, 0x1e, false },
+			{ 0x1f, "Spell Critical", 148, 133, 116, 0x1f, false }, { 0x20, "Dodge Rating", 148, 133, 116, 0x20, false },
+			{ 0x21, "Block Rating", 148, 133, 116, 0x21, false }, { 0x23, "Resist Frost", 55, 182, 184, 0x23, false },
+			{ 0x24, "Resist Fire", 188, 104, 48, 0x24, false }, { 0x25, "Resist Shadow", 61, 48, 188, 0x25, false },
+			{ 0x26, "Resist Holy", 188, 48, 147, 0x26, false },
+		};
+		static const StatRowDef kSkills[] = {
+			{ 0x2a, "Staves", 148, 133, 116, 0x2a, false }, { 0x2b, "Maces", 148, 133, 116, 0x2b, false },
+			{ 0x2c, "Axes", 148, 133, 116, 0x2c, false }, { 0x2d, "Swords", 148, 133, 116, 0x2d, false },
+			{ 0x2e, "Ranged", 148, 133, 116, 0x2e, false }, { 0x2f, "Daggers", 148, 133, 116, 0x2f, false },
+			{ 0x30, "Wands", 148, 133, 116, 0x30, false }, { 0x31, "Shields", 148, 133, 116, 0x31, false },
+			{ 0x27, "Bartering", 148, 133, 116, 0x27, false }, { 0x28, "Lockpicking", 148, 133, 116, 0x28, false },
+		};
+		switch (tab)
+		{
+			case 0: count = sizeof(kGeneral) / sizeof(StatRowDef); return kGeneral;
+			case 1: count = sizeof(kCombat)  / sizeof(StatRowDef); return kCombat;
+			case 2: count = sizeof(kSkills)  / sizeof(StatRowDef); return kSkills;
+		}
+		count = 0;
+		return nullptr;
+	}
+
+	int statRowCount(int tab) { int c = 0; statTab(tab, c); return c; }
+
+	bool statRow(int tab, int index, std::string& label, std::string& value, int& rgb, int& tooltipVar)
+	{
+		int c = 0;
+		const StatRowDef* t = statTab(tab, c);
+		if (!t || index < 0 || index >= c)
+			return false;
+		const StatRowDef& r = t[index];
+		label = r.label;
+		const int v = playerVariable(r.valueVar);
+		if (r.speed) { char b[32]; snprintf(b, sizeof(b), "%.2f", v / 1000.0); value = b; }
+		else         value = std::to_string(v);
+		rgb = (r.r << 16) | (r.g << 8) | r.b;
+		tooltipVar = r.tooltipVar;
+		return true;
 	}
 
 	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or

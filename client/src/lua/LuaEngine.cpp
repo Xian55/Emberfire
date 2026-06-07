@@ -86,6 +86,11 @@ struct LuaEngineImpl
 	std::map<int, std::pair<int,int>>     lastSize;  // OnSizeChanged edge cache
 	std::map<int, luabridge::LuaRef> onEvent;        // handle -> OnEvent(self, event, arg)
 	std::map<std::string, std::set<int>> eventSubs;  // eventName -> subscribed handles
+	// RegisterUnitEvent: handle -> event -> allowed unit tokens. If a (handle,event) has a filter, fire()
+	// only dispatches when the event's unit-token arg is in the set (WoW Frame:RegisterUnitEvent).
+	std::map<int, std::map<std::string, std::set<std::string>>> unitFilters;
+	struct TtSpec { int kind = 0; int key = 0; int anchor = 1; };   // kind 1=item 2=equip 3=stat; anchor 0..4
+	std::map<int, TtSpec> tooltipSpec;               // handle -> spec; engine re-asserts the topmost hovered one
 
 	std::vector<AddonInfo> addons;                  // loaded addons (M5)
 
@@ -274,6 +279,8 @@ void LuaEngine::clearFrames()
 	m_impl->lastSize.clear();
 	m_impl->onEvent.clear();
 	m_impl->eventSubs.clear();
+	m_impl->unitFilters.clear();
+	m_impl->tooltipSpec.clear();
 }
 
 // ---------------------------------------------------------------- addon loader (M5)
@@ -790,6 +797,16 @@ namespace
 	}
 }
 
+// Tooltip anchor name -> code (0=cursor, 1=right, 2=left, 3=top, 4=bottom). Default right.
+static int anchorToInt(const std::string& a)
+{
+	if (a == "CURSOR") return 0;
+	if (a == "LEFT")   return 2;
+	if (a == "TOP")    return 3;
+	if (a == "BOTTOM") return 4;
+	return 1;   // RIGHT
+}
+
 void LuaEngine::bindUI()
 {
 	lua_State* L = m_impl->L;
@@ -828,10 +845,31 @@ void LuaEngine::bindUI()
 			.addFunction("Lower",          [](FrameHandle* self) { LuaUI::lowerFrame(self->h); })
 			.addFunction("SetScript",      [](FrameHandle* self, std::string which, luabridge::LuaRef fn) { setScript(self->h, which, fn); })
 			.addFunction("RegisterEvent",  [](FrameHandle* self, std::string event) { g_impl->eventSubs[event].insert(self->h); })
+			// Fire only when the event's unit token matches unit1/unit2 (WoW RegisterUnitEvent).
+			.addFunction("RegisterUnitEvent", [](FrameHandle* self, std::string event, std::string unit1, std::optional<std::string> unit2) {
+				g_impl->eventSubs[event].insert(self->h);
+				auto& set = g_impl->unitFilters[self->h][event];
+				set.clear();
+				set.insert(unit1);
+				if (unit2) set.insert(*unit2); })
 			.addFunction("UnregisterEvent",[](FrameHandle* self, std::string event) {
 				auto it = g_impl->eventSubs.find(event);
-				if (it != g_impl->eventSubs.end()) it->second.erase(self->h); })
-			.addFunction("UnregisterAllEvents", [](FrameHandle* self) { for (auto& kv : g_impl->eventSubs) kv.second.erase(self->h); })
+				if (it != g_impl->eventSubs.end()) it->second.erase(self->h);
+				auto uf = g_impl->unitFilters.find(self->h);
+				if (uf != g_impl->unitFilters.end()) uf->second.erase(event); })
+			.addFunction("UnregisterAllEvents", [](FrameHandle* self) {
+				for (auto& kv : g_impl->eventSubs) kv.second.erase(self->h);
+				g_impl->unitFilters.erase(self->h); })
+			// Register a tooltip on the frame; the engine re-asserts it while the frame is hovered (no addon
+			// OnUpdate poll needed). Pass 0/empty to clear.
+			// Optional anchor: "RIGHT"(default)/"LEFT"/"TOP"/"BOTTOM"/"CURSOR" — where the tooltip sits vs the frame.
+			.addFunction("SetTooltipItem",  [](FrameHandle* self, int bagSlot, std::optional<std::string> anchor) {
+				g_impl->tooltipSpec[self->h] = { 1, bagSlot - 1, anchorToInt(anchor.value_or("RIGHT")) }; })
+			.addFunction("SetTooltipEquip", [](FrameHandle* self, int equipSlot, std::optional<std::string> anchor) {
+				g_impl->tooltipSpec[self->h] = { 2, equipSlot, anchorToInt(anchor.value_or("RIGHT")) }; })
+			.addFunction("SetTooltipStat",  [](FrameHandle* self, int varId, std::optional<std::string> anchor) {
+				if (varId > 0) g_impl->tooltipSpec[self->h] = { 3, varId, anchorToInt(anchor.value_or("LEFT")) };
+				else           g_impl->tooltipSpec.erase(self->h); })
 			.addFunction("CreateTexture",    [](FrameHandle* self) { return FrameHandle{ LuaUI::createTexture(self->h) }; })
 			.addFunction("CreateFontString", [](FrameHandle* self) { return FrameHandle{ LuaUI::createFontString(self->h) }; })
 			.addFunction("IsMouseOver",    [](FrameHandle* self) { return LuaUI::isMouseOver(self->h); })
@@ -894,10 +932,17 @@ void LuaEngine::bindUI()
 		.addFunction("GetXP",         []() { return LuaUI::playerXP(); })
 		.addFunction("GetMaxXP",      []() { return LuaUI::playerMaxXP(); })
 		.addFunction("GetMoney",      []() { return LuaUI::playerMoney(); })
-		.addFunction("GetPlayerVariable", [](int varId) { return LuaUI::playerVariable(varId); })
+		.addFunction("GetExperience", []() { return LuaUI::playerExperience(); })
 		.addFunction("GetPlayerClassName", []() { return LuaUI::playerClassName(); })
 		.addFunction("GetPlayerRankName",  []() { return LuaUI::playerRankName(); })
 		.addFunction("ShowEquipTooltip",   [](int equipSlot) { LuaUI::showEquipTooltip(equipSlot); })
+		.addFunction("ShowStatTooltip",    [](int varId) { LuaUI::showStatTooltip(varId); })
+		.addFunction("GetStatRowCount",    [](int tab) { return LuaUI::statRowCount(tab); })
+		.addFunction("GetStatRow",         [](int tab, int index) {   // -> label, value, r, g, b, tooltipVar
+			std::string label, value; int rgb = 0, tv = 0;
+			if (!LuaUI::statRow(tab, index, label, value, rgb, tv))
+				return std::make_tuple(std::string(), std::string(), 0, 0, 0, 0);
+			return std::make_tuple(label, value, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, tv); })
 
 		// Bag / equipment / item data (read-only).
 		.addFunction("GetContainerNumSlots", []() { return LuaUI::containerNumSlots(); })
@@ -993,8 +1038,9 @@ void LuaEngine::bindUI()
 	// Copy the registered API globals into the sandbox env (addons never see _G; they get exactly these).
 	static const char* kApiNames[] = {
 		"CreateFrame", "UnitHealth", "UnitHealthMax", "UnitLevel", "UnitPower", "UnitPowerMax", "UnitName",
-		"UnitExists", "GetXP", "GetMaxXP", "GetMoney", "GetPlayerVariable", "GetPlayerClassName",
-		"GetPlayerRankName", "ShowEquipTooltip", "GetContainerNumSlots", "GetContainerItem",
+		"UnitExists", "GetXP", "GetMaxXP", "GetMoney", "GetExperience", "GetPlayerClassName",
+		"GetPlayerRankName", "ShowEquipTooltip", "ShowStatTooltip", "GetStatRowCount", "GetStatRow",
+		"GetContainerNumSlots", "GetContainerItem",
 		"GetInventorySlotItem", "GetItemInfo", "GetItemQualityColor",
 		"UnitNameColor", "UnitFlag", "UnitIsDead", "UnitIsPlayer",
 		"UnitIsPartyLeader", "UnitHasBrokenEquipment", "UnitPortraitTexture", "UnitCastSpell",
@@ -1033,6 +1079,15 @@ void LuaEngine::fire(const std::string& event, const std::string& arg)
 		auto hit = m_impl->onEvent.find(h);
 		if (hit == m_impl->onEvent.end())
 			continue;
+		// RegisterUnitEvent filter: if this handle registered THIS event with a unit list, only fire when the
+		// event's unit-token arg matches one of them.
+		auto uf = m_impl->unitFilters.find(h);
+		if (uf != m_impl->unitFilters.end())
+		{
+			auto ef = uf->second.find(event);
+			if (ef != uf->second.end() && ef->second.find(arg) == ef->second.end())
+				continue;
+		}
 		callLua("OnEvent error", hit->second, FrameHandle{ h }, event, arg);
 	}
 }
@@ -1096,6 +1151,22 @@ void LuaEngine::onFrame(float dt)
 	// (e.g. unit-frame Lock/Unlock). C++ social actions were already routed in unregisterCtxMenu.
 	for (std::string line; LuaUI::popMenuResult(line); )
 		fire(LuaEvents::CONTEXT_MENU_CLICK, line);
+
+	// Engine-driven tooltips: the topmost hovered frame with a registered tooltip spec re-asserts it each
+	// frame (the Application clears tooltips per frame), so addons set a tooltip ONCE (frame:SetTooltip*) and
+	// never OnUpdate-poll for it.
+	{
+		int bestH = 0, bestLvl = -2147483647, kind = 0, key = 0, anchor = 1;
+		for (auto& [h, spec] : m_impl->tooltipSpec)
+		{
+			if (!LuaUI::isMouseOver(h)) continue;
+			const int lvl = LuaUI::getFrameLevel(h);
+			if (lvl >= bestLvl) { bestLvl = lvl; bestH = h; kind = spec.kind; key = spec.key; anchor = spec.anchor; }
+		}
+		if      (kind == 1) LuaUI::showItemTooltip(key, bestH, anchor);
+		else if (kind == 2) LuaUI::showEquipTooltip(key, bestH, anchor);
+		else if (kind == 3) LuaUI::showStatTooltip(key, bestH, anchor);
+	}
 
 	// Hover edge-detection: fire OnEnter(self) when the cursor enters a frame's bounds and OnLeave(self)
 	// when it leaves. The ENGINE tracks state (m_impl->hovered) so addons never poll IsMouseOver in

@@ -1,48 +1,23 @@
 -- Lua Equipment / character sheet: gear slots + stat tabs + Progression/Experience, replacing the C++
--- Equipment window (force-hidden, toggle mirrored). v2a = display parity. Point-spending (the +/- buttons,
--- cost, level-up confirm) is phase 2b. Static chrome (title, tab names, section labels) is printed on
--- equipment.png; we draw the dynamic rows/values + interactive buttons over it.
--- NOTE: stat-row / value pixel positions are C++-derived starting points — tune live via screenshot.
+-- Equipment window (force-hidden, toggle mirrored). v2a = display parity; point-spending = phase 2b.
+-- Stat rows (which stats per tab, their labels/colours/values) are QUERIED from C++ (GetStatRow*), not
+-- hardcoded here. Tooltips are REGISTERED on the frames (frame:SetTooltip*) and re-asserted by the engine
+-- while hovered — no addon OnUpdate poll. Static chrome (title, tab names, section labels) is on equipment.png.
+-- NOTE: pixel positions are C++-derived starting points — tune live via screenshot.
 
 local SIZE = 40
--- Gear slots: {x, y, equipSlot}. EquipSlot: Helm1 Necklace2 Chest3 Belt4 Legs5 Feet6 Hands7 Ring8 Ring9
--- Weapon10 Offhand11 Ranged12. Left column then right column (C++ Equipment offsets, 58px rows).
+-- Gear slots: {x, y, equipSlot}. Helm1 Necklace2 Chest3 Belt4 Legs5 Feet6 Hands7 Ring8 Ring9 Weapon10
+-- Offhand11 Ranged12. Left column then right column (C++ Equipment offsets, 58px rows).
 local SLOTS = {
 	{ 46, 178, 1 }, { 46, 236, 2 }, { 46, 294, 3 }, { 46, 352, 12 }, { 46, 410, 11 }, { 46, 468, 10 },
 	{ 289, 178, 8 }, { 289, 236, 9 }, { 289, 294, 7 }, { 289, 352, 4 }, { 289, 410, 5 }, { 289, 468, 6 },
 }
 
--- Stat colours (C++ Equipment::variableVaueColor). Default tan; a few themed.
-local C_DEF  = { 148, 133, 116 }
-local C_HP   = { 156, 74, 51 }
-local C_MANA = { 55, 111, 184 }
-local C_FROST= { 55, 182, 184 }
-local C_FIRE = { 188, 104, 48 }
-local C_SHAD = { 61, 48, 188 }
-local C_HOLY = { 188, 48, 147 }
-
--- Per-tab stat rows: {varId, label, color, fmt}. varId = ObjDefines::Variable (stats = StatsStart 0x0e+index).
-local GENERAL = {
-	{ 0x03, 'Health', C_HP }, { 0x0f, 'Mana', C_MANA }, { 0x11, 'Armor Value' },
-	{ 0x12, 'Strength' }, { 0x13, 'Agility' }, { 0x14, 'Willpower' }, { 0x15, 'Intelligence' }, { 0x16, 'Courage' },
-	{ 0x17, 'Regeneration' }, { 0x18, 'Meditate' },
-	{ 0x29, 'Fortitude' }, { 0xb3, 'Player Kills' }, { 0xb1, 'Arena Rating' },
-}
-local COMBAT = {
-	{ 0x19, 'Melee Value' }, { 0x1a, 'Melee Speed', nil, 'speed' }, { 0x1b, 'Ranged Value' }, { 0x1c, 'Ranged Speed', nil, 'speed' },
-	{ 0x1d, 'Melee Critical' }, { 0x1e, 'Ranged Critical' }, { 0x1f, 'Spell Critical' },
-	{ 0x20, 'Dodge Rating' }, { 0x21, 'Block Rating' },
-	{ 0x23, 'Resist Frost', C_FROST }, { 0x24, 'Resist Fire', C_FIRE }, { 0x25, 'Resist Shadow', C_SHAD }, { 0x26, 'Resist Holy', C_HOLY },
-}
-local SKILLS = {
-	{ 0x2a, 'Staves' }, { 0x2b, 'Maces' }, { 0x2c, 'Axes' }, { 0x2d, 'Swords' }, { 0x2e, 'Ranged' },
-	{ 0x2f, 'Daggers' }, { 0x30, 'Wands' }, { 0x31, 'Shields' },
-	{ 0x27, 'Bartering' }, { 0x28, 'Lockpicking' },
-}
-local TABS = { GENERAL, COMBAT, SKILLS }
-
--- Stat-row layout (tune live).
-local STAT_LX, STAT_VX, STAT_Y0, STAT_ROWH = 330, 470, 150, 23
+-- Layout (tune live).
+local STAT_LX, STAT_VX, STAT_Y0, STAT_ROWH = 375, 480, 125, 23
+local TAB_X, TAB_Y = { 150, 250, 384 }, 64
+local TAB_NAMES = { 'GENERAL', 'COMBAT', 'SKILLS' }
+local PROG_X, PROG_Y, EXP_Y = 165, 250, 312   -- Progression/Experience values (next to the printed labels)
 
 local W, H = GetTextureSize('equipment.png')
 if W <= 0 then W, H = 520, 560 end
@@ -52,7 +27,7 @@ root:SetPoint('CENTER')
 root:SetMovable(true); root:RegisterForDrag('LeftButton')
 root:Hide()
 
-local refresh   -- forward decl
+local refresh, refreshStats   -- forward decls
 
 root:SetScript('OnMouseUp', function(_, btn)
 	if btn == 'LeftButton' and EmberUI.HasCursorItem() then EmberUI.ClearCursor(); if refresh then refresh() end end
@@ -69,8 +44,15 @@ local subFS = root:CreateFontString()
 subFS:SetFont('Palatino'); subFS:SetFontSize(13); subFS:SetTextColor(150, 130, 110, 255)
 subFS:SetPoint('TOPLEFT', root, 'TOPLEFT', 120, 135)
 
--- ---- gear slots ----
-local hoverEquip = nil
+-- Progression / Experience values next to the printed labels (middle column).
+local progVal = root:CreateFontString()
+progVal:SetFont('Palatino'); progVal:SetFontSize(13); progVal:SetTextColor(148, 133, 116, 255)
+progVal:SetPoint('TOPLEFT', root, 'TOPLEFT', PROG_X, PROG_Y)
+local expVal = root:CreateFontString()
+expVal:SetFont('Palatino'); expVal:SetFontSize(13); expVal:SetTextColor(148, 133, 116, 255)
+expVal:SetPoint('TOPLEFT', root, 'TOPLEFT', PROG_X, EXP_Y)
+
+-- ---- gear slots (tooltip registered; hover highlight is built into the Button) ----
 local function firstFreeBag()
 	for i = 1, GetContainerNumSlots() do
 		if GetContainerItem(i) == 0 then return i end
@@ -85,6 +67,7 @@ for idx, def in ipairs(SLOTS) do
 	s.equip = eq
 	s.frame:SetPoint('TOPLEFT', root, 'TOPLEFT', x, y)
 	s.frame:EnableMouse(true)
+	s.frame:SetTooltipEquip(eq)
 	s.frame:SetScript('OnMouseDown', function(_, btn)
 		if btn ~= 'LeftButton' then return end
 		local id = GetInventorySlotItem(eq)
@@ -102,25 +85,32 @@ for idx, def in ipairs(SLOTS) do
 			EmberUI.ClearCursor(); refresh()
 		end
 	end)
-	s.frame:SetScript('OnEnter', function() hoverEquip = eq end)
-	s.frame:SetScript('OnLeave', function() if hoverEquip == eq then hoverEquip = nil end end)
 	slots[idx] = s
 end
 
--- ---- stat tabs (clickable regions over the printed GENERAL/COMBAT/SKILLS labels) ----
+-- ---- stat tabs + active-tab indicator ----
+-- The tab names are printed on equipment.png (can't recolour), and overlaying the active name doubled it.
+-- So mark the active tab with a bright caret to its LEFT. Tune TAB_MARK_DX/DY.
+local TAB_MARK_DX, TAB_MARK_DY = -14, 0
 local currentTab = 1
-local function refreshStats() end   -- defined below; forward via upvalue
-local TAB_X = { 110, 250, 384 }
+local activeMarker = root:CreateFontString()
+activeMarker:SetFont('Trebuchet'); activeMarker:SetFontSize(14); activeMarker:SetTextColor(255, 224, 150, 255)
+activeMarker:SetText('>')
+local function setTab(t)
+	currentTab = t
+	activeMarker:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[t] + TAB_MARK_DX, TAB_Y + TAB_MARK_DY)
+	refreshStats()
+end
 for t = 1, 3 do
 	local b = CreateFrame('Button', nil, root)
 	b:SetSize(120, 26)
-	b:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[t], 64)
+	b:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[t], TAB_Y)
 	b:EnableMouse(true)
-	b:SetScript('OnClick', function() currentTab = t; refreshStats() end)
+	b:SetScript('OnClick', function() setTab(t) end)
 end
 
--- ---- stat row pool ----
-local ROWS = 16
+-- ---- stat row pool (label + value). Rows + their data come from C++ (GetStatRow). ----
+local ROWS = 14
 local rowL, rowV = {}, {}
 for i = 1, ROWS do
 	local l = root:CreateFontString()
@@ -134,37 +124,17 @@ for i = 1, ROWS do
 	rowL[i], rowV[i] = l, v
 end
 
-local function valText(varId, fmt)
-	local n = GetPlayerVariable(varId)
-	if fmt == 'speed' then return string.format('%.2f', n / 1000) end
-	return tostring(n)
-end
-
 refreshStats = function()
-	local list = TABS[currentTab]
-	local row = 1
-	for _, st in ipairs(list) do
-		local l, v = rowL[row], rowV[row]
-		l:SetText(st[2]); l:Show()
-		v:SetText(valText(st[1], st[4]))
-		local c = st[3] or C_DEF
-		v:SetTextColor(c[1], c[2], c[3], 255); v:Show()
-		row = row + 1
+	local n = GetStatRowCount(currentTab - 1)   -- C++ tabs are 0-based
+	for i = 1, ROWS do
+		if i <= n then
+			local label, value, r, g, b, tipVar = GetStatRow(currentTab - 1, i - 1)
+			rowL[i]:SetText(label); rowL[i]:Show(); rowL[i]:SetTooltipStat(tipVar)
+			rowV[i]:SetText(value); rowV[i]:SetTextColor(r, g, b, 255); rowV[i]:Show()
+		else
+			rowL[i]:Hide(); rowV[i]:Hide(); rowL[i]:SetTooltipStat(0)
+		end
 	end
-	-- Progression + Experience after a gap (all tabs).
-	row = row + 1
-	if row <= ROWS then
-		rowL[row]:SetText('Progression'); rowL[row]:Show()
-		rowV[row]:SetText(GetPlayerVariable(0xa3) .. ' / ' .. GetMaxXP()); rowV[row]:SetTextColor(148, 133, 116, 255); rowV[row]:Show()
-		row = row + 1
-	end
-	if row <= ROWS then
-		rowL[row]:SetText('Experience'); rowL[row]:Show()
-		local e = tostring(GetPlayerVariable(0xa4)); e = e:reverse():gsub('(%d%d%d)', '%1,'):reverse():gsub('^,', '')
-		rowV[row]:SetText(e); rowV[row]:SetTextColor(148, 133, 116, 255); rowV[row]:Show()
-		row = row + 1
-	end
-	for i = row, ROWS do rowL[i]:Hide(); rowV[i]:Hide() end
 end
 
 -- ---- level-up button (covers the printed bottom-left button; spending = phase 2b) ----
@@ -182,6 +152,9 @@ refresh = function()
 	local sub = 'Level ' .. UnitLevel('player') .. ' ' .. (GetPlayerClassName and GetPlayerClassName() or '')
 	if rank ~= '' then sub = sub .. ' (' .. rank .. ')' end
 	subFS:SetText(sub)
+	progVal:SetText(GetXP() .. ' / ' .. GetMaxXP())   -- Progression (current toward next level)
+	local e = tostring(GetExperience()); e = e:reverse():gsub('(%d%d%d)', '%1,'):reverse():gsub('^,', '')
+	expVal:SetText(e)
 	refreshStats()
 end
 
@@ -192,36 +165,33 @@ local function setShown(v)
 	if v then root:Show(); refresh() else root:Hide(); EmberUI.ClearCursor() end
 end
 
+-- Fully event-driven: PANEL_OPENED/CLOSED show/hide (WoW Show()->OnShow), data events refresh while shown,
+-- glue-screen events hide on leaving the world. NO OnUpdate in this window.
 local stage = CreateFrame('Frame', nil, nil)
-stage:SetScript('OnEvent', function(_, event)
+stage:SetScript('OnEvent', function(_, event, arg)
 	if event == Events.WORLD_SHOWN then
-		SetGameFrameShown('EquipmentFrame', false)
+		SetGameFrameShown('EquipmentFrame', false)   -- retire the C++ window
+	elseif event == Events.PANEL_OPENED then
+		if arg == 'EquipmentFrame' then setShown(true) end
+	elseif event == Events.PANEL_CLOSED then
+		if arg == 'EquipmentFrame' then setShown(false) end
+	elseif event == Events.LOGIN_SHOWN or event == Events.CHARSELECT_SHOWN or event == Events.CHARCREATE_SHOWN then
+		setShown(false)   -- left the world
 	elseif shown then
-		refresh()
+		refresh()         -- PLAYER_EQUIPMENT_CHANGED / UNIT_* / PLAYER_STATS / PLAYER_XP_UPDATE
 	end
 end)
-stage:RegisterEvent(Events.WORLD_SHOWN)
-stage:RegisterEvent(Events.PLAYER_EQUIPMENT_CHANGED)
-stage:RegisterEvent(Events.UNIT_LEVEL)
-stage:RegisterEvent(Events.UNIT_HEALTH)
-stage:RegisterEvent(Events.UNIT_MAXHEALTH)
-stage:RegisterEvent(Events.UNIT_POWER)
-stage:RegisterEvent(Events.UNIT_MAXPOWER)
-stage:RegisterEvent(Events.PLAYER_XP_UPDATE)
+for _, e in ipairs({ Events.WORLD_SHOWN, Events.PANEL_OPENED, Events.PANEL_CLOSED,
+                     Events.LOGIN_SHOWN, Events.CHARSELECT_SHOWN, Events.CHARCREATE_SHOWN,
+                     Events.PLAYER_EQUIPMENT_CHANGED, Events.PLAYER_XP_UPDATE, Events.PLAYER_STATS }) do
+	stage:RegisterEvent(e)
+end
+-- Unit events fire with a token; only the player's matter here, so filter at the source (RegisterUnitEvent)
+-- instead of waking the handler for every target/party change.
+for _, e in ipairs({ Events.UNIT_LEVEL, Events.UNIT_HEALTH, Events.UNIT_MAXHEALTH, Events.UNIT_POWER, Events.UNIT_MAXPOWER }) do
+	stage:RegisterUnitEvent(e, 'player')
+end
 
-local poll = CreateFrame('Frame', nil, nil)
-local acc = 0
-local statAcc = 0
-poll:SetScript('OnUpdate', function(_, dt)
-	if not EmberUI.inWorld then if shown then setShown(false) end return end
-	acc = acc + dt
-	if acc >= 0.15 then acc = 0; setShown(IsGameFrameShown('EquipmentFrame')) end
-	-- stats have no dedicated event for most rows; refresh on a slow poll while open.
-	if shown then
-		statAcc = statAcc + dt
-		if statAcc >= 0.5 then statAcc = 0; refreshStats() end
-	end
-	if shown and hoverEquip and ShowEquipTooltip then ShowEquipTooltip(hoverEquip) end
-end)
+setTab(1)
 
 print('EmberUI equipment loaded')
