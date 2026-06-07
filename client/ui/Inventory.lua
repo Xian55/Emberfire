@@ -72,7 +72,9 @@ for i = 1, NUM do
 	end)
 	s.frame:SetScript('OnMouseUp', function(_, btn)
 		if btn == 'RightButton' then
-			if applyFrom then                                       -- right-click again cancels targeting
+			if MerchantRightClick and MerchantRightClick(i) then    -- bank/trade/vendor open: move/add/SELL, not use
+				applyFrom = nil; EmberUI.ClearCursor(); refresh()
+			elseif applyFrom then                                   -- right-click again cancels targeting
 				applyFrom = nil; EmberUI.ClearCursor(); refresh()
 			elseif ContainerItemTargetsItem and ContainerItemTargetsItem(i) then
 				local id = GetContainerItem(i)

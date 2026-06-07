@@ -1710,6 +1710,43 @@ namespace LuaUI
 		sConnector->sendPacket(pk.build(StlBuffer{}));
 	}
 
+	// Right-click while a bank/trade/vendor panel is open routes the bag item THERE (move/add/sell) instead of
+	// using it — mirrors Inventory::input's priority. Returns true if a panel consumed the click; false => the
+	// Lua handler falls through to its normal use/equip/target-item path.
+	bool containerItemMerchantAction(int slot)
+	{
+		auto* w = currentWorld();
+		if (!w)
+			return false;
+		auto icon = inventoryIcon(slot);
+		if (!icon || icon->getItemDef().m_itemId == 0)
+			return false;
+
+		if (w->isPanelOpen(World::Interface::BankPanel))
+		{
+			GP_Client_MoveInventoryToBank pk;
+			pk.m_from            = slot;
+			pk.m_autoSelectForMe = true;
+			sConnector->sendPacket(pk.build(StlBuffer{}));
+			Game::playItemSound(icon->getItemDef().m_itemId);
+			return true;
+		}
+		if (w->isPanelOpen(World::Interface::TradeWindowPanel))
+		{
+			GP_Client_TradeAddItem pk;
+			pk.m_invSlot = slot;
+			sConnector->sendPacket(pk.build(StlBuffer{}));
+			Game::playItemSound(icon->getItemDef().m_itemId);
+			return true;
+		}
+		if (w->isPanelOpen(World::Interface::VendorNpcPanel))
+		{
+			sellContainerItem(slot);   // op12 sell
+			return true;
+		}
+		return false;
+	}
+
 	void destroyContainerItem(int slot)
 	{
 		auto icon = inventoryIcon(slot);

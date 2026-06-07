@@ -143,6 +143,7 @@ namespace LuaUI
 	void unequipItem(int equipSlot, int invDest);       // equipSlot 1..12 -> bag slot
 	// Tooltip anchor: 0=cursor, 1=right of owner frame, 2=left, 3=top, 4=bottom.
 	void showItemTooltip(int slot, int ownerHandle, int anchor);   // re-assert the item tooltip (while hovering)
+	bool containerItemMerchantAction(int slot);         // bank/trade/vendor open -> move/add/sell; true if handled
 	void useOrEquipContainerItem(int slot);             // right-click: use a consumable/quest item or equip gear
 	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)
