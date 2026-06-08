@@ -876,6 +876,9 @@ void LuaEngine::bindUI()
 			.addFunction("SetTooltipBank",  [](FrameHandle* self, int bankSlot, std::optional<std::string> anchor) {
 				if (bankSlot > 0) g_impl->tooltipSpec[self->h] = { 5, bankSlot - 1, anchorToInt(anchor.value_or("RIGHT")) };
 				else              g_impl->tooltipSpec.erase(self->h); })
+			.addFunction("SetTooltipVendor", [](FrameHandle* self, int vendorIndex, std::optional<std::string> anchor) {
+				if (vendorIndex > 0) g_impl->tooltipSpec[self->h] = { 6, vendorIndex - 1, anchorToInt(anchor.value_or("RIGHT")) };
+				else                 g_impl->tooltipSpec.erase(self->h); })
 			.addFunction("CreateTexture",    [](FrameHandle* self) { return FrameHandle{ LuaUI::createTexture(self->h) }; })
 			.addFunction("CreateFontString", [](FrameHandle* self) { return FrameHandle{ LuaUI::createFontString(self->h) }; })
 			.addFunction("IsMouseOver",    [](FrameHandle* self) { return LuaUI::isMouseOver(self->h); })
@@ -1076,6 +1079,17 @@ void LuaEngine::bindUI()
 		.addFunction("SetQuestTracked",     [](int questId, bool track) { LuaUI::setQuestTracked(questId, track); })
 		.addFunction("AbandonQuest",        [](int questId) { LuaUI::abandonQuest(questId); })
 
+		// Vendor (1-based item index; money = player money via GetMoney).
+		.addFunction("GetVendorNumItems", []() { return LuaUI::vendorCount(); })
+		.addFunction("GetVendorItem", [](int index) {   // -> itemId, affix, cost, supply
+			int id = 0, affix = 0, cost = 0, supply = 0;
+			if (!LuaUI::vendorItem(index - 1, id, affix, cost, supply))
+				return std::make_tuple(0, 0, 0, 0);
+			return std::make_tuple(id, affix, cost, supply); })
+		.addFunction("BuyVendorItem", [](int index, int count) { LuaUI::buyVendorItem(index - 1, count); })
+		.addFunction("RepairGear",    []() { LuaUI::repairGear(); })
+		.addFunction("VendorBuyback", []() { LuaUI::vendorBuyback(); })
+
 		.addFunction("IsContainerItemUsable",   [](int slot) { return !LuaUI::containerItemUnusable(slot - 1); })
 		.addFunction("ContainerItemTargetsItem",[](int slot) { return LuaUI::containerItemTargetsItem(slot - 1); })
 		.addFunction("UseContainerItemOnItem",  [](int src, int tgt) { LuaUI::useContainerItemOnItem(src - 1, tgt - 1); })
@@ -1133,6 +1147,7 @@ void LuaEngine::bindUI()
 		"WhisperPlayer",
 		"GetNumQuests", "GetQuestInfo", "GetQuestObjectives", "GetQuestDescription", "IsQuestTracked",
 		"SetQuestTracked", "AbandonQuest",
+		"GetVendorNumItems", "GetVendorItem", "BuyVendorItem", "RepairGear", "VendorBuyback",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",
 		"IsMouseButtonDown", "ShowConfirm", "PopConfirm", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",
@@ -1253,6 +1268,7 @@ void LuaEngine::onFrame(float dt)
 		else if (kind == 3) LuaUI::showStatTooltip(key, bestH, anchor);
 		else if (kind == 4) LuaUI::showLootTooltip(key, bestH, anchor);
 		else if (kind == 5) LuaUI::showBankTooltip(key, bestH, anchor);
+		else if (kind == 6) LuaUI::showVendorTooltip(key, bestH, anchor);
 	}
 
 	// Hover edge-detection: fire OnEnter(self) when the cursor enters a frame's bounds and OnLeave(self)

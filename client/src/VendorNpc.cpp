@@ -31,7 +31,37 @@ VendorNpc::VendorNpc(World& owner, const int id) :
 	addRenderObject(attachObj(make_shared<Button>(*this, "left_arrow", Interface::LeftBtn), sf::Vector2i(35, 478)));
 	addRenderObject(attachObj(make_shared<Button>(*this, "right_arrow", Interface::RightBtn), sf::Vector2i(370, 478)));
 
+	// Off-screen scratch icon for building vendor-item tooltips on demand (not added to the render holder).
+	m_tooltipIcon = make_shared<ItemIcon>(*this, 9000, "gameicon40");
+
 	reset();
+}
+
+bool VendorNpc::itemAt(int index, int& itemId, int& affix, int& cost, int& supply) const
+{
+	if (index < 0 || index >= static_cast<int>(m_items.size()))
+		return false;
+	const auto& s = m_items[index];
+	itemId = s.m_itemId.m_itemId;
+	affix  = s.m_itemId.m_affixId;
+	cost   = s.m_cost;
+	supply = s.m_supply;
+	return true;
+}
+
+void VendorNpc::buyIndex(int index, int count)
+{
+	if (index < 0 || index >= static_cast<int>(m_items.size()))
+		return;
+	buyItem(m_items[index].m_itemId, count);
+}
+
+shared_ptr<Tooltip> VendorNpc::buildVendorTooltip(int index)
+{
+	if (index < 0 || index >= static_cast<int>(m_items.size()) || !m_tooltipIcon)
+		return nullptr;
+	m_tooltipIcon->setItemDef(m_items[index].m_itemId);
+	return m_tooltipIcon->buildTooltip();
 }
 
 VendorNpc::~VendorNpc()

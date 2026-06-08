@@ -1251,6 +1251,8 @@ void Game::processPacket_Server_GossipMenu(StlBuffer& data)
 
 		for (auto& itr : pk.m_vendorItems)
 			vendorNpc->registerItem(itr.m_itemId, itr.m_cost, itr.m_supply);
+
+		sLua->fire(LuaEvents::VENDOR_UPDATE, "");   // Lua addon layer: vendor stock (re)populated
 	}
 }
 		
@@ -1493,6 +1495,8 @@ void Game::processPacket_Server_UpdateVendorStock(StlBuffer& data)
 	
 	auto vendorNpc = dynamic_pointer_cast<VendorNpc>(world->getRenderObject(World::Interface::VendorNpcPanel));
 	vendorNpc->updateItemQuantity(pk.m_itemId, pk.m_amount);
+
+	sLua->fire(LuaEvents::VENDOR_UPDATE, "");   // Lua addon layer: a vendor item's stock changed
 }
 		
 void Game::processPacket_Server_Spellbook_Update(StlBuffer& data)

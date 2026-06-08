@@ -188,6 +188,14 @@ namespace LuaUI
 	bool questTracked(int questId);
 	void setQuestTracked(int questId, bool track);
 	void abandonQuest(int questId);
+
+	// ---- vendor (reads/drives the live force-hidden VendorNpc) ----
+	int  vendorCount();
+	bool vendorItem(int index, int& itemId, int& affix, int& cost, int& supply);
+	void buyVendorItem(int index, int count);
+	void repairGear();
+	void vendorBuyback();
+	void showVendorTooltip(int index, int ownerHandle, int anchor);
 	void useOrEquipContainerItem(int slot);             // right-click: use a consumable/quest item or equip gear
 	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)

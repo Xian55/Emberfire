@@ -23,6 +23,7 @@
 #include "GuildRoster.h"
 #include "GameChat.h"
 #include "QuestLog.h"
+#include "VendorNpc.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -2172,6 +2173,34 @@ namespace LuaUI
 		sConnector->sendPacket(pk.build(StlBuffer{}));
 	}
 
+	// ---- vendor (reads + drives the live force-hidden VendorNpc; Lua scrolls the full item list) ----
+	static VendorNpc* vendorPanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<VendorNpc*>(w->getRenderObject(World::VendorNpcPanel).get()) : nullptr;
+	}
+
+	int vendorCount() { auto* v = vendorPanel(); return v ? v->itemCount() : 0; }
+
+	bool vendorItem(int index, int& itemId, int& affix, int& cost, int& supply)
+	{
+		auto* v = vendorPanel();
+		return v && v->itemAt(index, itemId, affix, cost, supply);
+	}
+	void buyVendorItem(int index, int count) { if (auto* v = vendorPanel()) v->buyIndex(index, count); }
+	void repairGear()    { GP_Client_Repair pk; pk.m_confirmed = false; sConnector->sendPacket(pk.build(StlBuffer{})); }
+	void vendorBuyback() { sConnector->sendPacket(GP_Client_Buyback{}.build(StlBuffer{})); }
+
+	void showVendorTooltip(int index, int ownerHandle, int anchor)
+	{
+		auto* v = vendorPanel();
+		if (!v) return;
+		auto tip = v->buildVendorTooltip(index);
+		if (!tip) return;
+		positionTooltip(tip, ownerHandle, anchor);
+		sApplication->setTooltip(tip);
+	}
+
 	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or
 	// a quest item is USED; gear (equip_type>0) is EQUIPPED; otherwise nothing (unusable).
 	void useOrEquipContainerItem(int slot)
@@ -2290,7 +2319,8 @@ namespace LuaUI
 		             : (name == "LootFrame")      ? World::LootWindowPanel
 		             : (name == "BankFrame")      ? World::BankPanel
 		             : (name == "GuildRosterFrame") ? World::GuildPanel
-		             : (name == "QuestLogFrame")  ? World::QuestLogPanel : 0;
+		             : (name == "QuestLogFrame")  ? World::QuestLogPanel
+		             : (name == "VendorFrame")    ? World::VendorNpcPanel : 0;
 		if (!id) return;
 		if (auto ro = w->getRenderObject(id))
 			ro->setForceHidden(!shown);   // survives the window re-showing itself each frame

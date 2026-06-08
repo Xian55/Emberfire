@@ -16,3 +16,4 @@ LootWindow.lua
 Bank.lua
 GuildRoster.lua
 QuestLog.lua
+Vendor.lua

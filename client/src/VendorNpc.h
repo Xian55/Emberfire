@@ -5,6 +5,8 @@
 #include "..\Shared\GamePacketServer.h"
 
 class GameIcon;
+class ItemIcon;
+class Tooltip;
 class TextBoxRo;
 class SpriteRo;
 class Button;
@@ -41,6 +43,12 @@ class VendorNpc : public DialogPanel
 		void registerItem(const ItemDefines::ItemDefinition entry, const int cost, const int stack);
 		void updateItemQuantity(const ItemDefines::ItemDefinition entry, const int stack);
 
+		// --- read + drive for the Lua vendor view (the live window stays the model; Lua scrolls the full list) ---
+		int  itemCount() const { return static_cast<int>(m_items.size()); }
+		bool itemAt(int index, int& itemId, int& affix, int& cost, int& supply) const;
+		void buyIndex(int index, int count);
+		shared_ptr<Tooltip> buildVendorTooltip(int index);
+
 	private:
 		void input() final;
 		void render() final;
@@ -63,5 +71,6 @@ class VendorNpc : public DialogPanel
 		size_t m_pageNumber{0};
 
 		ItemDefines::ItemDefinition m_popupBuyEntry;
+		shared_ptr<ItemIcon> m_tooltipIcon;   // scratch, not rendered; setItemDef + buildTooltip on demand
 };
 
