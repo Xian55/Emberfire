@@ -1588,6 +1588,8 @@ void Game::processPacket_Server_Bank(StlBuffer& data)
 		icon->setItemDef(slot.itemId);
 		icon->setStackCount(slot.stackCount);
 	}
+
+	sLua->fire(LuaEvents::BANK_UPDATE, "");   // Lua addon layer: bank (re)populated -> refresh the Lua view
 }
 
 void Game::processPacket_Server_Inventory(StlBuffer& data)

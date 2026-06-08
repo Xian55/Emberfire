@@ -19,6 +19,7 @@
 #include "ItemIcon.h"
 #include "Equipment.h"
 #include "LootWindow.h"
+#include "Bank.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -2023,6 +2024,80 @@ namespace LuaUI
 		sApplication->setTooltip(tip);
 	}
 
+	// ---- bank: 49-slot grid (slots are ItemIcon render objects on the live force-hidden Bank) ----
+	static Bank* bankPanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<Bank*>(w->getRenderObject(World::BankPanel).get()) : nullptr;
+	}
+	static std::shared_ptr<ItemIcon> bankIcon(int slot)
+	{
+		auto* b = bankPanel();
+		if (!b || slot < 0 || slot >= PlayerDefines::Inventory::NumSlotsBank)
+			return nullptr;
+		return std::dynamic_pointer_cast<ItemIcon>(b->getRenderObject(Bank::Slot1 + slot));
+	}
+
+	int  bankNumSlots() { return PlayerDefines::Inventory::NumSlotsBank; }
+
+	bool bankItem(int slot, int& itemId, int& count, int& durability, int& enchant, bool& soulbound)
+	{
+		auto icon = bankIcon(slot);
+		if (!icon)
+			return false;
+		const auto& def = icon->getItemDef();
+		itemId     = def.m_itemId;
+		count      = icon->getStackCount();
+		durability = def.m_durability;
+		enchant    = def.m_enchantLvl;
+		soulbound  = def.m_soulbound;
+		return true;
+	}
+
+	void withdrawBankItem(int slot)
+	{
+		GP_Client_UnBankItem pk;
+		pk.m_slot              = slot;
+		pk.m_chooseInvSlotForMe = true;
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+	void moveBankItem(int from, int to)
+	{
+		if (from < 0 || to < 0)
+			return;
+		GP_Client_MoveBankToBank pk;
+		pk.m_from = from;
+		pk.m_to   = to;
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+	void depositBagItem(int bagSlot, int bankSlot)   // bankSlot < 0 -> let the server pick the slot
+	{
+		if (bagSlot < 0)
+			return;
+		GP_Client_MoveInventoryToBank pk;
+		pk.m_from            = bagSlot;
+		pk.m_to              = bankSlot < 0 ? 0 : bankSlot;
+		pk.m_autoSelectForMe = (bankSlot < 0);
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+	void sortBank()
+	{
+		GP_Client_SortBank pk;
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+
+	void showBankTooltip(int slot, int ownerHandle, int anchor)
+	{
+		auto icon = bankIcon(slot);
+		if (!icon)
+			return;
+		auto tip = icon->buildTooltip();
+		if (!tip)
+			return;
+		positionTooltip(tip, ownerHandle, anchor);
+		sApplication->setTooltip(tip);
+	}
+
 	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or
 	// a quest item is USED; gear (equip_type>0) is EQUIPPED; otherwise nothing (unusable).
 	void useOrEquipContainerItem(int slot)
@@ -2138,7 +2213,8 @@ namespace LuaUI
 		             : (name == "XPBar")       ? World::ToolbarXpObj
 		             : (name == "InventoryFrame") ? World::InventoryPanel
 		             : (name == "EquipmentFrame") ? World::EquipmentPanel
-		             : (name == "LootFrame")      ? World::LootWindowPanel : 0;
+		             : (name == "LootFrame")      ? World::LootWindowPanel
+		             : (name == "BankFrame")      ? World::BankPanel : 0;
 		if (!id) return;
 		if (auto ro = w->getRenderObject(id))
 			ro->setForceHidden(!shown);   // survives the window re-showing itself each frame

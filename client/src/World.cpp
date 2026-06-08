@@ -890,6 +890,7 @@ static const char* panelLuaName(const World::Interface id)
 	{
 		case World::Interface::InventoryPanel: return "InventoryFrame";
 		case World::Interface::EquipmentPanel: return "EquipmentFrame";
+		case World::Interface::BankPanel:      return "BankFrame";
 		default: return "";   // Loot uses WoW-style LOOT_READY/LOOT_CLOSED instead of the generic panel events
 	}
 }

@@ -41,7 +41,8 @@
     X(PANEL_CLOSED)               \
     X(LEVELUP_RESULT)             \
     X(LOOT_READY)                 \
-    X(LOOT_CLOSED)
+    X(LOOT_CLOSED)                \
+    X(BANK_UPDATE)
 
 namespace LuaEvents
 {

@@ -873,6 +873,9 @@ void LuaEngine::bindUI()
 			.addFunction("SetTooltipLoot",  [](FrameHandle* self, int lootSlot, std::optional<std::string> anchor) {
 				if (lootSlot > 0) g_impl->tooltipSpec[self->h] = { 4, lootSlot - 1, anchorToInt(anchor.value_or("RIGHT")) };
 				else              g_impl->tooltipSpec.erase(self->h); })
+			.addFunction("SetTooltipBank",  [](FrameHandle* self, int bankSlot, std::optional<std::string> anchor) {
+				if (bankSlot > 0) g_impl->tooltipSpec[self->h] = { 5, bankSlot - 1, anchorToInt(anchor.value_or("RIGHT")) };
+				else              g_impl->tooltipSpec.erase(self->h); })
 			.addFunction("CreateTexture",    [](FrameHandle* self) { return FrameHandle{ LuaUI::createTexture(self->h) }; })
 			.addFunction("CreateFontString", [](FrameHandle* self) { return FrameHandle{ LuaUI::createFontString(self->h) }; })
 			.addFunction("IsMouseOver",    [](FrameHandle* self) { return LuaUI::isMouseOver(self->h); })
@@ -1030,6 +1033,18 @@ void LuaEngine::bindUI()
 		.addFunction("CloseLoot",    []() { LuaUI::lootClose(); })
 		.addFunction("IsShiftKeyDown", []() { return LuaUI::isShiftDown(); })
 
+		// Bank (1-based slot).
+		.addFunction("GetBankNumSlots", []() { return LuaUI::bankNumSlots(); })
+		.addFunction("GetBankItem", [](int slot) {   // -> itemId, count, durability, enchant, soulbound
+			int id = 0, count = 0, dur = 0, ench = 0; bool sb = false;
+			if (!LuaUI::bankItem(slot - 1, id, count, dur, ench, sb))
+				return std::make_tuple(0, 0, 0, 0, false);
+			return std::make_tuple(id, count, dur, ench, sb); })
+		.addFunction("WithdrawBankItem", [](int slot) { LuaUI::withdrawBankItem(slot - 1); })
+		.addFunction("MoveBankItem",     [](int from, int to) { LuaUI::moveBankItem(from - 1, to - 1); })
+		.addFunction("DepositBagItem",   [](int bagSlot, int bankSlot) { LuaUI::depositBagItem(bagSlot - 1, bankSlot - 1); })
+		.addFunction("SortBank",         []() { LuaUI::sortBank(); })
+
 		.addFunction("IsContainerItemUsable",   [](int slot) { return !LuaUI::containerItemUnusable(slot - 1); })
 		.addFunction("ContainerItemTargetsItem",[](int slot) { return LuaUI::containerItemTargetsItem(slot - 1); })
 		.addFunction("UseContainerItemOnItem",  [](int src, int tgt) { LuaUI::useContainerItemOnItem(src - 1, tgt - 1); })
@@ -1081,6 +1096,7 @@ void LuaEngine::bindUI()
 		"MoveContainerItem", "UseContainerItem", "EquipContainerItem", "SellContainerItem",
 		"DestroyContainerItem", "UnequipInventoryItem", "UseOrEquipContainerItem", "MerchantRightClick",
 		"GetLootSlotCount", "GetLootSlot", "LootSlot", "LootAll", "LinkLootSlot", "CloseLoot", "IsShiftKeyDown",
+		"GetBankNumSlots", "GetBankItem", "WithdrawBankItem", "MoveBankItem", "DepositBagItem", "SortBank",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",
 		"IsMouseButtonDown", "ShowConfirm", "PopConfirm", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",
@@ -1200,6 +1216,7 @@ void LuaEngine::onFrame(float dt)
 		else if (kind == 2) LuaUI::showEquipTooltip(key, bestH, anchor);
 		else if (kind == 3) LuaUI::showStatTooltip(key, bestH, anchor);
 		else if (kind == 4) LuaUI::showLootTooltip(key, bestH, anchor);
+		else if (kind == 5) LuaUI::showBankTooltip(key, bestH, anchor);
 	}
 
 	// Hover edge-detection: fire OnEnter(self) when the cursor enters a frame's bounds and OnLeave(self)

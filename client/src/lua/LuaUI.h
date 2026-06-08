@@ -155,6 +155,15 @@ namespace LuaUI
 	void lootClose();                                              // close the loot panel (X button)
 	void showLootTooltip(int index, int ownerHandle, int anchor);  // re-assert a loot item's tooltip
 	bool isShiftDown();                                            // LShift/RShift held (shift-click chat link)
+
+	// ---- bank (49-slot grid; reads/drives the live force-hidden Bank) ----
+	int  bankNumSlots();
+	bool bankItem(int slot, int& itemId, int& count, int& durability, int& enchant, bool& soulbound);
+	void withdrawBankItem(int slot);                  // right-click -> GP_Client_UnBankItem (autoselect inv slot)
+	void moveBankItem(int from, int to);              // bank<->bank drag
+	void depositBagItem(int bagSlot, int bankSlot);   // bag->bank drag (bankSlot<0 = server picks)
+	void sortBank();
+	void showBankTooltip(int slot, int ownerHandle, int anchor);
 	void useOrEquipContainerItem(int slot);             // right-click: use a consumable/quest item or equip gear
 	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)

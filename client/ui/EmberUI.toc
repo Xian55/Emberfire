@@ -13,3 +13,4 @@ LoadingScreen.lua
 Inventory.lua
 Equipment.lua
 LootWindow.lua
+Bank.lua
