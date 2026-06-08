@@ -1047,6 +1047,7 @@ void LuaEngine::bindUI()
 				return std::make_tuple(0, 0, 0, 0, false);
 			return std::make_tuple(id, count, dur, ench, sb); })
 		.addFunction("WithdrawBankItem", [](int slot) { LuaUI::withdrawBankItem(slot - 1); })
+		.addFunction("WithdrawBankItemTo", [](int bankSlot, int invSlot) { LuaUI::withdrawBankItemTo(bankSlot - 1, invSlot - 1); })
 		.addFunction("MoveBankItem",     [](int from, int to) { LuaUI::moveBankItem(from - 1, to - 1); })
 		.addFunction("DepositBagItem",   [](int bagSlot, int bankSlot) { LuaUI::depositBagItem(bagSlot - 1, bankSlot - 1); })
 		.addFunction("SortBank",         []() { LuaUI::sortBank(); })
@@ -1153,7 +1154,7 @@ void LuaEngine::bindUI()
 		"MoveContainerItem", "UseContainerItem", "EquipContainerItem", "SellContainerItem",
 		"DestroyContainerItem", "UnequipInventoryItem", "UseOrEquipContainerItem", "MerchantRightClick",
 		"GetLootSlotCount", "GetLootSlot", "LootSlot", "LootAll", "LinkLootSlot", "CloseLoot", "IsShiftKeyDown",
-		"GetBankNumSlots", "GetBankItem", "WithdrawBankItem", "MoveBankItem", "DepositBagItem", "SortBank", "CloseBank",
+		"GetBankNumSlots", "GetBankItem", "WithdrawBankItem", "WithdrawBankItemTo", "MoveBankItem", "DepositBagItem", "SortBank", "CloseBank",
 		"GetGuildName", "GetGuildMotd", "GetNumGuildMembers", "GetGuildLocalRank", "GetGuildMember",
 		"SetGuildMotd", "GuildPromote", "GuildDemote", "GuildKick", "InviteToParty", "RequestGuildRoster",
 		"WhisperPlayer",

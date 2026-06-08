@@ -2081,6 +2081,16 @@ namespace LuaUI
 		pk.m_chooseInvSlotForMe = true;
 		sConnector->sendPacket(pk.build(StlBuffer{}));
 	}
+	void withdrawBankItemTo(int bankSlot, int invSlot)   // drag bank -> a specific bag slot (UnBankItem choose=0)
+	{
+		if (bankSlot < 0 || invSlot < 0)
+			return;
+		GP_Client_UnBankItem pk;
+		pk.m_slot               = bankSlot;
+		pk.m_inventorySlot      = invSlot;
+		pk.m_chooseInvSlotForMe = false;
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
 	void moveBankItem(int from, int to)
 	{
 		if (from < 0 || to < 0)

@@ -96,6 +96,8 @@ for i = 1, NUM do
 				local p = EmberUI.HeldPayload and EmberUI.HeldPayload()
 				if p and p.from == 'equip' and UnequipInventoryItem then
 					UnequipInventoryItem(p.slot, i)             -- drop an equipped item into this bag slot
+				elseif p and p.from == 'bank' and WithdrawBankItemTo then
+					WithdrawBankItemTo(p.slot, i)               -- drop a bank item into this bag slot (withdraw)
 				elseif dragFrom and dragFrom ~= i then
 					MoveContainerItem(dragFrom, i)
 				end

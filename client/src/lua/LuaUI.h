@@ -160,6 +160,7 @@ namespace LuaUI
 	int  bankNumSlots();
 	bool bankItem(int slot, int& itemId, int& count, int& durability, int& enchant, bool& soulbound);
 	void withdrawBankItem(int slot);                  // right-click -> GP_Client_UnBankItem (autoselect inv slot)
+	void withdrawBankItemTo(int bankSlot, int invSlot); // drag bank -> a specific bag slot
 	void moveBankItem(int from, int to);              // bank<->bank drag
 	void depositBagItem(int bagSlot, int bankSlot);   // bag->bank drag (bankSlot<0 = server picks)
 	void sortBank();
