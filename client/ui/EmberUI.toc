@@ -15,3 +15,4 @@ Equipment.lua
 LootWindow.lua
 Bank.lua
 GuildRoster.lua
+QuestLog.lua

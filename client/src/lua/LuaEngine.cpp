@@ -1063,6 +1063,19 @@ void LuaEngine::bindUI()
 		.addFunction("RequestGuildRoster", []() { LuaUI::requestGuildRoster(); })
 		.addFunction("WhisperPlayer", [](std::string name) { LuaUI::whisperPlayer(name); })
 
+		// Quest log (1-based list index).
+		.addFunction("GetNumQuests", []() { return LuaUI::questCount(); })
+		.addFunction("GetQuestInfo", [](int index) {   // -> questId, title, done, tracked
+			int id = 0; std::string title; bool done = false, tracked = false;
+			if (!LuaUI::questInfo(index - 1, id, title, done, tracked))
+				return std::make_tuple(0, std::string(), false, false);
+			return std::make_tuple(id, title, done, tracked); })
+		.addFunction("GetQuestObjectives",  [](int questId) { return LuaUI::questObjectives(questId); })
+		.addFunction("GetQuestDescription", [](int questId) { return LuaUI::questDescription(questId); })
+		.addFunction("IsQuestTracked",      [](int questId) { return LuaUI::questTracked(questId); })
+		.addFunction("SetQuestTracked",     [](int questId, bool track) { LuaUI::setQuestTracked(questId, track); })
+		.addFunction("AbandonQuest",        [](int questId) { LuaUI::abandonQuest(questId); })
+
 		.addFunction("IsContainerItemUsable",   [](int slot) { return !LuaUI::containerItemUnusable(slot - 1); })
 		.addFunction("ContainerItemTargetsItem",[](int slot) { return LuaUI::containerItemTargetsItem(slot - 1); })
 		.addFunction("UseContainerItemOnItem",  [](int src, int tgt) { LuaUI::useContainerItemOnItem(src - 1, tgt - 1); })
@@ -1118,6 +1131,8 @@ void LuaEngine::bindUI()
 		"GetGuildName", "GetGuildMotd", "GetNumGuildMembers", "GetGuildLocalRank", "GetGuildMember",
 		"SetGuildMotd", "GuildPromote", "GuildDemote", "GuildKick", "InviteToParty", "RequestGuildRoster",
 		"WhisperPlayer",
+		"GetNumQuests", "GetQuestInfo", "GetQuestObjectives", "GetQuestDescription", "IsQuestTracked",
+		"SetQuestTracked", "AbandonQuest",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",
 		"IsMouseButtonDown", "ShowConfirm", "PopConfirm", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",

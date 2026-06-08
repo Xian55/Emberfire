@@ -367,6 +367,18 @@ void QuestLog::setQuestDone(const int entry, const bool value)
 	}
 }
 
+bool QuestLog::questAt(int index, int& id, string& title, bool& done, bool& tracked) const
+{
+	if (index < 0 || index >= static_cast<int>(m_questEntries.size()))
+		return false;
+	const QuestData& q = m_questEntries[index];
+	id      = q.id;
+	title   = q.title;
+	done    = q.done;
+	tracked = q.tracked;
+	return true;
+}
+
 void QuestLog::addQuest(const int entry)
 {
 	// No duplicates

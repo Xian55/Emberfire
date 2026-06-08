@@ -179,6 +179,15 @@ namespace LuaUI
 	void invitePlayerToParty(const std::string& name);
 	void requestGuildRoster();
 	void whisperPlayer(const std::string& name);
+
+	// ---- quest log (reads/drives the live force-hidden QuestLog) ----
+	int  questCount();
+	bool questInfo(int index, int& id, std::string& title, bool& done, bool& tracked);
+	std::string questObjectives(int questId);
+	std::string questDescription(int questId);
+	bool questTracked(int questId);
+	void setQuestTracked(int questId, bool track);
+	void abandonQuest(int questId);
 	void useOrEquipContainerItem(int slot);             // right-click: use a consumable/quest item or equip gear
 	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)

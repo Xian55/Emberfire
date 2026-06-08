@@ -95,6 +95,10 @@ class QuestLog : public WorldPanel
 		string getQuestObjectiveString(const int questId);
 		string getRequiredItemsString(const int questId);
 
+		// --- read for the Lua quest view (the live window stays the model) ---
+		int questCount() const { return static_cast<int>(m_questEntries.size()); }
+		bool questAt(int index, int& id, string& title, bool& done, bool& tracked) const;
+
 	private:
 		void input() final;
 		void render() final;

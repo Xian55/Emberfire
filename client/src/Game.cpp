@@ -842,6 +842,8 @@ void Game::processPacket_Server_QuestList(StlBuffer& data)
 	questLog->questHelper_QueueReveal();
 
 	world->queueObjectivesRecalc();
+
+	sLua->fire(LuaEvents::QUEST_LOG_UPDATE, "");   // Lua addon layer: full quest list (re)loaded
 }
 
 void Game::processPacket_Server_InspectReveal(StlBuffer& data)
@@ -1029,6 +1031,7 @@ void Game::processPacket_Server_QuestComplete(StlBuffer& data)
 	auto questLog = dynamic_pointer_cast<QuestLog>(world->getRenderObject(World::Interface::QuestLogPanel));
 	questLog->setQuestDone(pk.m_questId, pk.m_done);
 	questLog->questHelper_RevealDoneQuests();
+	sLua->fire(LuaEvents::QUEST_LOG_UPDATE, "");   // Lua addon layer: quest done-state changed
 
 	if (pk.m_done)
 		world->pushScrollingMessage("Quest Complete", sf::Color(QuestLog::Colors::ObjectiveTextColor));
@@ -1130,6 +1133,8 @@ void Game::processPacket_Server_QuestTally(StlBuffer& data)
 	}
 
 	world->queueObjectivesRecalc();
+
+	sLua->fire(LuaEvents::QUEST_OBJECTIVE_UPDATE, "");   // Lua addon layer: an objective tally changed
 }
 
 void Game::processPacket_Server_AcceptedQuest(StlBuffer& data)
@@ -1158,6 +1163,8 @@ void Game::processPacket_Server_AcceptedQuest(StlBuffer& data)
 	gameChat->addLine(Util::fmtStr("Quest accepted: %s", questName.c_str()), ChatDefines::Channels::System);
 	questLog->trackQuest(pk.m_questId);
 	questLog->saveTrackedQuests();
+
+	sLua->fire(LuaEvents::QUEST_LOG_UPDATE, "");   // Lua addon layer: quest accepted / auto-tracked
 }
 
 void Game::processPacket_Server_GossipMenu(StlBuffer& data)

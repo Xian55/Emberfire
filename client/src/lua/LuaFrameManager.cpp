@@ -22,6 +22,7 @@
 #include "Bank.h"
 #include "GuildRoster.h"
 #include "GameChat.h"
+#include "QuestLog.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -2140,6 +2141,37 @@ namespace LuaUI
 			chat->setWhispering(name);
 	}
 
+	// ---- quest log (reads + drives the live force-hidden QuestLog) ----
+	static QuestLog* questPanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<QuestLog*>(w->getRenderObject(World::QuestLogPanel).get()) : nullptr;
+	}
+
+	int questCount() { auto* q = questPanel(); return q ? q->questCount() : 0; }
+
+	bool questInfo(int index, int& id, std::string& title, bool& done, bool& tracked)
+	{
+		auto* q = questPanel();
+		return q && q->questAt(index, id, title, done, tracked);
+	}
+	std::string questObjectives(int questId)  { auto* q = questPanel(); return q ? q->getQuestObjectiveString(questId) : std::string(); }
+	std::string questDescription(int questId)  { return sContentMgr->db("quest_template").data(questId, "description"); }
+	bool questTracked(int questId)             { auto* q = questPanel(); return q && q->isQuestTracked(questId); }
+
+	void setQuestTracked(int questId, bool track)
+	{
+		auto* q = questPanel();
+		if (!q) return;
+		if (track) q->trackQuest(questId); else q->untrackQuest(questId);
+		q->saveTrackedQuests();
+	}
+	void abandonQuest(int questId)
+	{
+		GP_Client_AbandonQuest pk; pk.m_questId = questId;
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+
 	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or
 	// a quest item is USED; gear (equip_type>0) is EQUIPPED; otherwise nothing (unusable).
 	void useOrEquipContainerItem(int slot)
@@ -2257,7 +2289,8 @@ namespace LuaUI
 		             : (name == "EquipmentFrame") ? World::EquipmentPanel
 		             : (name == "LootFrame")      ? World::LootWindowPanel
 		             : (name == "BankFrame")      ? World::BankPanel
-		             : (name == "GuildRosterFrame") ? World::GuildPanel : 0;
+		             : (name == "GuildRosterFrame") ? World::GuildPanel
+		             : (name == "QuestLogFrame")  ? World::QuestLogPanel : 0;
 		if (!id) return;
 		if (auto ro = w->getRenderObject(id))
 			ro->setForceHidden(!shown);   // survives the window re-showing itself each frame

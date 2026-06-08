@@ -43,7 +43,9 @@
     X(LOOT_READY)                 \
     X(LOOT_CLOSED)                \
     X(BANK_UPDATE)                \
-    X(GUILD_ROSTER_UPDATE)
+    X(GUILD_ROSTER_UPDATE)        \
+    X(QUEST_LOG_UPDATE)           \
+    X(QUEST_OBJECTIVE_UPDATE)
 
 namespace LuaEvents
 {
