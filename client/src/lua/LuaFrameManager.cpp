@@ -2105,6 +2105,7 @@ namespace LuaUI
 		GP_Client_SortBank pk;
 		sConnector->sendPacket(pk.build(StlBuffer{}));
 	}
+	void bankClose() { if (auto* w = currentWorld()) w->closePanel(World::BankPanel); }
 
 	void showBankTooltip(int slot, int ownerHandle, int anchor)
 	{

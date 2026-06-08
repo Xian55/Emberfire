@@ -163,6 +163,7 @@ namespace LuaUI
 	void moveBankItem(int from, int to);              // bank<->bank drag
 	void depositBagItem(int bagSlot, int bankSlot);   // bag->bank drag (bankSlot<0 = server picks)
 	void sortBank();
+	void bankClose();
 	void showBankTooltip(int slot, int ownerHandle, int anchor);
 
 	// ---- guild roster (reads/drives the live force-hidden GuildRoster) ----

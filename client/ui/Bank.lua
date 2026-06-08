@@ -69,6 +69,15 @@ sortBtn:SetPoint('TOPLEFT', root, 'TOPLEFT', 257, 390)
 sortBtn:EnableMouse(true)
 sortBtn:SetScript('OnClick', function() SortBank() end)
 
+-- close button (guarantees the bank is always closable, regardless of the C++ dialog-close path)
+local CW, CH = texSize('panel_close_small_idle.png', 16, 16)
+local closeBtn = CreateFrame('Button', nil, root)
+closeBtn:SetTexture('panel_close_small_idle.png'); closeBtn:SetHoverTexture('panel_close_small_hover.png')
+closeBtn:SetSize(CW, CH)
+closeBtn:SetPoint('TOPLEFT', root, 'TOPLEFT', W - 22, 10)
+closeBtn:EnableMouse(true)
+closeBtn:SetScript('OnClick', function() CloseBank() end)
+
 refresh = function()
 	for i = 1, NUM do
 		local id, count = GetBankItem(i)
@@ -92,7 +101,8 @@ stage:SetScript('OnEvent', function(_, event, arg)
 	elseif event == Events.PANEL_CLOSED then
 		if arg == 'BankFrame' then setShown(false) end
 	elseif event == Events.BANK_UPDATE then
-		if shown then refresh() else setShown(true) end   -- populated before/after the open fires
+		if shown then refresh() end   -- only refresh; the server pre-populates the bank on LOGIN, so do NOT
+		                              -- auto-show here. The bank shows ONLY via PANEL_OPENED (real OpenBank).
 	else
 		setShown(false)                          -- left the world
 	end
