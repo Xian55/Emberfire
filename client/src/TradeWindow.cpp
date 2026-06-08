@@ -277,12 +277,62 @@ void TradeWindow::updatePortrait(shared_ptr<ClientPlayer> player, bool isLocal)
 
 void TradeWindow::setLocalGold(const int amount)
 {
+	m_localGold = amount;
 	m_localGoldTxt->setString(Util::formatMoneyCommas(amount), sf::Color(255, 215, 0, 255), sf::Color(0, 0, 0, 50));
 }
 
 void TradeWindow::setRemoteGold(const int amount)
 {
+	m_remoteGold = amount;
 	m_remoteGoldTxt->setString(Util::formatMoneyCommas(amount), sf::Color(255, 215, 0, 255), sf::Color(0, 0, 0, 50));
+}
+
+// --- Lua-facing read + drive ---
+string TradeWindow::localName() const  { return m_localPlayer  ? m_localPlayer->getName()  : string(); }
+string TradeWindow::remoteName() const { return m_remotePlayer ? m_remotePlayer->getName() : string(); }
+
+bool TradeWindow::tradeSlot(bool isLocal, int slot, int& itemId, int& count, int& itemGuid) const
+{
+	if (slot < 0 || slot > (IconSlotLocal5 - IconSlotLocal1))
+		return false;
+	const int id = (isLocal ? IconSlotLocal1 : IconSlotRemote1) + slot;
+	auto icon = dynamic_pointer_cast<ItemIcon>(getRenderObject(id));
+	if (!icon || icon->getItemDef().m_itemId == 0)
+		return false;
+	itemId   = icon->getItemDef().m_itemId;
+	count    = icon->getStackCount();
+	itemGuid = icon->getItemGuid();
+	return true;
+}
+
+void TradeWindow::addTradeBagItem(int bagSlot)
+{
+	GP_Client_TradeAddItem packet; packet.m_invSlot = bagSlot;
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+}
+void TradeWindow::removeTradeItem(int itemGuid)
+{
+	GP_Client_TradeRemoveItem packet; packet.m_itemGuid = itemGuid;
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+}
+void TradeWindow::sendTradeGold(int amount)
+{
+	GP_Client_TradeSetGold packet; packet.m_amount = amount < 0 ? 0 : amount;
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+}
+void TradeWindow::confirmTrade()
+{
+	GP_Client_TradeConfirm packet;
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+}
+
+shared_ptr<Tooltip> TradeWindow::buildTradeTooltip(bool isLocal, int slot)
+{
+	if (slot < 0 || slot > (IconSlotLocal5 - IconSlotLocal1))
+		return nullptr;
+	const int id = (isLocal ? IconSlotLocal1 : IconSlotRemote1) + slot;
+	auto icon = dynamic_pointer_cast<ItemIcon>(getRenderObject(id));
+	return icon ? icon->buildTooltip() : nullptr;
 }
 
 void TradeWindow::addLocalItem(const ItemDefines::ItemDefinition entry, const int itemGuid, const int stackSize, const int slot)

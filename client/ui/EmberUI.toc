@@ -18,3 +18,4 @@ GuildRoster.lua
 QuestLog.lua
 Vendor.lua
 Abilities.lua
+Trade.lua

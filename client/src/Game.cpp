@@ -1382,6 +1382,8 @@ void Game::processPacket_Server_TradeUpdate(StlBuffer& data)
 	
 	if (!world->isPanelOpen(World::TradeWindowPanel))
 		world->openPanel(World::TradeWindowPanel);
+
+	sLua->fire(LuaEvents::TRADE_UPDATE, "");   // Lua addon layer: trade state (re)populated -> refresh
 }
 
 void Game::processPacket_Server_TradeCanceled(StlBuffer& data)

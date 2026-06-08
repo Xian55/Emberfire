@@ -10,6 +10,7 @@ class SpriteRo;
 class Button;
 class Sprite;
 class ClientPlayer;
+class Tooltip;
 
 class TradeWindow : public DialogPanel
 {
@@ -85,6 +86,19 @@ class TradeWindow : public DialogPanel
 		bool isLocalReady() const { return m_localReady; }
 		bool isRemoteReady() const { return m_remoteReady; }
 
+		// --- read + drive for the Lua trade view (the live window stays the model) ---
+		string localName() const;
+		string remoteName() const;
+		// fills item at side (isLocal) + slot (0..4): itemId, count, itemGuid (0 for remote). false if empty/oob.
+		bool tradeSlot(bool isLocal, int slot, int& itemId, int& count, int& itemGuid) const;
+		int  localGoldAmount() const { return m_localGold; }
+		int  remoteGoldAmount() const { return m_remoteGold; }
+		void addTradeBagItem(int bagSlot);    // GP_Client_TradeAddItem
+		void removeTradeItem(int itemGuid);   // GP_Client_TradeRemoveItem
+		void sendTradeGold(int amount);       // GP_Client_TradeSetGold
+		void confirmTrade();                  // GP_Client_TradeConfirm
+		shared_ptr<Tooltip> buildTradeTooltip(bool isLocal, int slot);
+
 		virtual void onClose() final;
 
 	private:
@@ -121,6 +135,10 @@ class TradeWindow : public DialogPanel
 		shared_ptr<TextBoxRo> m_localGoldTxt;
 		shared_ptr<TextBoxRo> m_remoteGoldTxt;
 		shared_ptr<Button> m_localGoldHighlight;
+
+		// Gold amounts (stored for the Lua getters; setLocalGold/setRemoteGold also display them)
+		int m_localGold{0};
+		int m_remoteGold{0};
 
 		// Ready state
 		bool m_localReady{false};

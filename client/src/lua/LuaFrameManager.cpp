@@ -25,6 +25,7 @@
 #include "QuestLog.h"
 #include "VendorNpc.h"
 #include "Abilities.h"
+#include "TradeWindow.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -2241,6 +2242,36 @@ namespace LuaUI
 		return a && a->spellSlotAt(stage, index, spellId, level);
 	}
 
+	// ---- trade window (reads + drives the live force-hidden TradeWindow; isLocal=our side) ----
+	static TradeWindow* tradePanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<TradeWindow*>(w->getRenderObject(World::TradeWindowPanel).get()) : nullptr;
+	}
+	std::string tradePartnerName() { auto* t = tradePanel(); return t ? t->remoteName() : std::string(); }
+	bool tradeItem(bool isLocal, int slot, int& itemId, int& count, int& itemGuid)
+	{
+		auto* t = tradePanel();
+		return t && t->tradeSlot(isLocal, slot, itemId, count, itemGuid);
+	}
+	int  tradeGold(bool isLocal)  { auto* t = tradePanel(); return t ? (isLocal ? t->localGoldAmount() : t->remoteGoldAmount()) : 0; }
+	bool tradeReady(bool isLocal) { auto* t = tradePanel(); return t && (isLocal ? t->isLocalReady() : t->isRemoteReady()); }
+	void tradeAddItem(int bagSlot)    { if (auto* t = tradePanel()) t->addTradeBagItem(bagSlot); }
+	void tradeRemoveItem(int itemGuid){ if (auto* t = tradePanel()) t->removeTradeItem(itemGuid); }
+	void tradeSetGold(int amount)     { if (auto* t = tradePanel()) t->sendTradeGold(amount); }
+	void tradeConfirm()               { if (auto* t = tradePanel()) t->confirmTrade(); }
+	void tradeCancel()                { if (auto* w = currentWorld()) w->closePanel(World::TradeWindowPanel); }  // onClose sends TradeCancel
+
+	void showTradeTooltip(int key, int ownerHandle, int anchor)   // key = (slot) + (isLocal?0:1000)
+	{
+		auto* t = tradePanel();
+		if (!t) return;
+		auto tip = t->buildTradeTooltip(key < 1000, key % 1000);
+		if (!tip) return;
+		positionTooltip(tip, ownerHandle, anchor);
+		sApplication->setTooltip(tip);
+	}
+
 	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or
 	// a quest item is USED; gear (equip_type>0) is EQUIPPED; otherwise nothing (unusable).
 	void useOrEquipContainerItem(int slot)
@@ -2361,7 +2392,8 @@ namespace LuaUI
 		             : (name == "GuildRosterFrame") ? World::GuildPanel
 		             : (name == "QuestLogFrame")  ? World::QuestLogPanel
 		             : (name == "VendorFrame")    ? World::VendorNpcPanel
-		             : (name == "AbilitiesFrame") ? World::AbilitiesPanel : 0;
+		             : (name == "AbilitiesFrame") ? World::AbilitiesPanel
+		             : (name == "TradeFrame")     ? World::TradeWindowPanel : 0;
 		if (!id) return;
 		if (auto ro = w->getRenderObject(id))
 			ro->setForceHidden(!shown);   // survives the window re-showing itself each frame

@@ -882,6 +882,9 @@ void LuaEngine::bindUI()
 			.addFunction("SetTooltipSpell", [](FrameHandle* self, int spellId, std::optional<std::string> anchor) {
 				if (spellId > 0) g_impl->tooltipSpec[self->h] = { 7, spellId, anchorToInt(anchor.value_or("RIGHT")) };  // key = spellId
 				else             g_impl->tooltipSpec.erase(self->h); })
+			.addFunction("SetTooltipTrade", [](FrameHandle* self, int slot, bool isLocal, std::optional<std::string> anchor) {
+				if (slot > 0) g_impl->tooltipSpec[self->h] = { 8, (slot - 1) + (isLocal ? 0 : 1000), anchorToInt(anchor.value_or("RIGHT")) };
+				else          g_impl->tooltipSpec.erase(self->h); })
 			.addFunction("CreateTexture",    [](FrameHandle* self) { return FrameHandle{ LuaUI::createTexture(self->h) }; })
 			.addFunction("CreateFontString", [](FrameHandle* self) { return FrameHandle{ LuaUI::createFontString(self->h) }; })
 			.addFunction("IsMouseOver",    [](FrameHandle* self) { return LuaUI::isMouseOver(self->h); })
@@ -1103,6 +1106,21 @@ void LuaEngine::bindUI()
 				return std::make_tuple(0, 0);
 			return std::make_tuple(spellId, level); })
 
+		// Trade (isLocal = our side; 1-based slot; itemGuid identifies a local item for removal).
+		.addFunction("GetTradePartnerName", []() { return LuaUI::tradePartnerName(); })
+		.addFunction("GetTradeItem", [](bool isLocal, int slot) {   // -> itemId, count, itemGuid
+			int id = 0, count = 0, guid = 0;
+			if (!LuaUI::tradeItem(isLocal, slot - 1, id, count, guid))
+				return std::make_tuple(0, 0, 0);
+			return std::make_tuple(id, count, guid); })
+		.addFunction("GetTradeGold",   [](bool isLocal) { return LuaUI::tradeGold(isLocal); })
+		.addFunction("IsTradeReady",   [](bool isLocal) { return LuaUI::tradeReady(isLocal); })
+		.addFunction("AddTradeItem",   [](int bagSlot) { LuaUI::tradeAddItem(bagSlot - 1); })
+		.addFunction("RemoveTradeItem",[](int itemGuid) { LuaUI::tradeRemoveItem(itemGuid); })
+		.addFunction("SetTradeGold",   [](int amount) { LuaUI::tradeSetGold(amount); })
+		.addFunction("ConfirmTrade",   []() { LuaUI::tradeConfirm(); })
+		.addFunction("CancelTrade",    []() { LuaUI::tradeCancel(); })
+
 		.addFunction("IsContainerItemUsable",   [](int slot) { return !LuaUI::containerItemUnusable(slot - 1); })
 		.addFunction("ContainerItemTargetsItem",[](int slot) { return LuaUI::containerItemTargetsItem(slot - 1); })
 		.addFunction("UseContainerItemOnItem",  [](int src, int tgt) { LuaUI::useContainerItemOnItem(src - 1, tgt - 1); })
@@ -1162,6 +1180,8 @@ void LuaEngine::bindUI()
 		"SetQuestTracked", "AbandonQuest",
 		"GetVendorNumItems", "GetVendorItem", "BuyVendorItem", "RepairGear", "VendorBuyback",
 		"GetNumSpellSlots", "GetSpellSlot",
+		"GetTradePartnerName", "GetTradeItem", "GetTradeGold", "IsTradeReady", "AddTradeItem", "RemoveTradeItem",
+		"SetTradeGold", "ConfirmTrade", "CancelTrade",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",
 		"IsMouseButtonDown", "ShowConfirm", "PopConfirm", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",
@@ -1284,6 +1304,7 @@ void LuaEngine::onFrame(float dt)
 		else if (kind == 5) LuaUI::showBankTooltip(key, bestH, anchor);
 		else if (kind == 6) LuaUI::showVendorTooltip(key, bestH, anchor);
 		else if (kind == 7) LuaUI::showSpellTooltipAt(key, bestH, anchor);   // key = spellId
+		else if (kind == 8) LuaUI::showTradeTooltip(key, bestH, anchor);     // key = slot + (isLocal?0:1000)
 	}
 
 	// Hover edge-detection: fire OnEnter(self) when the cursor enters a frame's bounds and OnLeave(self)
