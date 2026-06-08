@@ -245,6 +245,22 @@ void Abilities::updateData(const int spellId, const uint8_t level, const vector<
 	refreshTooltips();
 }
 
+int Abilities::spellSlotCount(int stage) const
+{
+	auto itr = m_spells.find(static_cast<Stage>(stage));
+	return itr == m_spells.end() ? 0 : static_cast<int>(itr->second.size());
+}
+
+bool Abilities::spellSlotAt(int stage, int index, int& spellId, int& level) const
+{
+	auto itr = m_spells.find(static_cast<Stage>(stage));
+	if (itr == m_spells.end() || index < 0 || index >= static_cast<int>(itr->second.size()))
+		return false;
+	spellId = itr->second[index].spellId;
+	level   = itr->second[index].level;
+	return true;
+}
+
 void Abilities::setData(const vector<GP_Server_Spellbook::SpellSlot>& spells)
 {
 	m_spells.clear();

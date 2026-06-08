@@ -1514,7 +1514,8 @@ void Game::processPacket_Server_Spellbook_Update(StlBuffer& data)
 	
 	auto abilities = dynamic_pointer_cast<Abilities>(world->getRenderObject(World::Interface::AbilitiesPanel));
 	abilities->updateData(pk.m_spellId, pk.m_level, pk.m_bpoints);
-	
+	sLua->fire(LuaEvents::SPELLBOOK_UPDATE, "");   // Lua addon layer: a single spell rank changed
+
 	world->refreshToolbarTooltips();
 
 	// For Tomes
@@ -1537,6 +1538,7 @@ void Game::processPacket_Server_Spellbook(StlBuffer& data)
 
 	auto abilities = dynamic_pointer_cast<Abilities>(world->getRenderObject(World::Interface::AbilitiesPanel));
 	abilities->setData(pk.m_slots);
+	sLua->fire(LuaEvents::SPELLBOOK_UPDATE, "");   // Lua addon layer: full spellbook (re)loaded
 
 	if (world->isEmptyToolbars())
 	{

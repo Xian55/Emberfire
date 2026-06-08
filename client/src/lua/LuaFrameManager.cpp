@@ -24,6 +24,7 @@
 #include "GameChat.h"
 #include "QuestLog.h"
 #include "VendorNpc.h"
+#include "Abilities.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -1546,11 +1547,13 @@ namespace LuaUI
 
 	void showUnitTooltip(const std::string& token) { if (auto* u = resolveUnit(token)) u->useTooltip(); }
 
-	void showSpellTooltip(int spellId)
+	static void positionTooltip(const shared_ptr<Tooltip>& tip, int ownerHandle, int anchor);   // defined below
+
+	std::shared_ptr<Tooltip> buildSpellTip(int spellId)
 	{
 		auto* w = currentWorld();
 		if (!w || spellId == 0)
-			return;
+			return nullptr;
 		auto& st = sContentMgr->db("spell_template");
 		auto tip = make_shared<Tooltip>(*w, sf::Vector2i{});
 		tip->setShadowOffset(1);
@@ -1558,8 +1561,21 @@ namespace LuaUI
 		const std::string desc = st.data(spellId, "aura_description");
 		if (!desc.empty())
 			tip->addLine(Assets::FontId::Arial, 15, desc);
+		return tip;
+	}
+	void showSpellTooltip(int spellId)
+	{
+		auto tip = buildSpellTip(spellId);
+		if (!tip) return;
 		const auto mp = sApplication->mousePos();
 		tip->moveTo({ mp.x + 16, mp.y + 16 });
+		sApplication->setTooltip(tip);
+	}
+	void showSpellTooltipAt(int spellId, int ownerHandle, int anchor)   // engine-asserted (book hover)
+	{
+		auto tip = buildSpellTip(spellId);
+		if (!tip) return;
+		positionTooltip(tip, ownerHandle, anchor);
 		sApplication->setTooltip(tip);
 	}
 
@@ -2201,6 +2217,19 @@ namespace LuaUI
 		sApplication->setTooltip(tip);
 	}
 
+	// ---- abilities / spellbook (display-only: reads the live force-hidden Abilities; stage 0=Misc, 1=Spell) ----
+	static Abilities* abilitiesPanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<Abilities*>(w->getRenderObject(World::AbilitiesPanel).get()) : nullptr;
+	}
+	int abilityCount(int stage) { auto* a = abilitiesPanel(); return a ? a->spellSlotCount(stage) : 0; }
+	bool abilitySlot(int stage, int index, int& spellId, int& level)
+	{
+		auto* a = abilitiesPanel();
+		return a && a->spellSlotAt(stage, index, spellId, level);
+	}
+
 	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or
 	// a quest item is USED; gear (equip_type>0) is EQUIPPED; otherwise nothing (unusable).
 	void useOrEquipContainerItem(int slot)
@@ -2320,7 +2349,8 @@ namespace LuaUI
 		             : (name == "BankFrame")      ? World::BankPanel
 		             : (name == "GuildRosterFrame") ? World::GuildPanel
 		             : (name == "QuestLogFrame")  ? World::QuestLogPanel
-		             : (name == "VendorFrame")    ? World::VendorNpcPanel : 0;
+		             : (name == "VendorFrame")    ? World::VendorNpcPanel
+		             : (name == "AbilitiesFrame") ? World::AbilitiesPanel : 0;
 		if (!id) return;
 		if (auto ro = w->getRenderObject(id))
 			ro->setForceHidden(!shown);   // survives the window re-showing itself each frame

@@ -37,6 +37,10 @@ class Abilities : public WorldPanel
 		bool hasSpell(const int spellId) const;
 		bool getSpellPoints(const int spellId, GP_Server_Spellbook::SpellSlot& output) const;
 
+		// --- read for the Lua spellbook view (stage 0=Miscbook, 1=Spellbook) ---
+		int  spellSlotCount(int stage) const;
+		bool spellSlotAt(int stage, int index, int& spellId, int& level) const;
+
 		const auto& getDesiredInvestments() const { return m_desiredInvestments; }
 
 	private:

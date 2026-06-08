@@ -196,6 +196,11 @@ namespace LuaUI
 	void repairGear();
 	void vendorBuyback();
 	void showVendorTooltip(int index, int ownerHandle, int anchor);
+
+	// ---- abilities / spellbook (display-only; reads the live force-hidden Abilities) ----
+	int  abilityCount(int stage);                       // stage 0=Miscbook, 1=Spellbook
+	bool abilitySlot(int stage, int index, int& spellId, int& level);
+	void showSpellTooltipAt(int spellId, int ownerHandle, int anchor);
 	void useOrEquipContainerItem(int slot);             // right-click: use a consumable/quest item or equip gear
 	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)

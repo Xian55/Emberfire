@@ -894,6 +894,7 @@ static const char* panelLuaName(const World::Interface id)
 		case World::Interface::GuildPanel:     return "GuildRosterFrame";
 		case World::Interface::QuestLogPanel:  return "QuestLogFrame";
 		case World::Interface::VendorNpcPanel: return "VendorFrame";
+		case World::Interface::AbilitiesPanel: return "AbilitiesFrame";
 		default: return "";   // Loot uses WoW-style LOOT_READY/LOOT_CLOSED instead of the generic panel events
 	}
 }

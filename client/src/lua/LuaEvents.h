@@ -46,7 +46,8 @@
     X(GUILD_ROSTER_UPDATE)        \
     X(QUEST_LOG_UPDATE)           \
     X(QUEST_OBJECTIVE_UPDATE)     \
-    X(VENDOR_UPDATE)
+    X(VENDOR_UPDATE)              \
+    X(SPELLBOOK_UPDATE)
 
 namespace LuaEvents
 {
