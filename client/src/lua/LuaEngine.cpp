@@ -1045,6 +1045,24 @@ void LuaEngine::bindUI()
 		.addFunction("DepositBagItem",   [](int bagSlot, int bankSlot) { LuaUI::depositBagItem(bagSlot - 1, bankSlot - 1); })
 		.addFunction("SortBank",         []() { LuaUI::sortBank(); })
 
+		// Guild roster.
+		.addFunction("GetGuildName",       []() { return LuaUI::guildName(); })
+		.addFunction("GetGuildMotd",       []() { return LuaUI::guildMotd(); })
+		.addFunction("GetNumGuildMembers", []() { return LuaUI::guildNumMembers(); })
+		.addFunction("GetGuildLocalRank",  []() { return LuaUI::guildLocalRank(); })
+		.addFunction("GetGuildMember", [](int index) {   // -> name, level, online, guid, className, r, g, b, rankName, rank
+			std::string name, cls, rankName; int level = 0, guid = 0, color = 0, rank = 0; bool online = false;
+			if (!LuaUI::guildMember(index - 1, name, level, online, guid, cls, color, rankName, rank))
+				return std::make_tuple(std::string(), 0, false, 0, std::string(), 0, 0, 0, std::string(), 0);
+			return std::make_tuple(name, level, online, guid, cls, (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, rankName, rank); })
+		.addFunction("SetGuildMotd",  [](std::string text) { LuaUI::setGuildMotd(text); })
+		.addFunction("GuildPromote",  [](int guid) { LuaUI::guildPromote(guid); })
+		.addFunction("GuildDemote",   [](int guid) { LuaUI::guildDemote(guid); })
+		.addFunction("GuildKick",     [](int guid) { LuaUI::guildKick(guid); })
+		.addFunction("InviteToParty", [](std::string name) { LuaUI::invitePlayerToParty(name); })
+		.addFunction("RequestGuildRoster", []() { LuaUI::requestGuildRoster(); })
+		.addFunction("WhisperPlayer", [](std::string name) { LuaUI::whisperPlayer(name); })
+
 		.addFunction("IsContainerItemUsable",   [](int slot) { return !LuaUI::containerItemUnusable(slot - 1); })
 		.addFunction("ContainerItemTargetsItem",[](int slot) { return LuaUI::containerItemTargetsItem(slot - 1); })
 		.addFunction("UseContainerItemOnItem",  [](int src, int tgt) { LuaUI::useContainerItemOnItem(src - 1, tgt - 1); })
@@ -1097,6 +1115,9 @@ void LuaEngine::bindUI()
 		"DestroyContainerItem", "UnequipInventoryItem", "UseOrEquipContainerItem", "MerchantRightClick",
 		"GetLootSlotCount", "GetLootSlot", "LootSlot", "LootAll", "LinkLootSlot", "CloseLoot", "IsShiftKeyDown",
 		"GetBankNumSlots", "GetBankItem", "WithdrawBankItem", "MoveBankItem", "DepositBagItem", "SortBank",
+		"GetGuildName", "GetGuildMotd", "GetNumGuildMembers", "GetGuildLocalRank", "GetGuildMember",
+		"SetGuildMotd", "GuildPromote", "GuildDemote", "GuildKick", "InviteToParty", "RequestGuildRoster",
+		"WhisperPlayer",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",
 		"IsMouseButtonDown", "ShowConfirm", "PopConfirm", "UnitContextMenu",
 		"ShowUnitTooltip", "ShowSpellTooltip", "SaveUISetting", "GetUISetting", "SetGameFrameShown",

@@ -164,6 +164,21 @@ namespace LuaUI
 	void depositBagItem(int bagSlot, int bankSlot);   // bag->bank drag (bankSlot<0 = server picks)
 	void sortBank();
 	void showBankTooltip(int slot, int ownerHandle, int anchor);
+
+	// ---- guild roster (reads/drives the live force-hidden GuildRoster) ----
+	std::string guildName();
+	std::string guildMotd();
+	int  guildNumMembers();
+	int  guildLocalRank();                  // GuildDefines::Rank ordinal (0 Initiate .. 3 Leader)
+	bool guildMember(int index, std::string& name, int& level, bool& online, int& guid,
+		std::string& className, int& classColor, std::string& rankName, int& rank);
+	void setGuildMotd(const std::string& text);
+	void guildPromote(int guid);
+	void guildDemote(int guid);
+	void guildKick(int guid);               // server-side TODO (placeholder opcode); parity with C++
+	void invitePlayerToParty(const std::string& name);
+	void requestGuildRoster();
+	void whisperPlayer(const std::string& name);
 	void useOrEquipContainerItem(int slot);             // right-click: use a consumable/quest item or equip gear
 	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)

@@ -118,4 +118,46 @@ end
 
 function EmberUI.HasCursorItem() return EmberUI._held ~= nil end
 
+-- Reusable right-click context menu. items = { { text=, color={r,g,b} (optional), onClick=fn }, ... }.
+-- Pops at the cursor; a row click runs onClick + hides; include a "Cancel" row to dismiss. Reused by the
+-- guild roster (and future windows that need a right-click menu).
+function EmberUI.ShowMenu(items)
+	local m = EmberUI._menu
+	if not m then
+		local f = CreateFrame('Frame', 'EmberContextMenu', nil)
+		f:SetFrameLevel(9000)
+		local bg = f:CreateTexture(); bg:SetAllPoints(f); bg:SetTexture('game_chat_backdrop.png')
+		m = { frame = f, bg = bg, rows = {} }
+		EmberUI._menu = m
+	end
+	local MW, RH, PAD = 132, 19, 5
+	local n = #items
+	m.frame:SetSize(MW, n * RH + PAD * 2)
+	local x, y = GetCursorPosition()
+	m.frame:SetPoint('TOPLEFT', x, y)
+	for i = 1, n do
+		local r = m.rows[i]
+		if not r then
+			local btn = CreateFrame('Button', nil, m.frame)
+			btn:SetSize(MW - PAD * 2, RH); btn:EnableMouse(true)
+			btn:SetHoverTexture('gameicon40_hover.png')
+			local fs = m.frame:CreateFontString(); fs:SetFont('Arial'); fs:SetFontSize(13)
+			r = { btn = btn, fs = fs }; m.rows[i] = r
+		end
+		r.btn:SetPoint('TOPLEFT', m.frame, 'TOPLEFT', PAD, PAD + (i - 1) * RH)
+		r.fs:SetPoint('TOPLEFT', m.frame, 'TOPLEFT', PAD + 3, PAD + (i - 1) * RH + 2)
+		r.fs:SetText(items[i].text)
+		local c = items[i].color
+		r.fs:SetTextColor(c and c[1] or 235, c and c[2] or 225, c and c[3] or 200, 255)
+		r.fs:Show()
+		local cb = items[i].onClick
+		r.btn:SetScript('OnClick', function() m.frame:Hide(); if cb then cb() end end)
+		r.btn:Show()
+	end
+	for i = n + 1, #m.rows do m.rows[i].btn:Hide(); m.rows[i].fs:Hide() end
+	m.frame:Show()
+end
+
+function EmberUI.HideMenu() if EmberUI._menu then EmberUI._menu.frame:Hide() end end
+
 print('EmberUI core loaded')

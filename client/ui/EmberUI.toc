@@ -14,3 +14,4 @@ Inventory.lua
 Equipment.lua
 LootWindow.lua
 Bank.lua
+GuildRoster.lua

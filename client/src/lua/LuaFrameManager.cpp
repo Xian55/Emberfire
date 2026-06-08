@@ -20,6 +20,8 @@
 #include "Equipment.h"
 #include "LootWindow.h"
 #include "Bank.h"
+#include "GuildRoster.h"
+#include "GameChat.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -2098,6 +2100,46 @@ namespace LuaUI
 		sApplication->setTooltip(tip);
 	}
 
+	// ---- guild roster (reads + drives the live force-hidden GuildRoster) ----
+	static GuildRoster* guildPanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<GuildRoster*>(w->getRenderObject(World::GuildPanel).get()) : nullptr;
+	}
+
+	std::string guildName()   { auto* g = guildPanel(); return g ? g->guildName() : std::string(); }
+	std::string guildMotd()   { auto* g = guildPanel(); return g ? g->motd() : std::string(); }
+	int  guildNumMembers()    { auto* g = guildPanel(); return g ? g->memberCount() : 0; }
+	int  guildLocalRank()     { auto* g = guildPanel(); return g ? g->localRankInt() : 0; }
+
+	bool guildMember(int index, std::string& name, int& level, bool& online, int& guid,
+		std::string& className, int& classColor, std::string& rankName, int& rank)
+	{
+		auto* g = guildPanel();
+		return g && g->memberAt(index, name, level, online, guid, className, classColor, rankName, rank);
+	}
+
+	void setGuildMotd(const std::string& text)
+	{
+		GP_Client_GuildMotd pk; pk.m_motd = text;
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+	void guildPromote(int guid) { GP_Client_GuildPromoteMember pk; pk.m_targetGuid = guid; sConnector->sendPacket(pk.build(StlBuffer{})); }
+	void guildDemote(int guid)  { GP_Client_GuildDemoteMember  pk; pk.m_targetGuid = guid; sConnector->sendPacket(pk.build(StlBuffer{})); }
+	// NOTE: Client_GuildKickMember is opcode 2002 (placeholder block, > the 1..200 wire range) — the server
+	// drops it; kick isn't wired server-side yet. Mirrors the C++ GuildRoster (same packet), kept for parity.
+	void guildKick(int guid)    { GP_Client_GuildKickMember    pk; pk.m_targetGuid = guid; sConnector->sendPacket(pk.build(StlBuffer{})); }
+	void invitePlayerToParty(const std::string& name) { GP_Client_PartyInviteMember pk; pk.m_playerName = name; sConnector->sendPacket(pk.build(StlBuffer{})); }
+	void requestGuildRoster()   { sConnector->sendPacket(GP_Client_GuildRosterRequest{}.build(StlBuffer{})); }
+
+	void whisperPlayer(const std::string& name)
+	{
+		auto* w = currentWorld();
+		if (!w) return;
+		if (auto* chat = dynamic_cast<GameChat*>(w->getRenderObject(World::GameChatBox).get()))
+			chat->setWhispering(name);
+	}
+
 	// Right-click context action, mirroring Inventory::input (no vendor/bank/trade open): a castable spell or
 	// a quest item is USED; gear (equip_type>0) is EQUIPPED; otherwise nothing (unusable).
 	void useOrEquipContainerItem(int slot)
@@ -2214,7 +2256,8 @@ namespace LuaUI
 		             : (name == "InventoryFrame") ? World::InventoryPanel
 		             : (name == "EquipmentFrame") ? World::EquipmentPanel
 		             : (name == "LootFrame")      ? World::LootWindowPanel
-		             : (name == "BankFrame")      ? World::BankPanel : 0;
+		             : (name == "BankFrame")      ? World::BankPanel
+		             : (name == "GuildRosterFrame") ? World::GuildPanel : 0;
 		if (!id) return;
 		if (auto ro = w->getRenderObject(id))
 			ro->setForceHidden(!shown);   // survives the window re-showing itself each frame

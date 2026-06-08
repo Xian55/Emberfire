@@ -2129,6 +2129,8 @@ void Game::processPacket_Server_GuildRoster(StlBuffer& data)
 				scrollObj->setScrollOffset(savedScrollOffset);
 		}
 	}
+
+	sLua->fire(LuaEvents::GUILD_ROSTER_UPDATE, "");   // Lua addon layer: roster (re)populated
 }
 
 void Game::processPacket_Server_GuildInvite(StlBuffer& data)

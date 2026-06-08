@@ -260,6 +260,8 @@ void GuildRoster::setGuild(const string& guildname)
 
 void GuildRoster::setMotd(const string& str)
 {
+	m_motd = str;
+
 	if (auto motd = dynamic_pointer_cast<TextBoxRo>(getRenderObject(Interface::GuildMotd)))
 		motd->setString(str);
 	else
@@ -356,6 +358,27 @@ GuildRoster::GuildMember const* GuildRoster::getMember(const string& name) const
 		return nullptr;
 
 	return &itr->second;
+}
+
+bool GuildRoster::memberAt(int index, string& name, int& level, bool& online, int& guid,
+	string& className, int& classColor, string& rankName, int& rank) const
+{
+	if (index < 0 || index >= static_cast<int>(m_members.size()))
+		return false;
+
+	auto itr = m_members.begin();
+	std::advance(itr, index);
+
+	name      = itr->first;
+	level     = itr->second.level;
+	online    = itr->second.online;
+	guid      = itr->second.guid;
+	className = PlayerFunctions::className(itr->second.classId);
+	const uint32_t cc = PlayerFunctions::classColor(itr->second.classId);   // 0xRRGGBBAA
+	classColor = ((cc >> 24) & 0xFF) << 16 | ((cc >> 16) & 0xFF) << 8 | ((cc >> 8) & 0xFF);
+	rankName  = GuildFunctions::rankName(itr->second.rank);
+	rank      = static_cast<int>(itr->second.rank);
+	return true;
 }
 
 GuildDefines::Rank GuildRoster::getLocalRank() const

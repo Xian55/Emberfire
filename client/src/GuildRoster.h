@@ -63,6 +63,16 @@ class GuildRoster : public WorldPanel
 
 		GuildDefines::Rank getLocalRank() const;
 
+		// --- read for the Lua roster view (the live window stays the model) ---
+		const string& guildName() const { return m_guildName; }
+		const string& motd() const { return m_motd; }
+		int memberCount() const { return static_cast<int>(m_members.size()); }
+		int localRankInt() const { return static_cast<int>(getLocalRank()); }
+		// fills member `index` (hash order): name, level, online, guid, class name + packed 0xRRGGBB,
+		// rank name + rank ordinal (0 Initiate .. 3 Leader).
+		bool memberAt(int index, string& name, int& level, bool& online, int& guid,
+			string& className, int& classColor, string& rankName, int& rank) const;
+
 	private:
 		void input() final;
 		void render() final;
@@ -80,6 +90,7 @@ class GuildRoster : public WorldPanel
 		int m_numOnline;
 		
 		string m_guildName;
+		string m_motd;
 		string m_rightClickedName;
 
 		// name, data
