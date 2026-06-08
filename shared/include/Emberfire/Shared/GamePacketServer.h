@@ -23,14 +23,19 @@ enum Opcode : std::uint16_t {
     Server_Validate          = 3,
     Client_CharCreate        = 4,
     Client_EnterWorld        = 5,
+    // op6 is NOT the gossip-dialog select (the original r1189 client never sends it; sending it disconnects).
+    // The real gossip-dialog-option select is op8 (Client_GossipDialogSelect) -- see below. Kept for the enum
+    // slot; do not send it.
     Client_ClickedGossipOption = 6,
     // VERIFIED vs steam client (capture conn1 18-58): THIS is the quest-accept the gossip flow uses.
     // op7 {u32 questId, u32 giverGuid} -> server FUN_00432c40 -> AcceptedQuest(112). giverGuid may be 0
     // (server resolves giver from the open GossipMenu session) or the npc guid; both accepted.
     Client_GossipQuestAccept = 7,
-    // op8 = a DIFFERENT accept path (FUN_0048a030, reads 1 int). The gossip flow never hits it -> server
-    // ignored our op8 sends (the "still cannot accept quest" bug). Kept for completeness; not used for accept.
-    Client_AcceptQuest       = 8,
+    // op8 = the gossip-dialog-option SELECT: {u32 optionEntry}. VERIFIED vs the original r1189 Steam client
+    // (capture 2026-06-08 conn3: choosing Harold's bank option sent op8 {71} -> server OpenBank(142)+Bank(141)).
+    // FUN_0048a030 "reads 1 int" = that option entry, not a questId (the RE earlier mislabeled it). Sending
+    // op6 here instead made the server drop the connection.
+    Client_GossipDialogSelect = 8,
     Client_EquipItem         = 9,
     Client_DestroyItem       = 10,  // VERIFIED: op10 → server FUN_004931c0 prints "The item was destroyed" (NOT sell!).
                                     //   Wire = u8 slot + 11B item. Do NOT send this for selling — it destroys.

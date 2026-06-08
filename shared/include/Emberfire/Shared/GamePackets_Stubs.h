@@ -416,7 +416,9 @@ struct GP_Client_TradeCancel : GamePacket { // empty
 // ---- Gossip / quests ---------------------------------------------------------
 struct GP_Client_ClickedGossipOption : GamePacket {
     int m_entry = 0;
-    StlBuffer& build(StlBuffer&& b) { b << std::uint16_t(Client_ClickedGossipOption) << m_entry; m_buf = std::move(b); return m_buf; }
+    // Gossip-dialog-option select = op8 {u32 optionEntry}. VERIFIED original r1189 client (capture 2026-06-08
+    // conn3): op8 {71} -> server OpenBank+Bank. op6 (Client_ClickedGossipOption) made the server disconnect.
+    StlBuffer& build(StlBuffer&& b) { b << std::uint16_t(Client_GossipDialogSelect) << m_entry; m_buf = std::move(b); return m_buf; }
     StlBuffer m_buf;
 };
 struct GP_Client_AcceptQuest : GamePacket {

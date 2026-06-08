@@ -26,6 +26,20 @@ TEST(LevelUp, SpendIdIsEnumIndexNoHealthManaSwap) {
     EXPECT_EQ(GP_Client_LevelUp::spendId(S::Bartering),  25);
 }
 
+TEST(GossipSelect, DialogOptionUsesOp8) {
+    // The gossip-dialog-option select goes on op8 {u32 optionEntry} (VERIFIED original r1189 client). Sending
+    // op6 (Client_ClickedGossipOption) made the server drop the connection (the banker-disconnect bug).
+    GP_Client_ClickedGossipOption pk;
+    pk.m_entry = 71;
+    pk.build(StlBuffer{});
+    const std::vector<std::uint8_t>& w = pk.m_buf.raw();
+    ASSERT_EQ(w.size(), 6u);
+    auto u16 = [&](std::size_t i) { return std::uint16_t(w[i] | (w[i + 1] << 8)); };
+    auto u32 = [&](std::size_t i) { return std::uint32_t(w[i] | (w[i + 1] << 8) | (w[i + 2] << 16) | (w[i + 3] << 24)); };
+    EXPECT_EQ(u16(0), 8);     // opcode 8, NOT 6
+    EXPECT_EQ(u32(2), 71u);   // the option entry
+}
+
 TEST(LevelUp, HealthSpendWritesStatId2) {
     // Wire: [op:u16][statCount:u16][statId:u16,val:u16]*[spellCount:u16]; investing Health => statId 2.
     GP_Client_LevelUp pk;
