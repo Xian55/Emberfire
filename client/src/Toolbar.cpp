@@ -101,6 +101,21 @@ void Toolbar::input()
 	}
 }
 
+void Toolbar::setLuaView(const bool v)
+{
+	m_luaView = v;
+
+	// The icons must NOT consume mouse clicks in Lua-view: the C++ icons sit under the Lua ActionBar buttons,
+	// and Button::updatePressed calls clearMouseDown/Up on a moused-over click, eating it before the Lua frame
+	// manager (= no pickup / click-cast / void-drop on the Lua buttons). Keybind detection is a separate path
+	// in Button::input and keeps working. createBaseIcon re-applies this for any slot reassigned while in view.
+	for (auto& itr : m_icons)
+	{
+		itr.second->setAllowLeftClick(!v);
+		itr.second->setAllowRightClick(!v);
+	}
+}
+
 void Toolbar::useIcon(const Interface id)
 {
 	auto gameIcon = dynamic_pointer_cast<GameIcon>(getRenderObject(id));
@@ -510,6 +525,14 @@ void Toolbar::createBaseIcon(const Interface id, const int type, const int entry
 	gameIcon->changeEntry(entry);
 	gameIcon->setEnableDragActivate(true);
 	gameIcon->setAllowRightClick(true);
+
+	// In Lua-view the icons stay input-active (for keybinds) but must not consume mouse clicks — the Lua
+	// ActionBar buttons do. (See setLuaView.)
+	if (m_luaView)
+	{
+		gameIcon->setAllowLeftClick(false);
+		gameIcon->setAllowRightClick(false);
+	}
 
 	addRenderObject(gameIcon);
 	m_icons[id] = gameIcon;

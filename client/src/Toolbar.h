@@ -46,8 +46,10 @@ class Toolbar :	public WorldChild
 
 		// ---- Lua action-bar view: when set, render() draws nothing and input() only detects keybinds (the Lua
 		//      ActionBar owns the visuals, clicks and drag; the C++ bar stays the data + cast + cooldown + cache
-		//      engine). The 3 bars are flipped on via World::setActionBarsLuaView when the Lua addon loads. ----
-		void setLuaView(const bool v) { m_luaView = v; }
+		//      engine). The 3 bars are flipped on via World::setActionBarsLuaView when the Lua addon loads.
+		//      Also disables the icons' mouse-click handling so they don't swallow the click (Button::updatePressed
+		//      -> clearMouseDown) before the Lua frame manager sees it; keybind detection is a separate path. ----
+		void setLuaView(const bool v);
 
 		// Activate a slot (the same cast/use the keybind + click path runs). Public so the Lua view can drive it.
 		void useIcon(const Interface id);
