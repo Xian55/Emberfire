@@ -22,6 +22,7 @@ class TextLine
 
 		const string& getTextStr() const { return m_text.getOriginalString(); }
 		const string& getTooltipStr() const { return m_tooltipStr; }
+		const sf::Color& getColor() const { return m_text.getOriginalColor(); }
 		const sf::Vector2i getRenderPos() const { return m_renderPos; }
 
 		const auto getTextBounds() const { return m_text.getGlobalBounds(); }

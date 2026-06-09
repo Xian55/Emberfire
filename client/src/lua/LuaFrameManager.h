@@ -89,6 +89,7 @@ class LuaButton : public RenderObjectHolder
 
 		void setTexture(const std::string& textureName);
 		void setHoverTexture(const std::string& textureName);
+		void setHoverColor(const sf::Color c) { m_hoverColor = c; }   // solid rect on hover (no art needed)
 		void setHitSize(const int w, const int h) { m_w = w; m_h = h; }
 		sf::Vector2i hitSize() const { return { m_w, m_h }; }
 		bool popClicked();
@@ -99,6 +100,7 @@ class LuaButton : public RenderObjectHolder
 
 		shared_ptr<Sprite> m_sprite;
 		shared_ptr<Sprite> m_hoverSprite;
+		sf::Color m_hoverColor{ 0, 0, 0, 0 };   // alpha 0 = off
 		int m_w{0};
 		int m_h{0};
 		bool m_clicked{false};
@@ -213,6 +215,8 @@ class LuaEditBox : public RenderObjectHolder
 		void setBoxSize(const int w, const int h);
 		sf::Vector2i boxSize() const { return { m_w, m_h }; }
 		bool popSubmitted();
+		void setFocused(const bool v);   // programmatic focus (SetFocus/ClearFocus); Escape clears engine-side
+		bool isFocused() const;
 
 	private:
 		void input() final;
@@ -270,6 +274,7 @@ class LuaFrameManager : public RenderObjectHolder
 		void setText(int handle, const std::string& text);
 		void setTexture(int handle, const std::string& textureName);
 		void setHoverTexture(int handle, const std::string& textureName);
+		void setHoverColor(int handle, int r, int g, int b, int a);
 		void show(int handle, bool shown);
 		void clearAll();   // destroy every Lua frame + reset the handle registry
 		bool valid(int handle) const { return lookup(handle) != nullptr; }

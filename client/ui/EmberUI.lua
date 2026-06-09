@@ -140,7 +140,11 @@ function EmberUI.ShowMenu(items)
 		if not r then
 			local btn = CreateFrame('Button', nil, m.frame)
 			btn:SetSize(MW - PAD * 2, RH); btn:EnableMouse(true)
-			btn:SetHoverTexture('gameicon40_hover.png')
+			-- subtle warm row highlight (no slot-outline art); pcall so an older exe (no SetHoverColor
+			-- binding yet) degrades to the texture highlight instead of aborting the menu build.
+			if not pcall(function() btn:SetHoverColor(255, 235, 180, 38) end) then
+				btn:SetHoverTexture('gameicon40_hover.png')
+			end
 			local fs = m.frame:CreateFontString(); fs:SetFont('Arial'); fs:SetFontSize(13)
 			r = { btn = btn, fs = fs }; m.rows[i] = r
 		end

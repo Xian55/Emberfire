@@ -11,6 +11,8 @@
 #include "Text.h"
 #include "World.h"
 #include "lua/LuaEngine.h"
+#include "lua/LuaEvents.h"
+#include "lua/LuaUI.h"
 #include "ContextMenu.h"
 #include "GuildRoster.h"
 #include "ClientPlayer.h"
@@ -77,6 +79,22 @@ GameChat::~GameChat()
 
 void GameChat::input()
 {
+	// Lua view: the addon owns the visuals + edit box. We only watch the chat-open keys here (they're
+	// world-level keyboard, which Lua can't see) and tell the addon to focus its box. Everything the C++
+	// prompt did at submit time runs through submitText (called by the SubmitChat binding).
+	if (m_luaView)
+	{
+		if (!LuaUI::anyEditBoxFocused())
+		{
+			if (sApplication->popKeyUp(sf::Keyboard::Return))
+				sLua->fire(LuaEvents::CHAT_OPEN, "");
+			else if (sApplication->popKeyDown(sf::Keyboard::Slash))
+				sLua->fire(LuaEvents::CHAT_OPEN, "slash");
+		}
+
+		return;
+	}
+
 	if (m_promptBox->popEmptyEnter())
 	{
 		setInUse(false);
@@ -149,65 +167,7 @@ void GameChat::input()
 
 		if (!enteredTxt.empty() || emptyEnter)
 		{
-			enteredTxt = m_linkedItemNameCache + enteredTxt;
-
-			if (parseChannelSwap(enteredTxt, false, string{}))
-			{
-
-			}
-			else if (enteredTxt[0] == '/')
-			{
-				if (!processServerCommand(enteredTxt))
-					printHelp();
-			}
-			else
-			{
-				GP_Client_ChatMsg packet;
-				packet.m_channelId = m_channel;
-				packet.m_text = enteredTxt;
-				packet.m_targetName = m_whisperTarget;
-				
-				if (m_linkedItem.m_itemId != 0)
-					packet.m_itemId = m_linkedItem;
-
-				sConnector->sendPacket(packet.build(StlBuffer{}));
-			}
-
-			// After you yell, go back to what you were doing before, etc
-			switch (m_channel)
-			{
-				case ChatDefines::Channels::Say:
-				case ChatDefines::Channels::Party:
-				case ChatDefines::Channels::Guild:
-				{
-					m_channelPrevious = m_channel;
-					break;
-				}
-				case ChatDefines::Channels::AllChat:
-				case ChatDefines::Channels::Yell:
-				{
-					if (m_channelPrevious == ChatDefines::Channels::Whisper)
-						setChannel(ChatDefines::Channels::Say);
-					else
-						setChannel(m_channelPrevious);
-					break;
-				}
-				case ChatDefines::Channels::Whisper:
-				{
-					if (!m_whisperTarget.empty())
-					{
-						const string toWhisperStr = "To [" + m_whisperTarget + "]: " + enteredTxt;
-						registerFromSlot(m_whisperTarget, toWhisperStr);
-						addLine(toWhisperStr, ChatDefines::Channels::Whisper);
-					}
-
-					break;
-				}
-			}
-
-			if (m_channel != ChatDefines::Channels::Whisper)
-				m_whisperTarget.clear();
-
+			submitText(enteredTxt);
 			setInUse(false);
 		}
 		else if (sApplication->popKeyUp(sf::Keyboard::Escape))
@@ -271,6 +231,9 @@ void GameChat::input()
 
 void GameChat::render()
 {
+	if (m_luaView)
+		return;   // the Lua chat draws everything; this stays the line/channel/command engine
+
 	if (m_promptBox->isCurrentPrompt())
 		m_bgSprite->getRaw()->setColor(sf::Color(255, 255, 255, 255));
 	else
@@ -308,6 +271,141 @@ void GameChat::render()
 	}
 }
 		
+void GameChat::submitText(const string& raw)
+{
+	string enteredTxt = m_linkedItemNameCache + raw;
+
+	if (enteredTxt.empty())
+		return;
+
+	if (parseChannelSwap(enteredTxt, false, string{}))
+	{
+
+	}
+	else if (enteredTxt[0] == '/')
+	{
+		if (!processServerCommand(enteredTxt))
+			printHelp();
+	}
+	else
+	{
+		GP_Client_ChatMsg packet;
+		packet.m_channelId = m_channel;
+		packet.m_text = enteredTxt;
+		packet.m_targetName = m_whisperTarget;
+
+		if (m_linkedItem.m_itemId != 0)
+			packet.m_itemId = m_linkedItem;
+
+		sConnector->sendPacket(packet.build(StlBuffer{}));
+	}
+
+	// After you yell, go back to what you were doing before, etc
+	switch (m_channel)
+	{
+		case ChatDefines::Channels::Say:
+		case ChatDefines::Channels::Party:
+		case ChatDefines::Channels::Guild:
+		{
+			m_channelPrevious = m_channel;
+			break;
+		}
+		case ChatDefines::Channels::AllChat:
+		case ChatDefines::Channels::Yell:
+		{
+			if (m_channelPrevious == ChatDefines::Channels::Whisper)
+				setChannel(ChatDefines::Channels::Say);
+			else
+				setChannel(m_channelPrevious);
+			break;
+		}
+		case ChatDefines::Channels::Whisper:
+		{
+			if (!m_whisperTarget.empty())
+			{
+				const string toWhisperStr = "To [" + m_whisperTarget + "]: " + enteredTxt;
+				registerFromSlot(m_whisperTarget, toWhisperStr);
+				addLine(toWhisperStr, ChatDefines::Channels::Whisper);
+			}
+
+			break;
+		}
+	}
+
+	if (m_channel != ChatDefines::Channels::Whisper)
+		m_whisperTarget.clear();
+
+	// A sent (or attempted) message consumes the pending item link. The C++ prompt path used to clear this
+	// lazily next frame via the prefix logic; clearing it here works for both the C++ and the Lua editbox.
+	if (m_linkedItem.m_itemId != 0)
+	{
+		m_linkedItem = {};
+		m_linkedItemNameCache.clear();
+	}
+}
+
+bool GameChat::trySwapChannel(const string& typed)
+{
+	string extracted;
+	return parseChannelSwap(typed, true, extracted);
+}
+
+// ---- read accessors for the Lua chat view ----
+
+int GameChat::lineCount() const
+{
+	return m_promptBox->getNumLines();
+}
+
+bool GameChat::lineAt(const int idx, string& text, uint32_t& rgba, bool& hasLink, int& channel) const
+{
+	auto* line = m_promptBox->getLine(idx);
+
+	if (line == nullptr)
+		return false;
+
+	text = line->getTextStr();
+	const sf::Color c = line->getColor();
+	rgba = (uint32_t(c.r) << 24) | (uint32_t(c.g) << 16) | (uint32_t(c.b) << 8) | uint32_t(c.a);
+	const uintptr_t key = reinterpret_cast<uintptr_t>(line);
+	hasLink = m_itemLinks.find(key) != m_itemLinks.end();
+	auto ch = m_lineChannels.find(key);
+	channel = ch == m_lineChannels.end() ? ChatDefines::Channels::System : ch->second;
+	return true;
+}
+
+string GameChat::lineSender(const int idx) const
+{
+	auto* line = m_promptBox->getLine(idx);
+	return line ? getMsgSenderName(line->getTextStr()) : string();
+}
+
+shared_ptr<Tooltip> GameChat::lineLinkTooltip(const int idx)
+{
+	auto* line = m_promptBox->getLine(idx);
+
+	if (line == nullptr)
+		return nullptr;
+
+	auto itr = m_itemLinks.find(reinterpret_cast<uintptr_t>(line));
+	return itr == m_itemLinks.end() ? nullptr : itr->second->buildTooltip();
+}
+
+string GameChat::prefixText()
+{
+	// Mirror the C++ prompt's prefix logic: channel prefix + a pending linked-item name.
+	if (m_linkedItem.m_itemId != 0 && m_linkedItemNameCache.empty())
+		m_linkedItemNameCache = "[" + ItemIcon::formItemTitle(m_linkedItem) + "]";
+
+	return getChannelPrefix(m_channel, m_whisperTarget) + m_linkedItemNameCache;
+}
+
+uint32_t GameChat::prefixColor() const
+{
+	const sf::Color c = getChatColor(m_channel);
+	return (uint32_t(c.r) << 24) | (uint32_t(c.g) << 16) | (uint32_t(c.b) << 8) | uint32_t(c.a);
+}
+
 bool GameChat::parseChannelSwap(const string& inputstr, const bool extraSpace, string& out_extractedStr)
 {
 	string buffer = extraSpace ? " " : "";
@@ -353,7 +451,7 @@ bool GameChat::parseChannelSwap(const string& inputstr, const bool extraSpace, s
 	}
 
 	// Set to whisper chat
-	else if (hasAndExtract("/w" + buffer, out_extractedStr) || hasAndExtract("/whisper" + buffer, out_extractedStr))
+	else if (hasAndExtract("/w" + buffer, inputstr, out_extractedStr) || hasAndExtract("/whisper" + buffer, inputstr, out_extractedStr))
 	{
 		m_whisperTarget = CharacterFunctions::formatName(out_extractedStr);
 		setChannel(ChatDefines::Channels::Whisper);
@@ -387,20 +485,23 @@ void GameChat::recvMsg(const string& msg, const string& from, const ChatDefines:
 	addLine(formattedMsg, channel, linkedItem);
 }
 
-void GameChat::addLineColor(const string& msg, const sf::Color color, const ItemDefines::ItemDefinition* linkedItem /*= nullptr*/)
+void GameChat::addLineColor(const string& msg, const sf::Color color, const ItemDefines::ItemDefinition* linkedItem /*= nullptr*/, const int channelTag /*= System*/)
 {
 	uintptr_t prunedPtr = 0;
 	m_promptBox->addLine(msg, color, &prunedPtr);
 
 	if (prunedPtr != 0)
+	{
 		m_itemLinks.erase(prunedPtr);
+		m_lineChannels.erase(prunedPtr);
+	}
+
+	uintptr_t ptrval = reinterpret_cast<uintptr_t>(m_promptBox->getLine(m_promptBox->getNumLines() - 1));
+	m_lineChannels[ptrval] = channelTag;   // per-line channel, for the Lua tabs' filters
 
 	if (linkedItem != nullptr)
 	{
-		int index = m_promptBox->getNumLines() - 1;
-		uintptr_t ptrval = reinterpret_cast<uintptr_t>(m_promptBox->getLine(index));
-
-		auto fakeIcon = make_shared<ItemIcon>(*this, 0, "gameicon19");		
+		auto fakeIcon = make_shared<ItemIcon>(*this, 0, "gameicon19");
 		fakeIcon->setItemDef(*linkedItem);
 		fakeIcon->refreshTooltip();
 		fakeIcon->setTooltipHorizontalAdju(false);
@@ -413,11 +514,35 @@ void GameChat::addLineColor(const string& msg, const sf::Color color, const Item
 		if (auto consoleWindow = dynamic_pointer_cast<ConsoleWindow>(sApplication->getRenderObject(Application::RoConsole)))
 			consoleWindow->warning(msg);
 	}
+
+	sLua->fire(LuaEvents::CHAT_MSG, "");
 }
 
 void GameChat::addLine(const string& msg, const ChatDefines::Channels channel, const ItemDefines::ItemDefinition* linkedItem /*= nullptr*/)
 {
-	addLineColor(msg, getChatColor(channel), linkedItem);
+	addLineColor(msg, getChatColor(channel), linkedItem, channel);
+}
+
+void GameChat::addCombatLogLine(const string& msg, const sf::Color color, const CombatCategory cat)
+{
+	const uint32_t rgba = (uint32_t(color.r) << 24) | (uint32_t(color.g) << 16) | (uint32_t(color.b) << 8) | uint32_t(color.a);
+	m_combatLines.push_back({ msg, rgba, cat });
+
+	if (m_combatLines.size() > Defines::CombatLogMaxLines)
+		m_combatLines.pop_front();
+
+	sLua->fire(LuaEvents::CHAT_MSG, "combat");
+}
+
+bool GameChat::combatLineAt(const int idx, string& text, uint32_t& rgba, int& category) const
+{
+	if (idx < 0 || idx >= static_cast<int>(m_combatLines.size()))
+		return false;
+
+	text = m_combatLines[idx].text;
+	rgba = m_combatLines[idx].rgba;
+	category = m_combatLines[idx].category;
+	return true;
 }
 
 void GameChat::promptLinkAnItem(const ItemDefines::ItemDefinition& itemDef)
@@ -460,6 +585,11 @@ string GameChat::getChannelPrefix(const ChatDefines::Channels channel, const str
 void GameChat::setInUse(const bool v)
 {
 	m_inUse = v;
+
+	// Lua view: "open the chat" means "focus the Lua editbox" — tell the addon (covers setWhispering from
+	// the guild roster / chat menu and promptLinkAnItem's shift-click link, which both open via setInUse).
+	if (m_luaView && v)
+		sLua->fire(LuaEvents::CHAT_OPEN, "");
 
 	if (RenderObjectHolder* owner = dynamic_cast<RenderObjectHolder*>(getOwner()))
 	{
@@ -718,17 +848,19 @@ bool GameChat::processServerCommand(string enteredTxt)
 	return false;
 }
 
-bool GameChat::hasAndExtract(const string& prefx, string& output) const
+bool GameChat::hasAndExtract(const string& prefx, const string& content, string& output) const
 {
-	if (m_promptBox->getContent().find(prefx) != 0)
+	// Was hardwired to m_promptBox->getContent(); takes the text as a param so the Lua editbox's live
+	// channel-swap parse (trySwapChannel) can reuse it. The C++ prompt path passes the same content.
+	if (content.find(prefx) != 0)
 		return false;
 
 	output.clear();
 
-	if (m_promptBox->getContent().size() >= prefx.size() + 2 && m_promptBox->getContent()[m_promptBox->getContent().size() - 1] == ' ')
+	if (content.size() >= prefx.size() + 2 && content[content.size() - 1] == ' ')
 	{
-		for (size_t i = prefx.size(); i < m_promptBox->getContent().size() - 1; ++i)
-			output.push_back(m_promptBox->getContent()[i]);
+		for (size_t i = prefx.size(); i < content.size() - 1; ++i)
+			output.push_back(content[i]);
 	}
 
 	return !output.empty();

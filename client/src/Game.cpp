@@ -2371,6 +2371,15 @@ void Game::processPacket_Server_CombatMsg(StlBuffer& data)
 			textColor.a /= 2;
 
 		world->pushCombatMessage(spellname, combatMsgLoc, textColor, false, 0.5f, victim->getGuid(), false, someoneElse ? 2.f : 1.f);
+
+		// Combat log: aura application ("gains" = beneficial per the b1 flag above, "is afflicted by" = harmful).
+		if (auto gameChat = dynamic_pointer_cast<GameChat>(world->getRenderObject(World::GameChatBox)))
+		{
+			const string logLine = victim->getName() + (incoming.m_periodic ? " gains " : " is afflicted by ") + spellname + ".";
+			const auto cat = victim->isLocal() ? GameChat::CombatIncoming : GameChat::CombatMisc;
+			gameChat->addCombatLogLine(logLine, incoming.m_periodic ? sf::Color(87, 193, 137, 255) : sf::Color(220, 90, 90, 255), cat);
+		}
+
 		return;
 	}
 
@@ -2537,13 +2546,55 @@ void Game::processPacket_Server_CombatMsg(StlBuffer& data)
 				auto localFrame = dynamic_pointer_cast<UnitFrame>(world->getRenderObject(World::PlayerUnitFrame));
 				localFrame->playMessage(textMsg, textColor);
 			}
-			else 
-			{	
+			else
+			{
 				auto targetFrame = dynamic_pointer_cast<UnitFrame>(world->getRenderObject(World::TargetUnitFrame));
 
 				if (targetFrame->getUnitPtr() != nullptr && targetFrame->getUnitPtr()->getGuid() == incoming.m_targetGuid)
 					targetFrame->playMessage(textMsg, textColor);
 			}
+		}
+
+		// Combat log line (the Lua chat's Combat tab; separate buffer from the chat scrollback).
+		if (auto gameChat = dynamic_pointer_cast<GameChat>(world->getRenderObject(World::GameChatBox)))
+		{
+			const string casterName = caster != nullptr ? caster->getName() : "Unknown";
+			const string victimName = victim->getName();
+			const bool isMelee = incoming.m_spellEffect == SpellDefines::Effects::MeleeAtk || incoming.m_spellEffect == SpellDefines::Effects::RangedAtk;
+			const string spellName = isMelee ? string() : string(sContentMgr->db("spell_template").data(incoming.m_spellId, "name"));
+			const string attacker = casterName + (spellName.empty() ? "" : "'s " + spellName);
+
+			string logLine;
+
+			if (incoming.m_spellResult == SpellDefines::HitResult::Miss ||
+				incoming.m_spellResult == SpellDefines::HitResult::Evade ||
+				incoming.m_spellResult == SpellDefines::HitResult::Dodge ||
+				incoming.m_spellResult == SpellDefines::HitResult::Immune ||
+				incoming.m_spellResult == SpellDefines::HitResult::Absorb)
+			{
+				logLine = attacker + ": " + textMsg + " (" + victimName + ").";
+			}
+			else if (incoming.m_amount > 0)
+			{
+				logLine = attacker + " heals " + victimName + " for " + to_string(incoming.m_amount) + (isCrit ? " (critical)." : ".");
+			}
+			else if (incoming.m_periodic)
+			{
+				logLine = victimName + " suffers " + to_string(abs(incoming.m_amount)) + " from " + attacker + ".";
+			}
+			else
+			{
+				logLine = attacker + (isCrit ? " crits " : " hits ") + victimName + " for " + to_string(abs(incoming.m_amount)) + ".";
+			}
+
+			GameChat::CombatCategory cat = GameChat::CombatMisc;
+			sf::Color logColor(160, 160, 160, 255);
+
+			if (incoming.m_amount > 0)                                   { cat = GameChat::CombatHeal;     logColor = sf::Color(87, 193, 137, 255); }
+			else if (caster != nullptr && caster->isLocal())             { cat = GameChat::CombatOutgoing; logColor = sf::Color(231, 234, 239, 255); }
+			else if (victim->isLocal())                                  { cat = GameChat::CombatIncoming; logColor = sf::Color(220, 90, 90, 255); }
+
+			gameChat->addCombatLogLine(logLine, logColor, cat);
 		}
 	}
 }

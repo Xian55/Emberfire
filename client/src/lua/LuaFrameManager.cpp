@@ -298,8 +298,22 @@ void LuaButton::render()
 	const sf::Vector2f pos{ static_cast<float>(m_topLeftCorner.x), static_cast<float>(m_topLeftCorner.y) };
 	const bool hovered = MouseableNode::isMousedOver(true);
 
+	if (hovered && m_hoverColor.a > 0)
+	{
+		// Asset-free hover: a solid tinted rect sized to the button (context-menu rows, list rows).
+		sf::RectangleShape rect(sf::Vector2f(static_cast<float>(m_w), static_cast<float>(m_h)));
+		rect.setPosition(pos);
+		rect.setFillColor(m_hoverColor);
+		sApplication->canvas().draw(rect);
+	}
+
 	if (hovered && m_hoverSprite)
 	{
+		// Scale the hover art to the button's rect — a natural-size overlay (e.g. the 40px gameicon40_hover
+		// slot outline on a 19px context-menu row) otherwise bleeds onto the neighboring rows.
+		const auto lb = m_hoverSprite->getLocalBounds();
+		if (m_w > 0 && m_h > 0 && lb.width > 0 && lb.height > 0)
+			m_hoverSprite->setScale(static_cast<float>(m_w) / lb.width, static_cast<float>(m_h) / lb.height);
 		m_hoverSprite->render(pos);   // designer-provided hover art (e.g. login_hover.png)
 	}
 	else if (m_sprite)
@@ -478,6 +492,24 @@ void LuaEditBox::input()
 	// Enter submits (PromptBox has no enter button, so detect Return while focused).
 	if (m_prompt->isCurrentPrompt() && sApplication->keyUp(sf::Keyboard::Return))
 		m_submitted = true;
+
+	// Escape drops focus (the chat editbox closes on Escape; Lua observes via HasFocus()).
+	if (s_focusedEditBox == this && sApplication->popKeyUp(sf::Keyboard::Escape))
+		s_focusedEditBox = nullptr;
+}
+
+// Programmatic focus for the Lua SetFocus/ClearFocus/HasFocus editbox methods (s_focusedEditBox is TU-local).
+void LuaEditBox::setFocused(const bool v)
+{
+	if (v)
+		s_focusedEditBox = this;
+	else if (s_focusedEditBox == this)
+		s_focusedEditBox = nullptr;
+}
+
+bool LuaEditBox::isFocused() const
+{
+	return s_focusedEditBox == this;
 }
 
 void LuaEditBox::render()
@@ -1016,6 +1048,13 @@ void LuaFrameManager::setHoverTexture(int handle, const std::string& textureName
 	if (auto b = dynamic_cast<LuaButton*>(lookup(handle))) b->setHoverTexture(textureName);
 }
 
+void LuaFrameManager::setHoverColor(int handle, int r, int g, int b, int a)
+{
+	if (auto btn = dynamic_cast<LuaButton*>(lookup(handle)))
+		btn->setHoverColor(sf::Color(static_cast<sf::Uint8>(r), static_cast<sf::Uint8>(g),
+		                             static_cast<sf::Uint8>(b), static_cast<sf::Uint8>(a)));
+}
+
 void LuaFrameManager::show(int handle, bool shown)
 {
 	if (auto o = lookup(handle))
@@ -1404,6 +1443,12 @@ namespace LuaUI
 	{
 		if (auto* m = LuaFrameManager::instance())
 			m->setTexture(handle, textureName);
+	}
+
+	void setHoverColor(int handle, int r, int g, int b, int a)
+	{
+		if (auto* m = LuaFrameManager::instance())
+			m->setHoverColor(handle, r, g, b, a);
 	}
 
 	void setHoverTexture(int handle, const std::string& textureName)
@@ -2320,6 +2365,68 @@ namespace LuaUI
 		if (!tip) return;
 		positionTooltip(tip, ownerHandle, anchor);
 		sApplication->setTooltip(tip);
+	}
+
+	// ---- game chat (reads/drives the live headless GameChat; Lua owns visuals/tabs/filters) ----
+	static GameChat* chatPanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<GameChat*>(w->getRenderObject(World::GameChatBox).get()) : nullptr;
+	}
+	void setChatLuaView(bool v) { if (auto* c = chatPanel()) c->setLuaView(v); }
+	int  chatLineCount() { auto* c = chatPanel(); return c ? c->lineCount() : 0; }
+	bool chatLine(int idx, std::string& text, int& rgba, bool& hasLink, int& channel)
+	{
+		auto* c = chatPanel();
+		uint32_t col = 0;
+		if (!c || !c->lineAt(idx, text, col, hasLink, channel)) return false;
+		rgba = static_cast<int>(col);
+		return true;
+	}
+	std::string chatLineSender(int idx) { auto* c = chatPanel(); return c ? c->lineSender(idx) : std::string(); }
+	void chatSubmit(const std::string& text)         { if (auto* c = chatPanel()) c->submitText(text); }
+	bool chatTrySwapChannel(const std::string& typed){ auto* c = chatPanel(); return c && c->trySwapChannel(typed); }
+	void chatPrefix(std::string& text, int& rgba)
+	{
+		auto* c = chatPanel();
+		text = c ? c->prefixText() : std::string();
+		rgba = c ? static_cast<int>(c->prefixColor()) : 0;
+	}
+	int  combatLogCount() { auto* c = chatPanel(); return c ? c->combatLineCount() : 0; }
+	bool combatLogLine(int idx, std::string& text, int& rgba, int& category)
+	{
+		auto* c = chatPanel();
+		uint32_t col = 0;
+		if (!c || !c->combatLineAt(idx, text, col, category)) return false;
+		rgba = static_cast<int>(col);
+		return true;
+	}
+
+	void showChatLinkTooltip(int idx, int ownerHandle, int anchor)
+	{
+		auto* c = chatPanel();
+		if (!c) return;
+		auto tip = c->lineLinkTooltip(idx);
+		if (!tip) return;
+		positionTooltip(tip, ownerHandle, anchor);
+		sApplication->setTooltip(tip);
+	}
+
+	// ---- editbox focus ----
+	void focusEditBox(int handle, bool v)
+	{
+		auto* m = LuaFrameManager::instance();
+		if (auto e = dynamic_cast<LuaEditBox*>(m ? m->lookup(handle) : nullptr)) e->setFocused(v);
+	}
+	bool editBoxFocused(int handle)
+	{
+		auto* m = LuaFrameManager::instance();
+		auto e = dynamic_cast<LuaEditBox*>(m ? m->lookup(handle) : nullptr);
+		return e && e->isFocused();
+	}
+	bool anyEditBoxFocused()
+	{
+		return s_focusedEditBox != nullptr;
 	}
 
 	// ---- trade window (reads + drives the live force-hidden TradeWindow; isLocal=our side) ----

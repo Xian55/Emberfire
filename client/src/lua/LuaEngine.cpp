@@ -822,12 +822,16 @@ void LuaEngine::bindUI()
 			.addFunction("GetText",        [](FrameHandle* self) { return LuaUI::getText(self->h); })
 			.addFunction("SetPassword",    [](FrameHandle* self, bool masked) { LuaUI::setEditBoxPassword(self->h, masked); })
 			.addFunction("SetMaxLetters",  [](FrameHandle* self, int n) { LuaUI::setEditBoxMaxLen(self->h, n); })
+			.addFunction("SetFocus",       [](FrameHandle* self) { LuaUI::focusEditBox(self->h, true); })
+			.addFunction("ClearFocus",     [](FrameHandle* self) { LuaUI::focusEditBox(self->h, false); })
+			.addFunction("HasFocus",       [](FrameHandle* self) { return LuaUI::editBoxFocused(self->h); })
 			.addFunction("SetNumeric",     [](FrameHandle* self, bool v) { LuaUI::setEditBoxNumeric(self->h, v); })
 			.addFunction("SetFontSize",    [](FrameHandle* self, int n) { LuaUI::setEditBoxFontSize(self->h, n); })
 			.addFunction("SetTextColor",   [](FrameHandle* self, std::optional<int> r, std::optional<int> g, std::optional<int> b, std::optional<int> a) {
 				LuaUI::setEditBoxColor(self->h, r.value_or(255), g.value_or(255), b.value_or(255), a.value_or(255)); })
 			.addFunction("SetTexture",      [](FrameHandle* self, std::string t) { LuaUI::setTexture(self->h, t); })
 			.addFunction("SetHoverTexture", [](FrameHandle* self, std::string t) { LuaUI::setHoverTexture(self->h, t); })
+			.addFunction("SetHoverColor",   [](FrameHandle* self, int r, int g, int b, std::optional<int> a) { LuaUI::setHoverColor(self->h, r, g, b, a.value_or(255)); })
 			.addFunction("SetFont",         [](FrameHandle* self, std::string f) { LuaUI::setFont(self->h, f); })
 			.addFunction("SetWidth",        [](FrameHandle* self, int w) { LuaUI::setFontStringWidth(self->h, w); })
 			.addFunction("SetVertexColor",  [](FrameHandle* self, std::optional<int> r, std::optional<int> g, std::optional<int> b, std::optional<int> a) {
@@ -889,6 +893,9 @@ void LuaEngine::bindUI()
 			.addFunction("SetTooltipAction", [](FrameHandle* self, int slot, std::optional<std::string> anchor) {   // key = action slot 1..36
 				if (slot > 0) g_impl->tooltipSpec[self->h] = { 9, slot, anchorToInt(anchor.value_or("RIGHT")) };
 				else          g_impl->tooltipSpec.erase(self->h); })
+			.addFunction("SetTooltipChatLink", [](FrameHandle* self, int lineIdx, std::optional<std::string> anchor) {   // key = 1-based chat line
+				if (lineIdx > 0) g_impl->tooltipSpec[self->h] = { 10, lineIdx - 1, anchorToInt(anchor.value_or("TOP")) };
+				else             g_impl->tooltipSpec.erase(self->h); })
 			.addFunction("CreateTexture",    [](FrameHandle* self) { return FrameHandle{ LuaUI::createTexture(self->h) }; })
 			.addFunction("CreateFontString", [](FrameHandle* self) { return FrameHandle{ LuaUI::createFontString(self->h) }; })
 			.addFunction("IsMouseOver",    [](FrameHandle* self) { return LuaUI::isMouseOver(self->h); })
@@ -1134,6 +1141,28 @@ void LuaEngine::bindUI()
 			LuaUI::placeActionSlot(slot, type == "spell" ? 1 : 0, entry); })
 		.addFunction("ClearAction",      [](int slot) { LuaUI::clearActionSlot(slot); })
 
+		// Game chat (1-based line index; channel = ChatDefines value; the C++ GameChat stays the engine).
+		.addFunction("SetChatLuaView",   [](bool v) { LuaUI::setChatLuaView(v); })
+		.addFunction("GetChatLineCount", []() { return LuaUI::chatLineCount(); })
+		.addFunction("GetChatLine", [](int idx) {   // -> text, r, g, b, hasLink, channel
+			std::string text; int rgba = 0, channel = 0; bool hasLink = false;
+			if (!LuaUI::chatLine(idx - 1, text, rgba, hasLink, channel))
+				return std::make_tuple(std::string(), 0, 0, 0, false, 0);
+			return std::make_tuple(text, (rgba >> 24) & 255, (rgba >> 16) & 255, (rgba >> 8) & 255, hasLink, channel); })
+		.addFunction("GetChatSender", [](int idx) { return LuaUI::chatLineSender(idx - 1); })
+		.addFunction("SubmitChat",    [](std::string text) { LuaUI::chatSubmit(text); })
+		.addFunction("ChatSwapChannel", [](std::string typed) { return LuaUI::chatTrySwapChannel(typed); })
+		.addFunction("GetChatPrefix", []() {   // -> text, r, g, b
+			std::string text; int rgba = 0;
+			LuaUI::chatPrefix(text, rgba);
+			return std::make_tuple(text, (rgba >> 24) & 255, (rgba >> 16) & 255, (rgba >> 8) & 255); })
+		.addFunction("GetCombatLogCount", []() { return LuaUI::combatLogCount(); })
+		.addFunction("GetCombatLogLine", [](int idx) {   // -> text, r, g, b, category (1 out 2 in 3 heal 4 misc)
+			std::string text; int rgba = 0, cat = 0;
+			if (!LuaUI::combatLogLine(idx - 1, text, rgba, cat))
+				return std::make_tuple(std::string(), 0, 0, 0, 0);
+			return std::make_tuple(text, (rgba >> 24) & 255, (rgba >> 16) & 255, (rgba >> 8) & 255, cat); })
+
 		// Trade (isLocal = our side; 1-based slot; itemGuid identifies a local item for removal).
 		.addFunction("GetTradePartnerName", []() { return LuaUI::tradePartnerName(); })
 		.addFunction("GetTradeItem", [](bool isLocal, int slot) {   // -> itemId, count, itemGuid
@@ -1210,6 +1239,8 @@ void LuaEngine::bindUI()
 		"GetNumSpellSlots", "GetSpellSlot",
 		"SetActionBarsLuaView", "GetActionInfo", "GetActionCooldown", "GetActionUsable", "GetActionCount",
 		"GetActionKeybind", "UseAction", "PlaceAction", "ClearAction",
+		"SetChatLuaView", "GetChatLineCount", "GetChatLine", "GetChatSender", "SubmitChat", "ChatSwapChannel",
+		"GetChatPrefix", "GetCombatLogCount", "GetCombatLogLine",
 		"GetTradePartnerName", "GetTradeItem", "GetTradeGold", "IsTradeReady", "AddTradeItem", "RemoveTradeItem",
 		"SetTradeGold", "ConfirmTrade", "CancelTrade",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",
@@ -1336,6 +1367,7 @@ void LuaEngine::onFrame(float dt)
 		else if (kind == 7) LuaUI::showSpellTooltipAt(key, bestH, anchor);   // key = spellId
 		else if (kind == 8) LuaUI::showTradeTooltip(key, bestH, anchor);     // key = slot + (isLocal?0:1000)
 		else if (kind == 9) LuaUI::showActionTooltip(key, bestH, anchor);    // key = action slot 1..36
+		else if (kind == 10) LuaUI::showChatLinkTooltip(key, bestH, anchor); // key = chat line index (0-based)
 	}
 
 	// Hover edge-detection: fire OnEnter(self) when the cursor enters a frame's bounds and OnLeave(self)

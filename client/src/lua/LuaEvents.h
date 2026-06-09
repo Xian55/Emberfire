@@ -48,7 +48,9 @@
     X(QUEST_OBJECTIVE_UPDATE)     \
     X(VENDOR_UPDATE)              \
     X(SPELLBOOK_UPDATE)           \
-    X(TRADE_UPDATE)
+    X(TRADE_UPDATE)               \
+    X(CHAT_MSG)                   \
+    X(CHAT_OPEN)
 
 namespace LuaEvents
 {

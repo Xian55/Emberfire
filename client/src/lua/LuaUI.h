@@ -44,6 +44,7 @@ namespace LuaUI
 	void setText(int handle, const std::string& text);
 	void setTexture(int handle, const std::string& textureName);
 	void setHoverTexture(int handle, const std::string& textureName);   // button: art shown on mouse-over
+	void setHoverColor(int handle, int r, int g, int b, int a);         // button: solid tinted rect on mouse-over
 	void show(int handle, bool shown);
 	void clearAllFrames();   // destroy every Lua-created frame (used by /reload)
 
@@ -233,6 +234,23 @@ namespace LuaUI
 	bool containerItemUnusable(int slot);               // true if the item's requirements aren't met (red overlay)
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)
 	void useContainerItemOnItem(int sourceSlot, int targetSlot);   // apply a target-item consumable to a bag item
+
+	// ---- game chat (reads/drives the live headless GameChat; the Lua view owns visuals/tabs/filters) ----
+	void setChatLuaView(bool v);   // flip the C++ chat headless (it keeps the open keys + the line/command engine)
+	int  chatLineCount();
+	bool chatLine(int idx, std::string& text, int& rgba, bool& hasLink, int& channel);   // channel = ChatDefines value
+	std::string chatLineSender(int idx);                  // "" when the line has no known sender
+	void chatSubmit(const std::string& text);             // full send path (channel swap / "/" command / packet)
+	bool chatTrySwapChannel(const std::string& typed);    // live "/s " etc while typing; true = clear the editbox
+	void chatPrefix(std::string& text, int& rgba);        // current channel prefix (incl. pending item link) + color
+	int  combatLogCount();
+	bool combatLogLine(int idx, std::string& text, int& rgba, int& category);   // category = GameChat::CombatCategory
+	void showChatLinkTooltip(int idx, int ownerHandle, int anchor);             // a chat line's linked-item tooltip
+
+	// ---- editbox focus (chat: open via Enter / "/" from the world; Escape clears engine-side) ----
+	void focusEditBox(int handle, bool v);
+	bool editBoxFocused(int handle);
+	bool anyEditBoxFocused();
 
 	// ---- input + confirm dialog (for drag-out destroy etc.) ----
 	bool mouseButtonDown(int sfBtn);                    // raw button state (0=Left 1=Right 2=Middle)
