@@ -8,8 +8,8 @@
 
 local LIST_X, LIST_Y, ROW_H, VISIBLE = 25, 126, 75, 6
 local ICON_DX, ICON_DY, ICON = 18, 14, 48
-local NAME_DX, NAME_DY = 52, 6
-local DESC_DX, DESC_DY = 52, 32
+local NAME_DX, NAME_DY = 52, 14
+local DESC_DX, DESC_DY = 52, 38
 local TAB_Y = 70
 
 local W, H = GetTextureSize('abilities.png')
@@ -31,16 +31,16 @@ local scroll = 0
 local refresh   -- forward decl
 local function tabStage() return currentTab == 1 and 1 or 0 end
 
--- tabs (C++ tab buttons at x=133/243, y=70)
-local TABS = { { label = 'Spellbook', x = 133 }, { label = 'Misc', x = 243 } }
-local tabFS = {}
-for t, def in ipairs(TABS) do
+-- tabs: the labels "SPELLBOOK" / "MISC ACTIONS" are printed on abilities.png, so just put invisible click
+-- regions over them + a bright caret marking the active tab (don't draw our own labels = no doubling).
+local TAB_X = { 133, 243 }
+local activeMarker = root:CreateFontString()
+activeMarker:SetFont('Trebuchet'); activeMarker:SetFontSize(14); activeMarker:SetTextColor(255, 224, 150, 255)
+activeMarker:SetText('>')
+for t = 1, 2 do
 	local b = CreateFrame('Button', nil, root)
-	b:SetSize(100, 22); b:SetPoint('TOPLEFT', root, 'TOPLEFT', def.x, TAB_Y); b:EnableMouse(true)
-	local f = root:CreateFontString(); f:SetFont('Ringbearer'); f:SetFontSize(14)
-	f:SetPoint('TOPLEFT', root, 'TOPLEFT', def.x, TAB_Y); f:SetText(def.label)
+	b:SetSize(100, 24); b:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[t], TAB_Y); b:EnableMouse(true)
 	b:SetScript('OnClick', function() currentTab = t; scroll = 0; refresh() end)
-	tabFS[t] = f
 end
 
 -- vertical spell-row pool: icon (left) + name + description
@@ -58,9 +58,7 @@ for r = 1, VISIBLE do
 end
 
 refresh = function()
-	for t, f in ipairs(tabFS) do
-		f:SetTextColor(t == currentTab and 255 or 150, t == currentTab and 224 or 150, t == currentTab and 120 or 150, 255)
-	end
+	activeMarker:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[currentTab] - 14, TAB_Y + 2)
 
 	local stage = tabStage()
 	local n = GetNumSpellSlots(stage)
