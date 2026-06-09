@@ -38,20 +38,7 @@ void QuestComplete::input()
 	{
 		case Interface::CompleteButton:
 		{
-			if (m_rewards->isChoosing() && !m_rewards->isChoiceMade())
-			{				
-				m_world.error(PlayerDefines::WorldError::RewardNotChosen);
-			}
-			else
-			{
-				GP_Client_CompleteQuest packet;
-				packet.m_questGiverGuid = m_questGiverGuid;
-				packet.m_questId = m_questId;
-				packet.m_itemChoiceIdx = m_rewards->getChoiceIdx();
-				sConnector->sendPacket(packet.build(StlBuffer{}));
-				m_world.closePanel(World::Interface(getId()));
-			}
-
+			completeWithChoice(m_rewards != nullptr ? m_rewards->getChoiceIdx() : -1);
 			break;
 		}
 	}
@@ -76,6 +63,28 @@ void QuestComplete::render()
 		m_descScrollBar->attemptRender();
 }
 
+bool QuestComplete::needsChoice() const
+{
+	return m_rewards != nullptr && m_rewards->isChoosing();
+}
+
+void QuestComplete::completeWithChoice(const int choiceIdx)
+{
+	// "Must pick a reward" rule (same as the C++ button): choosing enabled + nothing picked => error.
+	if (needsChoice() && choiceIdx < 0)
+	{
+		m_world.error(PlayerDefines::WorldError::RewardNotChosen);
+		return;
+	}
+
+	GP_Client_CompleteQuest packet;
+	packet.m_questGiverGuid = m_questGiverGuid;
+	packet.m_questId = m_questId;
+	packet.m_itemChoiceIdx = choiceIdx;
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+	m_world.closePanel(World::Interface(getId()));
+}
+
 void QuestComplete::setForQuest(const int questId)
 {
 	m_questId = questId;
@@ -96,6 +105,10 @@ void QuestComplete::setForQuest(const int questId)
 	Util::trimStr(descriptionStr);
 
 	m_world.formatQuestText(descriptionStr, questId);
+
+	// Capture for the Lua view.
+	m_titleStr = titleStr;
+	m_descriptionStr = descriptionStr;
 
 	// Title
 	auto title = make_shared<TextBoxRo>(*this, Interface::QuestTitle, FontId::Palatino, 300, 16, TextBox::AlignLeft, false, 2.f);

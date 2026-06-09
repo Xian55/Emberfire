@@ -273,8 +273,11 @@ void World::input()
 		{
 			if (m_myself->getWorldPosition().getDist(gossipNpc->getWorldPosition()) >= 5)
 			{
-				if (isPanelOpen(Interface::BankPanel))      closePanel(Interface::BankPanel);
-				if (isPanelOpen(Interface::VendorNpcPanel)) closePanel(Interface::VendorNpcPanel);
+				if (isPanelOpen(Interface::BankPanel))          closePanel(Interface::BankPanel);
+				if (isPanelOpen(Interface::VendorNpcPanel))     closePanel(Interface::VendorNpcPanel);
+				if (isPanelOpen(Interface::DialogNpcPanel))     closePanel(Interface::DialogNpcPanel);
+				if (isPanelOpen(Interface::QuestOfferPanel))    closePanel(Interface::QuestOfferPanel);
+				if (isPanelOpen(Interface::QuestCompletePanel)) closePanel(Interface::QuestCompletePanel);
 			}
 		}
 	}
@@ -910,6 +913,9 @@ static const char* panelLuaName(const World::Interface id)
 		case World::Interface::VendorNpcPanel: return "VendorFrame";
 		case World::Interface::AbilitiesPanel: return "AbilitiesFrame";
 		case World::Interface::TradeWindowPanel: return "TradeFrame";
+		case World::Interface::DialogNpcPanel:     return "DialogNpcFrame";
+		case World::Interface::QuestOfferPanel:    return "QuestOfferFrame";
+		case World::Interface::QuestCompletePanel: return "QuestCompleteFrame";
 		default: return "";   // Loot uses WoW-style LOOT_READY/LOOT_CLOSED instead of the generic panel events
 	}
 }
@@ -2101,6 +2107,7 @@ void World::onLevelTo(const int lvl)
 		myself()->setVariable(ObjDefines::Variable::Level, lvl);
 
 	dynamic_pointer_cast<LevelupNotify>(getRenderObject(World::LevelupNotifyObj))->onLevelTo(lvl);
+	sLua->fire(LuaEvents::PLAYER_LEVEL_UP, "");   // Lua level-up toast (Level var already set above)
 	dynamic_pointer_cast<Abilities>(getRenderObject(World::AbilitiesPanel))->refreshTooltips();
 	dynamic_pointer_cast<Inventory>(getRenderObject(World::InventoryPanel))->refreshTooltips();
 	refreshToolbarTooltips();

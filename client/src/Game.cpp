@@ -1233,6 +1233,10 @@ void Game::processPacket_Server_GossipMenu(StlBuffer& data)
 
 			dialogNpc->applyText(pk.m_gossipEntry, npc->getName());
 			world->switchDialogPanel(World::Interface::DialogNpcPanel);
+
+			// Gossip CHAINS repopulate while the panel stays open (switchDialogPanel early-returns, so no
+			// PANEL_OPENED fires) — tell the Lua view to refresh its content.
+			sLua->fire(LuaEvents::DIALOG_NPC_UPDATE, "");
 		}
 		else
 		{

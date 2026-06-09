@@ -21,3 +21,9 @@ Abilities.lua
 Trade.lua
 ActionBar.lua
 GameChat.lua
+DialogNpc.lua
+QuestOffer.lua
+QuestComplete.lua
+QuestObjectives.lua
+LevelupNotify.lua
+HudButtons.lua

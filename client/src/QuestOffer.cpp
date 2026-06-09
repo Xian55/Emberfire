@@ -36,11 +36,7 @@ void QuestOffer::input()
 	{
 		case Interface::AcceptButton:
 		{
-			GP_Client_AcceptQuest packet;
-			packet.m_questGiverGuid = m_questGiverGuid;
-			packet.m_questId = m_questId;
-			sConnector->sendPacket(packet.build(StlBuffer{}));
-			m_world.closePanel(World::Interface(getId()));
+			acceptQuest();
 			break;
 		}
 	}
@@ -63,6 +59,15 @@ void QuestOffer::render()
 
 	if (m_descScrollBar != nullptr)
 		m_descScrollBar->attemptRender();
+}
+
+void QuestOffer::acceptQuest()
+{
+	GP_Client_AcceptQuest packet;
+	packet.m_questGiverGuid = m_questGiverGuid;
+	packet.m_questId = m_questId;
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+	m_world.closePanel(World::Interface(getId()));
 }
 
 void QuestOffer::setForQuest(const int questId)
@@ -91,6 +96,11 @@ void QuestOffer::setForQuest(const int questId)
 	
 	m_world.formatQuestText(objectivesStr, questId);
 	m_world.formatQuestText(descriptionStr, questId);
+
+	// Capture for the Lua view.
+	m_titleStr = titleStr;
+	m_descriptionStr = descriptionStr;
+	m_objectivesStr = objectivesStr;
 
 	const int maxDescriptionLines = 8;
 

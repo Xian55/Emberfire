@@ -220,6 +220,10 @@ class World : public BuffDebuffRenderer, public CooldownHolder
 		void   clearActionSlot(const int slot);
 		shared_ptr<Tooltip> actionTooltip(const int slot);
 
+		// Public for the Lua HUD buttons (spend-xp exclaim, waypoint activate).
+		void launchSpendExp();
+		void queryWaypoints();
+
 	private:
 		shared_ptr<Toolbar> actionToolbar(const int slot, int& iconId);
 
@@ -241,8 +245,6 @@ class World : public BuffDebuffRenderer, public CooldownHolder
 		void updateCameraDrag();
 		void updateFadingObjects();
 		void tabTargeting();
-		void launchSpendExp();
-		void queryWaypoints();
 		void updatePartyFrames();
 		void selectUnitByButtonId(const Interface id);
 

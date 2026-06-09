@@ -235,6 +235,34 @@ namespace LuaUI
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)
 	void useContainerItemOnItem(int sourceSlot, int targetSlot);   // apply a target-item consumable to a bag item
 
+	// ---- HUD leftovers (quest tracker click-through, spend-xp + waypoint buttons) ----
+	void openQuestLog();             // open the quest-log panel (PANEL_OPENED fires -> the Lua view shows)
+	void launchSpendExp();           // the spend-xp exclaim click (opens Equipment in spend context)
+	void queryWaypoints();           // the waypoint-activate click (op45 query -> map flow)
+	bool standingOnWaypoint();       // show the waypoint button? (on a waypoint + map not open)
+
+	// ---- NPC gossip dialog (reads/drives the live force-hidden DialogNpc) ----
+	std::string gossipNpcName();
+	std::string gossipText();
+	int  gossipOptionCount();
+	// type: 0=dialog 1=quest-accept 2=quest-complete 3=vendor (DialogNpc::GossipType order)
+	bool gossipOption(int idx, int& type, int& entry, std::string& label);
+	void selectGossipOption(int idx);          // runs the same per-type flow the C++ click dispatch does
+	void closeGossip();                        // the Goodbye button
+
+	// ---- quest offer / complete dialogs (read the populated force-hidden panels) ----
+	bool questOfferInfo(int& questId, std::string& title, std::string& desc, std::string& objectives);
+	void acceptQuestOffer();
+	void declineQuestOffer();                  // close without accepting
+	bool questCompleteInfo(int& questId, std::string& title, std::string& desc);
+	bool questCompleteNeedsChoice();
+	void completeQuest(int choiceSlot);        // choiceSlot = 0-based rew_choiceN slot, -1 = none
+	// quest_template reward reads (xp/money + item slots; usable = passes the class filter)
+	void questRewardInfo(int questId, int& xp, int& money);
+	bool questRewardItem(int questId, bool isChoice, int slot, int& itemId, int& count, bool& usable);
+	// item tooltip by RAW item entry (scratch ItemIcon), for reward slots that aren't in a bag
+	void showItemEntryTooltip(int entry, int ownerHandle, int anchor);
+
 	// ---- game chat (reads/drives the live headless GameChat; the Lua view owns visuals/tabs/filters) ----
 	void setChatLuaView(bool v);   // flip the C++ chat headless (it keeps the open keys + the line/command engine)
 	int  chatLineCount();

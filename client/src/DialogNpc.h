@@ -32,7 +32,7 @@ class DialogNpc : public DialogPanel
 	public:
 		DialogNpc(World& owner, const int id);
 		virtual ~DialogNpc();
-		
+
 		void applyText(const int entry, const string& npcName);
 		void addGossip_Dialog(const int entry);
 		void addGossip_QuestAccept(const int questId);
@@ -41,6 +41,14 @@ class DialogNpc : public DialogPanel
 
 		void createGossipOptions();
 		void clearGossip();
+
+		// ---- Lua view: read the populated dialog + drive an option select (the same per-type flows the
+		//      C++ click dispatch runs; extracted into selectGossip so both paths share it). ----
+		const string& npcName() const { return m_npcName; }
+		const string& gossipText() const { return m_gossipText; }
+		int  gossipOptionCount() const { return static_cast<int>(m_serverGossipMenu.size()); }
+		bool gossipOptionAt(const int idx, int& type, int& entry, string& label) const;
+		void selectGossip(const int lineIdx);
 		
 	protected:
 		virtual void input() override;
@@ -55,6 +63,9 @@ class DialogNpc : public DialogPanel
 		int m_textId{0};
 
 		bool m_readyForInput{false};
+
+		string m_npcName;      // formatted dialog content captured for the Lua view
+		string m_gossipText;
 		
 		shared_ptr<Sprite> m_questDone;
 		shared_ptr<Sprite> m_questAvail;

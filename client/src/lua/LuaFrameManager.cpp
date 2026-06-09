@@ -26,6 +26,9 @@
 #include "VendorNpc.h"
 #include "Abilities.h"
 #include "TradeWindow.h"
+#include "DialogNpc.h"
+#include "QuestOffer.h"
+#include "QuestComplete.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -2367,6 +2370,129 @@ namespace LuaUI
 		sApplication->setTooltip(tip);
 	}
 
+	// ---- HUD leftovers (quest tracker click-through, spend-xp + waypoint buttons) ----
+	void openQuestLog()   { if (auto* w = currentWorld()) w->openPanel(World::QuestLogPanel); }
+	void launchSpendExp() { if (auto* w = currentWorld()) w->launchSpendExp(); }
+	void queryWaypoints() { if (auto* w = currentWorld()) w->queryWaypoints(); }
+	bool standingOnWaypoint()
+	{
+		auto* w = currentWorld();
+		return w && w->myself() != nullptr && w->myself()->getWaypointStandingGuid() != 0
+		         && !w->isPanelOpen(World::MapQuesterPanel);
+	}
+
+	// ---- NPC gossip dialog + quest offer/complete (read/drive the live force-hidden panels) ----
+	static DialogNpc* gossipPanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<DialogNpc*>(w->getRenderObject(World::DialogNpcPanel).get()) : nullptr;
+	}
+	static QuestOffer* questOfferPanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<QuestOffer*>(w->getRenderObject(World::QuestOfferPanel).get()) : nullptr;
+	}
+	static QuestComplete* questCompletePanel()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<QuestComplete*>(w->getRenderObject(World::QuestCompletePanel).get()) : nullptr;
+	}
+
+	std::string gossipNpcName() { auto* d = gossipPanel(); return d ? d->npcName() : std::string(); }
+	std::string gossipText()    { auto* d = gossipPanel(); return d ? d->gossipText() : std::string(); }
+	int  gossipOptionCount()    { auto* d = gossipPanel(); return d ? d->gossipOptionCount() : 0; }
+	bool gossipOption(int idx, int& type, int& entry, std::string& label)
+	{
+		auto* d = gossipPanel();
+		return d && d->gossipOptionAt(idx, type, entry, label);
+	}
+	void selectGossipOption(int idx) { if (auto* d = gossipPanel()) d->selectGossip(idx); }
+	void closeGossip()               { if (auto* w = currentWorld()) w->closePanel(World::DialogNpcPanel); }
+
+	bool questOfferInfo(int& questId, std::string& title, std::string& desc, std::string& objectives)
+	{
+		auto* q = questOfferPanel();
+		if (!q) return false;
+		questId = q->questId();
+		title = q->titleStr();
+		desc = q->descriptionStr();
+		objectives = q->objectivesStr();
+		return questId != 0;
+	}
+	void acceptQuestOffer()  { if (auto* q = questOfferPanel()) q->acceptQuest(); }
+	void declineQuestOffer() { if (auto* w = currentWorld()) w->closePanel(World::QuestOfferPanel); }
+
+	bool questCompleteInfo(int& questId, std::string& title, std::string& desc)
+	{
+		auto* q = questCompletePanel();
+		if (!q) return false;
+		questId = q->questId();
+		title = q->titleStr();
+		desc = q->descriptionStr();
+		return questId != 0;
+	}
+	bool questCompleteNeedsChoice() { auto* q = questCompletePanel(); return q && q->needsChoice(); }
+	void completeQuest(int choiceSlot) { if (auto* q = questCompletePanel()) q->completeWithChoice(choiceSlot); }
+
+	void questRewardInfo(int questId, int& xp, int& money)
+	{
+		auto& qt = sContentMgr->db("quest_template");
+		xp = atoi(qt.data(questId, "rew_xp").c_str());
+		money = atoi(qt.data(questId, "rew_money").c_str());
+	}
+
+	bool questRewardItem(int questId, bool isChoice, int slot, int& itemId, int& count, bool& usable)
+	{
+		if (slot < 0 || slot >= 4)
+			return false;
+
+		auto& qt = sContentMgr->db("quest_template");
+		const std::string base = (isChoice ? "rew_choice" + std::to_string(slot + 1) + "_item"
+		                                   : "rew_item" + std::to_string(slot + 1));
+		const std::string cnt  = (isChoice ? "rew_choice" + std::to_string(slot + 1) + "_count"
+		                                   : "rew_item" + std::to_string(slot + 1) + "_count");
+		itemId = atoi(qt.data(questId, base).c_str());
+
+		if (itemId == 0)
+			return false;
+
+		count = atoi(qt.data(questId, cnt).c_str());
+
+		// Class filter (QuestRewards::canNeverUseItemEntry): hide rewards the class can never use.
+		usable = true;
+		if (const int requiredClass = atoi(sContentMgr->db("item_template").data(itemId, "required_class").c_str()))
+		{
+			auto* w = currentWorld();
+			if (w && w->myself() != nullptr)
+				usable = (w->myself()->getClass() == requiredClass);
+		}
+
+		return true;
+	}
+
+	void showItemEntryTooltip(int entry, int ownerHandle, int anchor)
+	{
+		auto* m = LuaFrameManager::instance();
+		if (!m || entry == 0) return;
+
+		// Persistent scratch icon (the Tooltip keeps a reference to its owner icon, so it must outlive the
+		// call — same pattern as LootWindow's scratch). The manager is app-lifetime, so this is safe.
+		static std::shared_ptr<ItemIcon> s_scratch;
+		if (!s_scratch)
+			s_scratch = std::make_shared<ItemIcon>(*m, 0, "gameicon40");
+
+		ItemDefines::ItemDefinition def;
+		def.m_itemId = static_cast<uint16_t>(entry);
+		def.m_durability = atoi(sContentMgr->db("item_template").data(entry, "durability").c_str());
+		s_scratch->setItemDef(def);
+		s_scratch->setTooltipHorizontalAdju(false);
+
+		auto tip = s_scratch->buildTooltip();
+		if (!tip) return;
+		positionTooltip(tip, ownerHandle, anchor);
+		sApplication->setTooltip(tip);
+	}
+
 	// ---- game chat (reads/drives the live headless GameChat; Lua owns visuals/tabs/filters) ----
 	static GameChat* chatPanel()
 	{
@@ -2580,7 +2706,14 @@ namespace LuaUI
 		             : (name == "QuestLogFrame")  ? World::QuestLogPanel
 		             : (name == "VendorFrame")    ? World::VendorNpcPanel
 		             : (name == "AbilitiesFrame") ? World::AbilitiesPanel
-		             : (name == "TradeFrame")     ? World::TradeWindowPanel : 0;
+		             : (name == "TradeFrame")     ? World::TradeWindowPanel
+		             : (name == "DialogNpcFrame")     ? World::DialogNpcPanel
+		             : (name == "QuestOfferFrame")    ? World::QuestOfferPanel
+		             : (name == "QuestCompleteFrame") ? World::QuestCompletePanel
+		             : (name == "QuestObjectivesFrame") ? World::ObjectivesObj
+		             : (name == "LevelupNotifyFrame")   ? World::LevelupNotifyObj
+		             : (name == "SpendExpButton")       ? World::SpendExpButtonObj
+		             : (name == "WaypointButton")       ? World::WaypointButton : 0;
 		if (!id) return;
 		if (auto ro = w->getRenderObject(id))
 			ro->setForceHidden(!shown);   // survives the window re-showing itself each frame

@@ -896,6 +896,9 @@ void LuaEngine::bindUI()
 			.addFunction("SetTooltipChatLink", [](FrameHandle* self, int lineIdx, std::optional<std::string> anchor) {   // key = 1-based chat line
 				if (lineIdx > 0) g_impl->tooltipSpec[self->h] = { 10, lineIdx - 1, anchorToInt(anchor.value_or("TOP")) };
 				else             g_impl->tooltipSpec.erase(self->h); })
+			.addFunction("SetTooltipItemEntry", [](FrameHandle* self, int itemEntry, std::optional<std::string> anchor) {   // key = raw item id
+				if (itemEntry > 0) g_impl->tooltipSpec[self->h] = { 11, itemEntry, anchorToInt(anchor.value_or("RIGHT")) };
+				else               g_impl->tooltipSpec.erase(self->h); })
 			.addFunction("CreateTexture",    [](FrameHandle* self) { return FrameHandle{ LuaUI::createTexture(self->h) }; })
 			.addFunction("CreateFontString", [](FrameHandle* self) { return FrameHandle{ LuaUI::createFontString(self->h) }; })
 			.addFunction("IsMouseOver",    [](FrameHandle* self) { return LuaUI::isMouseOver(self->h); })
@@ -1141,6 +1144,51 @@ void LuaEngine::bindUI()
 			LuaUI::placeActionSlot(slot, type == "spell" ? 1 : 0, entry); })
 		.addFunction("ClearAction",      [](int slot) { LuaUI::clearActionSlot(slot); })
 
+		// HUD leftovers: quest-tracker click-through + the spend-xp / waypoint world buttons.
+		.addFunction("OpenQuestLog",        []() { LuaUI::openQuestLog(); })
+		.addFunction("LaunchSpendExp",      []() { LuaUI::launchSpendExp(); })
+		.addFunction("QueryWaypoints",      []() { LuaUI::queryWaypoints(); })
+		.addFunction("IsStandingOnWaypoint",[]() { return LuaUI::standingOnWaypoint(); })
+
+		// NPC gossip dialog (1-based option index; type "dialog"/"quest"/"complete"/"vendor").
+		.addFunction("GetGossipNpcName", []() { return LuaUI::gossipNpcName(); })
+		.addFunction("GetGossipText",    []() { return LuaUI::gossipText(); })
+		.addFunction("GetNumGossipOptions", []() { return LuaUI::gossipOptionCount(); })
+		.addFunction("GetGossipOption", [](int idx) {   // -> typeStr, entry, label
+			int type = 0, entry = 0; std::string label;
+			if (!LuaUI::gossipOption(idx - 1, type, entry, label))
+				return std::make_tuple(std::string(), 0, std::string());
+			static const char* kTypes[] = { "dialog", "quest", "complete", "vendor" };
+			const char* t = (type >= 0 && type < 4) ? kTypes[type] : "dialog";
+			return std::make_tuple(std::string(t), entry, label); })
+		.addFunction("SelectGossipOption", [](int idx) { LuaUI::selectGossipOption(idx - 1); })
+		.addFunction("CloseGossip",        []() { LuaUI::closeGossip(); })
+
+		// Quest offer / complete dialogs. CompleteQuest takes the 1-based reward CHOICE SLOT (0/nil = none).
+		.addFunction("GetQuestOfferInfo", []() {   // -> questId, title, desc, objectives
+			int id = 0; std::string title, desc, obj;
+			if (!LuaUI::questOfferInfo(id, title, desc, obj))
+				return std::make_tuple(0, std::string(), std::string(), std::string());
+			return std::make_tuple(id, title, desc, obj); })
+		.addFunction("AcceptQuestOffer",  []() { LuaUI::acceptQuestOffer(); })
+		.addFunction("DeclineQuestOffer", []() { LuaUI::declineQuestOffer(); })
+		.addFunction("GetQuestCompleteInfo", []() {   // -> questId, title, desc
+			int id = 0; std::string title, desc;
+			if (!LuaUI::questCompleteInfo(id, title, desc))
+				return std::make_tuple(0, std::string(), std::string());
+			return std::make_tuple(id, title, desc); })
+		.addFunction("QuestCompleteNeedsChoice", []() { return LuaUI::questCompleteNeedsChoice(); })
+		.addFunction("CompleteQuest", [](std::optional<int> choiceSlot) { LuaUI::completeQuest(choiceSlot.value_or(0) - 1); })
+		.addFunction("GetQuestRewardInfo", [](int questId) {   // -> xp, money(copper)
+			int xp = 0, money = 0;
+			LuaUI::questRewardInfo(questId, xp, money);
+			return std::make_tuple(xp, money); })
+		.addFunction("GetQuestRewardItem", [](int questId, bool isChoice, int slot) {   // -> itemId, count, usable
+			int itemId = 0, count = 0; bool usable = true;
+			if (!LuaUI::questRewardItem(questId, isChoice, slot - 1, itemId, count, usable))
+				return std::make_tuple(0, 0, false);
+			return std::make_tuple(itemId, count, usable); })
+
 		// Game chat (1-based line index; channel = ChatDefines value; the C++ GameChat stays the engine).
 		.addFunction("SetChatLuaView",   [](bool v) { LuaUI::setChatLuaView(v); })
 		.addFunction("GetChatLineCount", []() { return LuaUI::chatLineCount(); })
@@ -1241,6 +1289,10 @@ void LuaEngine::bindUI()
 		"GetActionKeybind", "UseAction", "PlaceAction", "ClearAction",
 		"SetChatLuaView", "GetChatLineCount", "GetChatLine", "GetChatSender", "SubmitChat", "ChatSwapChannel",
 		"GetChatPrefix", "GetCombatLogCount", "GetCombatLogLine",
+		"GetGossipNpcName", "GetGossipText", "GetNumGossipOptions", "GetGossipOption", "SelectGossipOption",
+		"CloseGossip", "GetQuestOfferInfo", "AcceptQuestOffer", "DeclineQuestOffer", "GetQuestCompleteInfo",
+		"QuestCompleteNeedsChoice", "CompleteQuest", "GetQuestRewardInfo", "GetQuestRewardItem",
+		"OpenQuestLog", "LaunchSpendExp", "QueryWaypoints", "IsStandingOnWaypoint",
 		"GetTradePartnerName", "GetTradeItem", "GetTradeGold", "IsTradeReady", "AddTradeItem", "RemoveTradeItem",
 		"SetTradeGold", "ConfirmTrade", "CancelTrade",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",
@@ -1368,6 +1420,7 @@ void LuaEngine::onFrame(float dt)
 		else if (kind == 8) LuaUI::showTradeTooltip(key, bestH, anchor);     // key = slot + (isLocal?0:1000)
 		else if (kind == 9) LuaUI::showActionTooltip(key, bestH, anchor);    // key = action slot 1..36
 		else if (kind == 10) LuaUI::showChatLinkTooltip(key, bestH, anchor); // key = chat line index (0-based)
+		else if (kind == 11) LuaUI::showItemEntryTooltip(key, bestH, anchor); // key = raw item entry (rewards)
 	}
 
 	// Hover edge-detection: fire OnEnter(self) when the cursor enters a frame's bounds and OnLeave(self)

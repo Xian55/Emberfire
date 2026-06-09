@@ -67,71 +67,7 @@ void DialogNpc::input()
 		if (clickedLine != -1)
 		{
 			sContentMgr->playSound(SfxId::ButtonClick);
-
-			auto itr = m_serverGossipMenu.find(clickedLine);
-
-			if (itr != m_serverGossipMenu.end())
-			{
-				switch (itr->second.type)
-				{
-					//todo: copy of anchor data from this to the one we open up
-					case GossipType::GossipQuestAccept:
-					{
-						// Close this and open up quest accept
-						auto questOffer = dynamic_pointer_cast<QuestOffer>(world().getRenderObject(World::Interface::QuestOfferPanel));
-						// Server identifies the giver from the open GossipMenu session, NOT from the wire:
-						// AcceptQuest (op8, FUN_0048a030) sends only questId. Giver guid kept for UI, not transmitted.
-						questOffer->setQuestGiverGuid(m_world.getGossipGuid());
-						questOffer->setForQuest(itr->second.entry);
-						m_world.openPanel(World::Interface::QuestOfferPanel, false);
-						questOffer->getTopLeftCornerRef() = getTopLeftCornerRef();
-						m_world.closePanel(World::Interface(getId()), false);
-						break;
-					}
-					case GossipType::GossipQuestComplete:
-					{
-						// Close this and open up quest complete
-						auto questComplete = dynamic_pointer_cast<QuestComplete>(world().getRenderObject(World::Interface::QuestCompletePanel));
-						// CompleteQuest (op33, FUN_0048a310) wire = [questId, ignored, itemChoiceIdx]; giver guid
-						// is NOT used by the server (parked in the ignored slot). Kept here only for the UI panel.
-						questComplete->setQuestGiverGuid(m_world.getGossipGuid());
-						questComplete->setForQuest(itr->second.entry);
-						m_world.openPanel(World::Interface::QuestCompletePanel, false);
-						questComplete->getTopLeftCornerRef() = getTopLeftCornerRef();
-						m_world.closePanel(World::Interface(getId()), false);
-						break;
-					}
-					case GossipType::GossipVendor:
-					{
-						// Close this and open up vendor (it should already have data)
-						auto vendor = dynamic_pointer_cast<VendorNpc>(world().getRenderObject(World::Interface::VendorNpcPanel));
-						m_world.openPanel(World::Interface::VendorNpcPanel, false);
-						m_world.openPanel(World::Interface::InventoryPanel);
-						vendor->getTopLeftCornerRef() = getTopLeftCornerRef();
-						m_world.closePanel(World::Interface(getId()), false);
-						break;
-					}
-					case GossipType::GossipDialog:
-					{
-						int nextGossipId = atoi(sContentMgr->db("gossip_option").data(itr->second.entry, "click_new_gossip").c_str());
-
-						if (nextGossipId == -1)
-						{
-							m_world.closePanel(World::Interface(getId()));
-							break;
-						}
-
-						GP_Client_ClickedGossipOption packet;
-						packet.m_entry = itr->second.entry;
-						sConnector->sendPacket(packet.build(StlBuffer{}));
-
-						if (nextGossipId == 0)
-							m_world.closePanel(World::Interface(getId()));
-
-						break;
-					}
-				}
-			}
+			selectGossip(clickedLine);
 		}
 	}
 	
@@ -142,6 +78,94 @@ void DialogNpc::input()
 
 		m_description->pumpScrollOffset(m_descScrollBar->getScrollOffset());
 	}
+}
+
+void DialogNpc::selectGossip(const int lineIdx)
+{
+	auto itr = m_serverGossipMenu.find(lineIdx);
+
+	if (itr == m_serverGossipMenu.end())
+		return;
+
+	switch (itr->second.type)
+	{
+		//todo: copy of anchor data from this to the one we open up
+		case GossipType::GossipQuestAccept:
+		{
+			// Close this and open up quest accept
+			auto questOffer = dynamic_pointer_cast<QuestOffer>(world().getRenderObject(World::Interface::QuestOfferPanel));
+			// Server identifies the giver from the open GossipMenu session, NOT from the wire:
+			// AcceptQuest (op8, FUN_0048a030) sends only questId. Giver guid kept for UI, not transmitted.
+			questOffer->setQuestGiverGuid(m_world.getGossipGuid());
+			questOffer->setForQuest(itr->second.entry);
+			m_world.openPanel(World::Interface::QuestOfferPanel, false);
+			questOffer->getTopLeftCornerRef() = getTopLeftCornerRef();
+			m_world.closePanel(World::Interface(getId()), false);
+			break;
+		}
+		case GossipType::GossipQuestComplete:
+		{
+			// Close this and open up quest complete
+			auto questComplete = dynamic_pointer_cast<QuestComplete>(world().getRenderObject(World::Interface::QuestCompletePanel));
+			// CompleteQuest (op33, FUN_0048a310) wire = [questId, ignored, itemChoiceIdx]; giver guid
+			// is NOT used by the server (parked in the ignored slot). Kept here only for the UI panel.
+			questComplete->setQuestGiverGuid(m_world.getGossipGuid());
+			questComplete->setForQuest(itr->second.entry);
+			m_world.openPanel(World::Interface::QuestCompletePanel, false);
+			questComplete->getTopLeftCornerRef() = getTopLeftCornerRef();
+			m_world.closePanel(World::Interface(getId()), false);
+			break;
+		}
+		case GossipType::GossipVendor:
+		{
+			// Close this and open up vendor (it should already have data)
+			auto vendor = dynamic_pointer_cast<VendorNpc>(world().getRenderObject(World::Interface::VendorNpcPanel));
+			m_world.openPanel(World::Interface::VendorNpcPanel, false);
+			m_world.openPanel(World::Interface::InventoryPanel);
+			vendor->getTopLeftCornerRef() = getTopLeftCornerRef();
+			m_world.closePanel(World::Interface(getId()), false);
+			break;
+		}
+		case GossipType::GossipDialog:
+		{
+			int nextGossipId = atoi(sContentMgr->db("gossip_option").data(itr->second.entry, "click_new_gossip").c_str());
+
+			if (nextGossipId == -1)
+			{
+				m_world.closePanel(World::Interface(getId()));
+				break;
+			}
+
+			GP_Client_ClickedGossipOption packet;
+			packet.m_entry = itr->second.entry;
+			sConnector->sendPacket(packet.build(StlBuffer{}));
+
+			if (nextGossipId == 0)
+				m_world.closePanel(World::Interface(getId()));
+
+			break;
+		}
+	}
+}
+
+bool DialogNpc::gossipOptionAt(const int idx, int& type, int& entry, string& label) const
+{
+	auto itr = m_serverGossipMenu.find(idx);
+
+	if (itr == m_serverGossipMenu.end() || m_gossipOptions == nullptr)
+		return false;
+
+	type = itr->second.type;
+	entry = itr->second.entry;
+
+	// The display label lives in the TextLines (added in the same order); trim the leading icon padding.
+	if (auto* line = m_gossipOptions->getLine(idx))
+	{
+		label = line->getTextStr();
+		Util::trimStr(label);
+	}
+
+	return true;
 }
 
 void DialogNpc::render()
@@ -202,6 +226,10 @@ void DialogNpc::applyText(const int entry, const string& npcName)
 	m_world.formatWorldText(text, npcName);
 	Util::trimStr(text);
 	text = "\"" + text + "\"";
+
+	// Capture for the Lua view (read via gossipText()/npcName()).
+	m_npcName = npcName;
+	m_gossipText = text;
 
 	int maxLines = 13 - (int)m_serverGossipMenu.size();
 

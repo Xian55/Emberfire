@@ -70,7 +70,10 @@ end
 
 local trackBtn, trackFS = labelButton(DETAIL_X, 470, function()
 	local id = selectedQuestId()
-	if id and id ~= 0 then SetQuestTracked(id, not IsQuestTracked(id)); refresh() end
+	if id and id ~= 0 then
+		SetQuestTracked(id, not IsQuestTracked(id)); refresh()
+		if EmberUI.QuestTrackerRefresh then EmberUI.QuestTrackerRefresh() end   -- tracking is local, no event
+	end
 end)
 local abandonBtn, abandonFS = labelButton(DETAIL_X + 110, 470, function()
 	local id = selectedQuestId()
@@ -85,6 +88,16 @@ abandonFS:SetText('Abandon')
 
 refresh = function()
 	local n = GetNumQuests()
+
+	-- the objectives tracker requests a specific quest (click-through): select it once, then clear
+	if EmberUI._selectQuestId then
+		for idx = 1, n do
+			local id = select(1, GetQuestInfo(idx))
+			if id == EmberUI._selectQuestId then selectedIdx = idx break end
+		end
+		EmberUI._selectQuestId = nil
+	end
+
 	if selectedIdx > n then selectedIdx = n end
 	if selectedIdx < 1 then selectedIdx = 1 end
 
@@ -129,6 +142,15 @@ end
 root:SetScript('OnMouseWheel', function(_, delta) scroll = scroll - delta; refresh() end)
 
 local shown = false
+
+-- Select a quest by id (the objectives tracker's click-through). Consumes IMMEDIATELY when the log is
+-- already open — leaving _selectQuestId pending would get eaten by a later unrelated refresh and yank the
+-- selection away from whatever the user picked manually in the meantime.
+function EmberUI.QuestLogSelect(questId)
+	EmberUI._selectQuestId = questId
+	if shown then refresh() end
+end
+
 local function setShown(v)
 	if v == shown then return end
 	shown = v

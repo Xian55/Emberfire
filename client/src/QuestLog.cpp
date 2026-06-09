@@ -280,8 +280,12 @@ bool QuestLog::untrackQuest(const int questId)
 {
 	int idx = getQuestIndex(questId);
 
+	// BUG FIX: this used m_questEntries[m_selectedQuestIdx] — the PANEL's selection, not the quest being
+	// untracked. Wrong whenever the caller passes any other quest (the Lua log/tracker always does; the
+	// force-hidden panel's selection is stale), leaving the target's tracked flag set and clearing another.
+	// trackQuest below has always used idx.
 	if (idx != -1)
-		m_questEntries[m_selectedQuestIdx].tracked = false;
+		m_questEntries[idx].tracked = false;
 
 	m_trackedQuests.erase(questId);
 	world().queueObjectivesRecalc();

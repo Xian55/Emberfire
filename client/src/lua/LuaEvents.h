@@ -50,7 +50,9 @@
     X(SPELLBOOK_UPDATE)           \
     X(TRADE_UPDATE)               \
     X(CHAT_MSG)                   \
-    X(CHAT_OPEN)
+    X(CHAT_OPEN)                  \
+    X(DIALOG_NPC_UPDATE)          \
+    X(PLAYER_LEVEL_UP)
 
 namespace LuaEvents
 {

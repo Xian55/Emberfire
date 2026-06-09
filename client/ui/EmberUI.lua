@@ -164,4 +164,82 @@ end
 
 function EmberUI.HideMenu() if EmberUI._menu then EmberUI._menu.frame:Hide() end end
 
+-- Reusable quest-rewards block (QuestOffer + QuestComplete): xp/money text + an optional CHOICE item row +
+-- a mandatory item row. Mirrors the C++ QuestRewards (slots from quest_template; class-unusable slots are
+-- skipped). choosing=true makes the choice row clickable; GetChoice() returns the chosen ORIGINAL slot
+-- (1-based, what CompleteQuest expects) or nil.
+function EmberUI.CreateQuestRewards(parent, x, y)
+	local obj = { choice = nil, slots = {} }
+
+	local text = parent:CreateFontString()
+	text:SetFont('Palatino'); text:SetFontSize(14); text:SetTextColor(139, 116, 95, 255)
+	text:SetPoint('TOPLEFT', parent, 'TOPLEFT', x, y); text:SetWidth(220)
+
+	-- two rows of 4 item buttons: row 1 = choices, row 2 = mandatory
+	local rows = {}
+	for r = 1, 2 do
+		rows[r] = {}
+		for i = 1, 4 do
+			local s = EmberUI.CreateItemButton(parent, i, 40)
+			s.frame:SetPoint('TOPLEFT', parent, 'TOPLEFT', x + 135 + (i - 1) * 42, y + (r - 1) * 44 - 4)
+			s.frame:EnableMouse(true)
+			s.frame:Hide()
+			rows[r][i] = s
+		end
+	end
+
+	function obj.SetQuest(questId, choosing)
+		obj.choice = nil
+		obj.choosing = choosing
+		local xp, money = GetQuestRewardInfo(questId)
+		local str = ''
+		if xp and xp > 0 then str = str .. xp .. 'xp\n' end
+		if money and money > 0 then str = str .. 'Gold: ' .. money .. '\n' end
+		if str == '' then str = 'No basic reward.' end
+		text:SetText(str); text:Show()
+
+		-- gather usable slots (skip class-unusable, like the C++)
+		local function fill(rowIdx, isChoice)
+			local shown = 0
+			for slot = 1, 4 do
+				local itemId, count, usable = GetQuestRewardItem(questId, isChoice, slot)
+				if itemId ~= 0 and usable then
+					shown = shown + 1
+					local btn = rows[rowIdx][shown]
+					btn.SetItem(itemId, count)
+					btn.frame:SetTooltipItemEntry(itemId)
+					btn.frame:Show(); btn.icon:Show()
+					btn._slot = slot
+					if isChoice and choosing then
+						btn.icon:SetVertexColor(180, 180, 180, 255)   -- unchosen dim
+						btn.frame:SetScript('OnClick', function()
+							obj.choice = btn._slot
+							for i = 1, 4 do rows[1][i].icon:SetVertexColor(180, 180, 180, 255) end
+							btn.icon:SetVertexColor(255, 255, 255, 255)
+						end)
+					else
+						btn.icon:SetVertexColor(255, 255, 255, 255)
+						btn.frame:SetScript('OnClick', function() end)
+					end
+				end
+			end
+			for i = shown + 1, 4 do
+				rows[rowIdx][i].frame:Hide(); rows[rowIdx][i].Clear()
+				rows[rowIdx][i].frame:SetTooltipItemEntry(0)
+			end
+			return shown
+		end
+		fill(1, true)
+		fill(2, false)
+	end
+
+	function obj.GetChoice() return obj.choice end
+	function obj.Hide()
+		text:Hide()
+		for r = 1, 2 do for i = 1, 4 do rows[r][i].frame:Hide(); rows[r][i].Clear(); rows[r][i].frame:SetTooltipItemEntry(0) end end
+	end
+
+	return obj
+end
+
 print('EmberUI core loaded')
