@@ -1,19 +1,15 @@
--- Lua minimap chrome: the frame art, zone/channel labels and the two buttons move here; the GPU map
--- composite (render texture + circular mask + dots) STAYS in the C++ Minimap (flipped to luaView by
--- SetHudLuaView -- it keeps drawing the map circle at its own corner + (3,45), so this frame must sit at
--- the same screen spot: (sw-260, 15), from World::updateGuiPositions). The "Map" keybind also stays C++.
--- Minimap button click = the channel menu (ChangeChatChannel); gold pouch = RecoverMailLoot, visibility
--- polled (no event exists). Labels poll at 1Hz (zone/channel setters are C++-internal).
+-- Lua minimap chrome: the zone/channel labels and the two buttons move here. The frame ART and the GPU
+-- map composite (render texture + circular mask + dots) STAY in the C++ Minimap -- the Lua layer renders
+-- AFTER the world children, so Lua-drawn frame art would cover the map circle (it must sit under it).
+-- This (invisible) root just anchors the labels/buttons at the C++ screen spot: (sw-260, 15). The "Map"
+-- keybind also stays C++. Minimap button click = the channel menu (ChangeChatChannel); gold pouch =
+-- RecoverMailLoot, visibility polled (no event exists). Labels poll at 1Hz.
 
 local root = CreateFrame('Frame', 'EmberMinimap', nil)
 root:Hide()
 
-local frameArt = root:CreateTexture()
-frameArt:SetTexture('minimap.png')
-local fw, fh = GetTextureSize('minimap.png')
+local fw, fh = GetTextureSize('minimap.png')   -- sized like the art for the centering math, no texture drawn
 if fw <= 0 then fw, fh = 256, 330 end
-frameArt:SetSize(fw, fh)
-frameArt:SetPoint('TOPLEFT', root, 'TOPLEFT', 0, 0)
 root:SetSize(fw, fh)
 
 local zone = root:CreateFontString()

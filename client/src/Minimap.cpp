@@ -132,11 +132,8 @@ void Minimap::input() /*final*/
 
 void Minimap::render() /*final*/
 {
-	// Lua view: the frame art is drawn by the Lua minimap (skip the bg child this frame); the composited
-	// map circle below still draws here (GPU work the Lua layer can't express).
-	if (m_luaView)
-		registerSkipRenderingObjThisFrame(Interface::RoBackground);
-
+	// Lua view: labels + buttons move to Lua, but the frame ART stays here — the Lua layer renders AFTER
+	// the world children, so a Lua-drawn frame would cover the map composite (it must sit UNDER it).
 	__super::render();
 
 	getBottomRightCornerRef() = getTopLeftCornerRef() + sf::Vector2i(int(m_bgSpr->getGlobalBounds().width), int(m_bgSpr->getGlobalBounds().height));
