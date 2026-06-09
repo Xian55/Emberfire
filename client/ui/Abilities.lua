@@ -8,8 +8,8 @@
 
 local LIST_X, LIST_Y, ROW_H, VISIBLE = 25, 126, 75, 6
 local ICON_DX, ICON_DY, ICON = 18, 14, 48
-local NAME_DX, NAME_DY = 52, 14
-local DESC_DX, DESC_DY = 52, 38
+local NAME_DX, NAME_DY = 75, 14
+local DESC_DX, DESC_DY = 75, 38
 local TAB_Y = 70
 
 local W, H = GetTextureSize('abilities.png')
@@ -43,18 +43,23 @@ for t = 1, 2 do
 	b:SetScript('OnClick', function() currentTab = t; scroll = 0; refresh() end)
 end
 
--- vertical spell-row pool: icon (left) + name + description
+-- vertical spell-row pool: a row-spanning hit area (so hovering ANYWHERE on the row shows the tooltip) + a
+-- child icon TEXTURE (a texture, not the button's own texture, so a hover never replaces/hides the icon) +
+-- name + word-wrapped description.
+local ROW_W = W - LIST_X * 2
+local DESC_W = ROW_W - DESC_DX - 8
 local rows = {}
 for r = 1, VISIBLE do
 	local y = LIST_Y + (r - 1) * ROW_H
-	local icon = CreateFrame('Button', nil, root)
-	icon:SetSize(ICON, ICON); icon:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + ICON_DX, y + ICON_DY)
-	icon:EnableMouse(true); icon:SetHoverTexture('gameicon40_hover.png')
+	local rowBtn = CreateFrame('Button', nil, root)
+	rowBtn:SetSize(ROW_W, ROW_H); rowBtn:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X, y); rowBtn:EnableMouse(true)
+	local iconTex = rowBtn:CreateTexture()
+	iconTex:SetSize(ICON, ICON); iconTex:SetPoint('TOPLEFT', rowBtn, 'TOPLEFT', ICON_DX, ICON_DY)
 	local nameFS = root:CreateFontString(); nameFS:SetFont('Ringbearer'); nameFS:SetFontSize(15); nameFS:SetTextColor(168, 155, 137, 255)
 	nameFS:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + NAME_DX, y + NAME_DY)
 	local descFS = root:CreateFontString(); descFS:SetFont('Palatino'); descFS:SetFontSize(12); descFS:SetTextColor(111, 99, 79, 255)
-	descFS:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + DESC_DX, y + DESC_DY)
-	rows[r] = { icon = icon, name = nameFS, desc = descFS }
+	descFS:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + DESC_DX, y + DESC_DY); descFS:SetWidth(DESC_W)
+	rows[r] = { row = rowBtn, icon = iconTex, name = nameFS, desc = descFS }
 end
 
 refresh = function()
@@ -73,14 +78,13 @@ refresh = function()
 			local spellId = GetSpellSlot(stage, idx)
 			local tex = GetSpellTexture(spellId)
 			if tex and tex ~= '' then row.icon:SetTexture(tex) end
-			row.icon:SetTooltipSpell(spellId)
+			row.icon:Show()
+			row.row:SetTooltipSpell(spellId)   -- tooltip on hovering anywhere in the row
 			row.name:SetText(GetSpellName(spellId) or ''); row.name:Show()
 			row.desc:SetText(GetSpellDescription(spellId) or ''); row.desc:Show()
-			vis(row.icon, true)
 		else
-			row.icon:SetTooltipSpell(0)
-			row.name:Hide(); row.desc:Hide()
-			vis(row.icon, false)
+			row.row:SetTooltipSpell(0)
+			row.icon:Hide(); row.name:Hide(); row.desc:Hide()
 		end
 	end
 end

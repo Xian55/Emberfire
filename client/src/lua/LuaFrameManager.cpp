@@ -155,7 +155,13 @@ LuaFontString::LuaFontString(RenderObject& owner, const int id) : RenderObject(&
 
 void LuaFontString::setText(const std::string& str)
 {
+	m_raw = str;
 	m_text->setString(str);
+}
+
+void LuaFontString::setWidth(const int w)
+{
+	m_maxWidth = w;
 }
 
 void LuaFontString::setFontSize(const int n)
@@ -208,7 +214,40 @@ sf::Vector2i LuaFontString::textSize() const
 
 void LuaFontString::render()
 {
-	m_text->draw(m_topLeftCorner.x, m_topLeftCorner.y);
+	if (m_maxWidth <= 0)
+	{
+		m_text->draw(m_topLeftCorner.x, m_topLeftCorner.y);
+		return;
+	}
+
+	// Word-wrap m_raw into lines that fit m_maxWidth, stacked downward. Re-measured each frame (cheap for the
+	// few wrapped strings we use). m_text is reused as the measuring/drawing pen.
+	const int lineH = static_cast<int>(m_text->getCharacterSize()) + 3;
+	int y = m_topLeftCorner.y;
+	std::string line;
+	auto widthOf = [&](const std::string& s) { m_text->setString(s); return m_text->getGlobalBounds().width; };
+
+	std::size_t pos = 0;
+	while (pos < m_raw.size())
+	{
+		const std::size_t sp = m_raw.find(' ', pos);
+		std::string word = m_raw.substr(pos, sp == std::string::npos ? std::string::npos : sp - pos);
+		pos = (sp == std::string::npos) ? m_raw.size() : sp + 1;
+		if (word.empty())
+			continue;
+
+		std::string cand = line.empty() ? word : line + ' ' + word;
+		if (widthOf(cand) <= static_cast<float>(m_maxWidth))
+		{
+			line = cand;
+		}
+		else
+		{
+			if (!line.empty()) { m_text->setString(line); m_text->draw(m_topLeftCorner.x, y); y += lineH; }
+			line = word;
+		}
+	}
+	if (!line.empty()) { m_text->setString(line); m_text->draw(m_topLeftCorner.x, y); }
 }
 
 // ---------------------------------------------------------------- LuaButton
@@ -793,6 +832,11 @@ void LuaFrameManager::setEditBoxFontSize(int handle, int n)
 	else if (auto fs = dynamic_cast<LuaFontString*>(o)) fs->setFontSize(n);
 }
 
+void LuaFrameManager::setFontStringWidth(int handle, int w)
+{
+	if (auto fs = dynamic_cast<LuaFontString*>(lookup(handle))) fs->setWidth(w);
+}
+
 void LuaFrameManager::setEditBoxColor(int handle, int r, int g, int b, int a)
 {
 	auto* o = lookup(handle);
@@ -1326,6 +1370,7 @@ namespace LuaUI
 	void setEditBoxMaxLen(int handle, int n)         { if (auto* m = LuaFrameManager::instance()) m->setEditBoxMaxLen(handle, n); }
 	void setEditBoxNumeric(int handle, bool v)       { if (auto* m = LuaFrameManager::instance()) m->setEditBoxNumeric(handle, v); }
 	void setEditBoxFontSize(int handle, int n)       { if (auto* m = LuaFrameManager::instance()) m->setEditBoxFontSize(handle, n); }
+	void setFontStringWidth(int handle, int w)       { if (auto* m = LuaFrameManager::instance()) m->setFontStringWidth(handle, w); }
 	void setEditBoxColor(int handle, int r, int g, int b, int a) { if (auto* m = LuaFrameManager::instance()) m->setEditBoxColor(handle, r, g, b, a); }
 	void setVertexColor(int handle, int r, int g, int b, int a)  { if (auto* m = LuaFrameManager::instance()) m->setVertexColor(handle, r, g, b, a); }
 	void setFont(int handle, const std::string& fontName)        { if (auto* m = LuaFrameManager::instance()) m->setFont(handle, fontName); }

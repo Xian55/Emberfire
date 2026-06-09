@@ -29,10 +29,10 @@ detTitle:SetFont('Fontin'); detTitle:SetFontSize(16); detTitle:SetTextColor(232,
 detTitle:SetPoint('TOPLEFT', root, 'TOPLEFT', DETAIL_X, TITLE_Y)
 local detDesc = root:CreateFontString()
 detDesc:SetFont('Helvetica'); detDesc:SetFontSize(13); detDesc:SetTextColor(220, 220, 220, 255)
-detDesc:SetPoint('TOPLEFT', root, 'TOPLEFT', DETAIL_X, DESC_Y)
+detDesc:SetPoint('TOPLEFT', root, 'TOPLEFT', DETAIL_X, DESC_Y); detDesc:SetWidth(DETAIL_W)
 local detObj = root:CreateFontString()
 detObj:SetFont('Helvetica'); detObj:SetFontSize(13); detObj:SetTextColor(232, 199, 22, 255)
-detObj:SetPoint('TOPLEFT', root, 'TOPLEFT', DETAIL_X, OBJ_Y)
+detObj:SetPoint('TOPLEFT', root, 'TOPLEFT', DETAIL_X, OBJ_Y); detObj:SetWidth(DETAIL_W)
 
 local selectedIdx = 1
 local scroll = 0

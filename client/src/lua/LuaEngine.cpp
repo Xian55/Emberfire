@@ -829,6 +829,7 @@ void LuaEngine::bindUI()
 			.addFunction("SetTexture",      [](FrameHandle* self, std::string t) { LuaUI::setTexture(self->h, t); })
 			.addFunction("SetHoverTexture", [](FrameHandle* self, std::string t) { LuaUI::setHoverTexture(self->h, t); })
 			.addFunction("SetFont",         [](FrameHandle* self, std::string f) { LuaUI::setFont(self->h, f); })
+			.addFunction("SetWidth",        [](FrameHandle* self, int w) { LuaUI::setFontStringWidth(self->h, w); })
 			.addFunction("SetVertexColor",  [](FrameHandle* self, std::optional<int> r, std::optional<int> g, std::optional<int> b, std::optional<int> a) {
 				LuaUI::setVertexColor(self->h, r.value_or(255), g.value_or(255), b.value_or(255), a.value_or(255)); })
 			.addFunction("SetStatusBarTexture", [](FrameHandle* self, std::string t) { LuaUI::setTexture(self->h, t); })

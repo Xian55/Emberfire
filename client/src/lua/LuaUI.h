@@ -28,6 +28,7 @@ namespace LuaUI
 	void setEditBoxMaxLen(int handle, int n);              // clamp max length
 	void setEditBoxNumeric(int handle, bool v);            // digits-only
 	void setEditBoxFontSize(int handle, int n);            // character size
+	void setFontStringWidth(int handle, int w);           // FontString word-wrap width (0 = single line)
 	void setEditBoxColor(int handle, int r, int g, int b, int a);   // editbox/fontstring text color
 	void setVertexColor(int handle, int r, int g, int b, int a);    // texture tint + alpha
 	void setFont(int handle, const std::string& fontName);          // fontstring font face

@@ -66,6 +66,7 @@ class LuaFontString : public RenderObject
 		void setColor(const int r, const int g, const int b, const int a);
 		void setAlpha(const int a);                   // change only alpha, keep RGB
 		void setFont(const std::string& fontName);   // "Ringbearer", "Palatino", ...
+		void setWidth(const int w);                   // >0 = word-wrap to this pixel width (multi-line)
 		sf::Vector2i textSize() const;
 
 	private:
@@ -74,6 +75,8 @@ class LuaFontString : public RenderObject
 
 		unique_ptr<Text> m_text;
 		sf::Color m_color{ 255, 255, 255, 255 };   // last fill color (so setAlpha keeps RGB)
+		std::string m_raw;                          // unwrapped string (re-wrapped each render when m_maxWidth>0)
+		int m_maxWidth{ 0 };                        // 0 = single line; >0 = word-wrap width
 };
 
 // A clickable frame: holds child regions (like LuaFrame) AND detects a left click over its
@@ -245,6 +248,7 @@ class LuaFrameManager : public RenderObjectHolder
 		void setEditBoxMaxLen(int handle, int n);
 		void setEditBoxNumeric(int handle, bool v);
 		void setEditBoxFontSize(int handle, int n);
+		void setFontStringWidth(int handle, int w);
 		void setEditBoxColor(int handle, int r, int g, int b, int a);
 		void setVertexColor(int handle, int r, int g, int b, int a);   // texture tint + alpha
 		void setFont(int handle, const std::string& fontName);          // fontstring font face
