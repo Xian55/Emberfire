@@ -235,6 +235,20 @@ namespace LuaUI
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)
 	void useContainerItemOnItem(int sourceSlot, int targetSlot);   // apply a target-item consumable to a bag item
 
+	// ---- minimap + HUD chrome (frame art/labels/buttons in Lua; the GPU map composite stays C++) ----
+	void setHudLuaView(bool v);              // flips the Minimap + chrome headless in one call
+	std::string minimapZone();               // lowercased zone label
+	std::string minimapChannel();            // lowercased channel label
+	bool mailLootAvailable();                // the gold-pouch button visibility
+	void recoverMailLoot();                  // its click (GP_Client_RecoverMailLoot)
+	int  chatChannelCount();                 // world-channel list (the minimap button's menu)
+	int  chatChannelMembers(int idx);
+	int  chatChannelCapacity();
+	void changeChatChannel(int idx);         // GP_Client_ChangeChannels
+	// chrome button actions: "equipment"|"quests"|"social"|"inventory"|"spells" toggle their panel,
+	// "options" toggles the Game options window
+	void toggleHudPanel(const std::string& name);
+
 	// ---- HUD leftovers (quest tracker click-through, spend-xp + waypoint buttons) ----
 	void openQuestLog();             // open the quest-log panel (PANEL_OPENED fires -> the Lua view shows)
 	void launchSpendExp();           // the spend-xp exclaim click (opens Equipment in spend context)

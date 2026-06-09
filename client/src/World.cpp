@@ -386,6 +386,19 @@ void World::render()
 	if (!isPanelOpen(Interface::MapQuesterPanel))
 		registerSkipRenderingObjThisFrame(m_zoneIndicator->getId());
 
+	// Lua HUD chrome: the toolbar_base art + the 6 interface buttons are drawn by Lua; the C++ buttons stay
+	// input-ACTIVE (their keybinds run through the popFirstButtonId switch) but render nothing.
+	if (m_hudChromeLuaView)
+	{
+		registerSkipRenderingObjThisFrame(Interface::ToolbarSprite);
+		registerSkipRenderingObjThisFrame(Interface::SocialButton);
+		registerSkipRenderingObjThisFrame(Interface::QuestsButton);
+		registerSkipRenderingObjThisFrame(Interface::OptionsButton);
+		registerSkipRenderingObjThisFrame(Interface::EquipmentButton);
+		registerSkipRenderingObjThisFrame(Interface::InventoryButton);
+		registerSkipRenderingObjThisFrame(Interface::SpellsButton);
+	}
+
 	const auto _wt0 = std::clock();
 	__super::render();
 	if (const long _ms = long(std::clock() - _wt0); _ms > 30)
@@ -494,6 +507,31 @@ void World::queryWaypoints()
 	GP_Client_QueryWaypoints packet;
 	packet.m_nearbyWaypointGuid = m_myself->getWaypointStandingGuid();
 	sConnector->sendPacket(packet.build(StlBuffer{}));
+}
+
+void World::setHudChromeLuaView(const bool v)
+{
+	m_hudChromeLuaView = v;
+
+	// The Lua chrome buttons sit over the C++ ones; disable C++ click handling (clicks would be consumed
+	// before the Lua frame manager — the ActionBar lesson). The buttons stay input-active so their panel
+	// KEYBINDS keep working through the popFirstButtonId switch.
+	static const Interface kChromeButtons[] = { Interface::SocialButton, Interface::QuestsButton,
+		Interface::OptionsButton, Interface::EquipmentButton, Interface::InventoryButton, Interface::SpellsButton };
+
+	for (auto id : kChromeButtons)
+	{
+		if (auto btn = dynamic_pointer_cast<Button>(getRenderObject(id)))
+		{
+			btn->setAllowLeftClick(!v);
+			btn->setAllowRightClick(!v);
+		}
+	}
+}
+
+void World::toggleOptionsWindow()
+{
+	m_game.toggleOptions(true);
 }
 
 void World::launchSpendExp()

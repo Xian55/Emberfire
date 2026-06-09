@@ -1144,6 +1144,18 @@ void LuaEngine::bindUI()
 			LuaUI::placeActionSlot(slot, type == "spell" ? 1 : 0, entry); })
 		.addFunction("ClearAction",      [](int slot) { LuaUI::clearActionSlot(slot); })
 
+		// Minimap + HUD chrome (frame art/labels/buttons in Lua; the GPU map composite stays C++).
+		.addFunction("SetHudLuaView",      [](bool v) { LuaUI::setHudLuaView(v); })
+		.addFunction("GetMinimapZone",     []() { return LuaUI::minimapZone(); })
+		.addFunction("GetMinimapChannel",  []() { return LuaUI::minimapChannel(); })
+		.addFunction("HasMailLoot",        []() { return LuaUI::mailLootAvailable(); })
+		.addFunction("RecoverMailLoot",    []() { LuaUI::recoverMailLoot(); })
+		.addFunction("GetNumChatChannels", []() { return LuaUI::chatChannelCount(); })
+		.addFunction("GetChatChannelInfo", [](int idx) {   // -> members, capacity (1-based channel)
+			return std::make_tuple(LuaUI::chatChannelMembers(idx - 1), LuaUI::chatChannelCapacity()); })
+		.addFunction("ChangeChatChannel",  [](int idx) { LuaUI::changeChatChannel(idx - 1); })
+		.addFunction("ToggleHudPanel",     [](std::string name) { LuaUI::toggleHudPanel(name); })
+
 		// HUD leftovers: quest-tracker click-through + the spend-xp / waypoint world buttons.
 		.addFunction("OpenQuestLog",        []() { LuaUI::openQuestLog(); })
 		.addFunction("LaunchSpendExp",      []() { LuaUI::launchSpendExp(); })
@@ -1293,6 +1305,8 @@ void LuaEngine::bindUI()
 		"CloseGossip", "GetQuestOfferInfo", "AcceptQuestOffer", "DeclineQuestOffer", "GetQuestCompleteInfo",
 		"QuestCompleteNeedsChoice", "CompleteQuest", "GetQuestRewardInfo", "GetQuestRewardItem",
 		"OpenQuestLog", "LaunchSpendExp", "QueryWaypoints", "IsStandingOnWaypoint",
+		"SetHudLuaView", "GetMinimapZone", "GetMinimapChannel", "HasMailLoot", "RecoverMailLoot",
+		"GetNumChatChannels", "GetChatChannelInfo", "ChangeChatChannel", "ToggleHudPanel",
 		"GetTradePartnerName", "GetTradeItem", "GetTradeGold", "IsTradeReady", "AddTradeItem", "RemoveTradeItem",
 		"SetTradeGold", "ConfirmTrade", "CancelTrade",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",

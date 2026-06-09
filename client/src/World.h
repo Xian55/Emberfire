@@ -224,6 +224,12 @@ class World : public BuffDebuffRenderer, public CooldownHolder
 		void launchSpendExp();
 		void queryWaypoints();
 
+		// ---- HUD chrome Lua view: the toolbar_base art + the 6 interface buttons render in Lua. The C++
+		//      buttons stay input-active for their KEYBINDS (render skipped per frame; clicks disabled so
+		//      they can't consume the press under the Lua buttons). ----
+		void setHudChromeLuaView(const bool v);
+		void toggleOptionsWindow();   // the Options button action (Game-owned window)
+
 	private:
 		shared_ptr<Toolbar> actionToolbar(const int slot, int& iconId);
 
@@ -266,6 +272,7 @@ class World : public BuffDebuffRenderer, public CooldownHolder
 		clock_t m_introEndClock{0};   // real-time deadline for "world ready" -> PLAYER_LOGIN (FPS-independent)
 
 		bool m_emptyToolbars{false};
+		bool m_hudChromeLuaView{false};
 		bool m_recalcObjectives{false};
 
 		const float m_topcenterStartPct;

@@ -77,13 +77,25 @@ Minimap::~Minimap()
 
 }
 
+void Minimap::setLuaView(const bool v)
+{
+	m_luaView = v;
+
+	// The Lua minimap button sits over the C++ one; disable its click handling so it can't consume the
+	// press (Button::updatePressed -> clearMouseDown). Its "Map" KEYBIND path keeps working in input().
+	m_button->setAllowLeftClick(!v);
+	m_button->setAllowRightClick(!v);
+}
+
 void Minimap::input() /*final*/
-{	
+{
 	__super::input();
 
 	m_button->setKeyEvent(sKeybinds->getKeybindData("Map"));
 	m_button->attemptInput();
-	m_mailLootButton->attemptInput();
+
+	if (!m_luaView)
+		m_mailLootButton->attemptInput();
 
 	if (m_mailLootButton->popActivated())
 	{
@@ -120,8 +132,13 @@ void Minimap::input() /*final*/
 
 void Minimap::render() /*final*/
 {
+	// Lua view: the frame art is drawn by the Lua minimap (skip the bg child this frame); the composited
+	// map circle below still draws here (GPU work the Lua layer can't express).
+	if (m_luaView)
+		registerSkipRenderingObjThisFrame(Interface::RoBackground);
+
 	__super::render();
-	
+
 	getBottomRightCornerRef() = getTopLeftCornerRef() + sf::Vector2i(int(m_bgSpr->getGlobalBounds().width), int(m_bgSpr->getGlobalBounds().height));
 
 	if (m_minimapTexture != nullptr && world().myself() != nullptr)
@@ -174,6 +191,10 @@ void Minimap::render() /*final*/
 	}
 
 	m_dots.clear();
+
+	if (m_luaView)
+		return;   // labels + buttons are drawn by the Lua minimap
+
 	m_button->attemptRender();
 	m_mailLootButton->attemptRender();
 
@@ -241,12 +262,14 @@ void Minimap::registerDot(const int guid, const Geo2d::Vector2& worldPos, const 
 
 void Minimap::setChannelName(const string& channelName)
 {
-	m_channelLabel->setOriginalString(Util::toLowerCase(channelName));
+	m_channelStr = Util::toLowerCase(channelName);
+	m_channelLabel->setOriginalString(m_channelStr);
 }
 
 void Minimap::setTitle(const string& zonename)
 {
-	m_label->setOriginalString(Util::toLowerCase(zonename));
+	m_titleStr = Util::toLowerCase(zonename);
+	m_label->setOriginalString(m_titleStr);
 }
 
 void Minimap::setMap(const string& mapname)

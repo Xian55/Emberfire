@@ -47,6 +47,17 @@ class Minimap : public WorldChild
 		void setCachedChannelInfo(const int channelSizes, vector<int> channels);
 
 		bool getMailLootStatus() const;
+
+		// ---- Lua view: the frame art, labels and buttons move to Lua; the GPU map composite (render
+		//      texture + circular mask shader + dots) STAYS here, and the map-toggle keybind stays in
+		//      input() (keyboard-global). The button's left-click (channel menu) is disabled so it can't
+		//      consume clicks under the Lua button. ----
+		void setLuaView(const bool v);
+		const string& zoneName() const { return m_titleStr; }
+		const string& channelName() const { return m_channelStr; }
+		int  channelCapacity() const { return m_cachedChannelSizes; }
+		int  channelCount() const { return static_cast<int>(m_cachedChannels.size()); }
+		int  channelMembers(const int idx) const { return (idx >= 0 && idx < channelCount()) ? m_cachedChannels[idx] : 0; }
 		
 		static void mapRenderPosToMinimapPixelCord(float& x, float& y, const int mapWidth);
 		static void minimapPixelCordToMapRenderPos(float& x, float& y, const int mapWidth);
@@ -59,7 +70,11 @@ class Minimap : public WorldChild
 		Sprite* getDotSprite(const DotType dot);
 
 		string m_mapname;
-		
+
+		bool m_luaView{false};
+		string m_titleStr;     // raw label strings captured for the Lua view
+		string m_channelStr;
+
 		shared_ptr<sf::Texture> m_mapDecal;
 		shared_ptr<sf::Texture> m_minimapTexture;
 

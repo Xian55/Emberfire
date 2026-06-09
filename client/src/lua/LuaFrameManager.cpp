@@ -29,6 +29,7 @@
 #include "DialogNpc.h"
 #include "QuestOffer.h"
 #include "QuestComplete.h"
+#include "Minimap.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -2368,6 +2369,42 @@ namespace LuaUI
 		if (!tip) return;
 		positionTooltip(tip, ownerHandle, anchor);
 		sApplication->setTooltip(tip);
+	}
+
+	// ---- minimap + HUD chrome ----
+	static Minimap* minimapObj()
+	{
+		auto* w = currentWorld();
+		return w ? dynamic_cast<Minimap*>(w->getRenderObject(World::MinimapObj).get()) : nullptr;
+	}
+	void setHudLuaView(bool v)
+	{
+		if (auto* w = currentWorld()) w->setHudChromeLuaView(v);
+		if (auto* m = minimapObj())   m->setLuaView(v);
+	}
+	std::string minimapZone()    { auto* m = minimapObj(); return m ? m->zoneName() : std::string(); }
+	std::string minimapChannel() { auto* m = minimapObj(); return m ? m->channelName() : std::string(); }
+	bool mailLootAvailable()     { auto* m = minimapObj(); return m && m->getMailLootStatus(); }
+	void recoverMailLoot()       { sConnector->sendPacket(GP_Client_RecoverMailLoot{}.build(StlBuffer{})); }
+	int  chatChannelCount()      { auto* m = minimapObj(); return m ? m->channelCount() : 0; }
+	int  chatChannelMembers(int idx) { auto* m = minimapObj(); return m ? m->channelMembers(idx) : 0; }
+	int  chatChannelCapacity()   { auto* m = minimapObj(); return m ? m->channelCapacity() : 0; }
+	void changeChatChannel(int idx)
+	{
+		GP_Client_ChangeChannels pk;
+		pk.m_channelId = idx;
+		sConnector->sendPacket(pk.build(StlBuffer{}));
+	}
+	void toggleHudPanel(const std::string& name)
+	{
+		auto* w = currentWorld();
+		if (!w) return;
+		if      (name == "equipment") w->togglePanel(World::EquipmentPanel);
+		else if (name == "quests")    w->togglePanel(World::QuestLogPanel);
+		else if (name == "social")    w->togglePanel(World::GuildPanel);
+		else if (name == "inventory") w->togglePanel(World::InventoryPanel);
+		else if (name == "spells")    w->togglePanel(World::AbilitiesPanel);
+		else if (name == "options")   w->toggleOptionsWindow();
 	}
 
 	// ---- HUD leftovers (quest tracker click-through, spend-xp + waypoint buttons) ----

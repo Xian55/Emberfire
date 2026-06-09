@@ -27,3 +27,5 @@ QuestComplete.lua
 QuestObjectives.lua
 LevelupNotify.lua
 HudButtons.lua
+Minimap.lua
+HudChrome.lua
