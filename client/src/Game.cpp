@@ -490,6 +490,10 @@ void Game::processPacket_Server_CharacterList(StlBuffer& data)
 	}
 
 	sApplication->clearPopups();
+
+	// The Lua char-select refreshes on this (CHARSELECT_SHOWN fires at the stage switch, BEFORE this
+	// packet arrives -- without it the Lua list stays empty).
+	sLua->fire(LuaEvents::CHARLIST_UPDATE, "");
 }
 
 void Game::processPacket_Server_ChannelInfo(StlBuffer& data)
