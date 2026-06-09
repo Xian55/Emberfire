@@ -52,6 +52,11 @@ class GameIcon : public Button, public enable_shared_from_this<GameIcon>
 		bool setBasePoints(const vector<pair<int16_t, int16_t>>& vec);
 		bool setLevel(const int level);
 
+		// Build (and return) this icon's tooltip from its current entry/level/bpoints. Reuses each subclass's
+		// virtual fillTooltip (SpellIcon: name/rank/mana/range/cast/cooldown/desc; ItemIcon: item card), so the
+		// Lua action-bar view gets the exact same tooltip the C++ icon would draw. nullptr if empty.
+		shared_ptr<Tooltip> rebuildTooltip() { if (m_entry == 0) return nullptr; fillTooltip(); return getTooltip(); }
+
 		auto getEntry() const { return m_entry; }
 		auto getType() const { return m_type; }
 		auto getQuality() const { return m_quality; }

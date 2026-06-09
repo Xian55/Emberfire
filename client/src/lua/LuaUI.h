@@ -206,6 +206,18 @@ namespace LuaUI
 	bool abilitySlot(int stage, int index, int& spellId, int& level);
 	void showSpellTooltipAt(int spellId, int ownerHandle, int anchor);
 
+	// ---- action bars (3x12; reads/drives the 3 Lua-view Toolbars; global slot 1..36) ----
+	void setActionBarsLuaView(bool v);                  // flip the C++ bars headless (Lua owns the visuals)
+	bool actionInfo(int slot, int& type, int& entry, std::string& texture);  // type 0=item 1=spell; entry 0 = empty
+	bool actionCooldown(int slot, int& remainingMs, int& durationMs);
+	int  actionState(int slot);                         // bit0 has-entry, bit1 darken, bit2 out-of-range, bit3 oom
+	int  actionCount(int slot);                         // item stack count (0 for spells/empty)
+	std::string actionKeybind(int slot);                // keybind label ("1"/"S+1"/...) or "" if unbound
+	void useActionSlot(int slot);                       // click/keybind activate (cast/use)
+	void placeActionSlot(int slot, int type, int entry);// assign (drag drop / swap); saves the cache
+	void clearActionSlot(int slot);                     // empty a slot (drag-out)
+	void showActionTooltip(int slot, int ownerHandle, int anchor);
+
 	// ---- trade window (reads/drives the live force-hidden TradeWindow) ----
 	std::string tradePartnerName();
 	bool tradeItem(bool isLocal, int slot, int& itemId, int& count, int& itemGuid);

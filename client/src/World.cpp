@@ -2024,6 +2024,76 @@ void World::refreshToolbarTooltips()
 	dynamic_pointer_cast<Toolbar>(getRenderObject(World::Toolbar2))->refreshTooltips();
 	dynamic_pointer_cast<Toolbar>(getRenderObject(World::Toolbar3))->refreshTooltips();
 }
+
+// ---- ActionBar facade (Lua view) — global slot 1..36 -> (Toolbar1..3, GameIcon1..12) ----
+
+shared_ptr<Toolbar> World::actionToolbar(const int slot, int& iconId)
+{
+	if (slot < 1 || slot > 36)
+		return nullptr;
+
+	const int bar = (slot - 1) / 12;          // 0..2
+	const int local = (slot - 1) % 12;        // 0..11
+	iconId = Toolbar::GameIcon1 + local;       // Toolbar::Interface value
+	return dynamic_pointer_cast<Toolbar>(getRenderObject(static_cast<Interface>(Interface::Toolbar1 + bar)));
+}
+
+void World::setActionBarsLuaView(const bool v)
+{
+	for (auto& tb : m_toolbars)
+		tb->setLuaView(v);
+}
+
+bool World::actionInfo(const int slot, int& type, int& entry, string& texture)
+{
+	int id; auto tb = actionToolbar(slot, id);
+	return tb && tb->iconInfo(static_cast<Toolbar::Interface>(id), type, entry, texture);
+}
+
+bool World::actionCooldown(const int slot, int& remainingMs, int& durationMs)
+{
+	int id; auto tb = actionToolbar(slot, id);
+	return tb && tb->iconCooldown(static_cast<Toolbar::Interface>(id), remainingMs, durationMs);
+}
+
+int World::actionState(const int slot)
+{
+	int id; auto tb = actionToolbar(slot, id);
+	return tb ? tb->iconStateFlags(static_cast<Toolbar::Interface>(id)) : 0;
+}
+
+int World::actionCount(const int slot)
+{
+	int id; auto tb = actionToolbar(slot, id);
+	return tb ? tb->iconStackCount(static_cast<Toolbar::Interface>(id)) : 0;
+}
+
+string World::actionKeybind(const int slot)
+{
+	int id; auto tb = actionToolbar(slot, id);
+	return tb ? tb->iconKeybindText(static_cast<Toolbar::Interface>(id)) : string();
+}
+
+void World::useActionSlot(const int slot)
+{
+	int id; if (auto tb = actionToolbar(slot, id)) tb->useIcon(static_cast<Toolbar::Interface>(id));
+}
+
+void World::placeActionSlot(const int slot, const int type, const int entry)
+{
+	int id; if (auto tb = actionToolbar(slot, id)) tb->assignIcon(static_cast<Toolbar::Interface>(id), type, entry);
+}
+
+void World::clearActionSlot(const int slot)
+{
+	int id; if (auto tb = actionToolbar(slot, id)) tb->clearIcon(static_cast<Toolbar::Interface>(id));
+}
+
+shared_ptr<Tooltip> World::actionTooltip(const int slot)
+{
+	int id; auto tb = actionToolbar(slot, id);
+	return tb ? tb->iconTooltip(static_cast<Toolbar::Interface>(id)) : nullptr;
+}
 	
 void World::onLevelTo(const int lvl)
 {

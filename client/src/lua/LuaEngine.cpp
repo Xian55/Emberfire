@@ -886,6 +886,9 @@ void LuaEngine::bindUI()
 			.addFunction("SetTooltipTrade", [](FrameHandle* self, int slot, bool isLocal, std::optional<std::string> anchor) {
 				if (slot > 0) g_impl->tooltipSpec[self->h] = { 8, (slot - 1) + (isLocal ? 0 : 1000), anchorToInt(anchor.value_or("RIGHT")) };
 				else          g_impl->tooltipSpec.erase(self->h); })
+			.addFunction("SetTooltipAction", [](FrameHandle* self, int slot, std::optional<std::string> anchor) {   // key = action slot 1..36
+				if (slot > 0) g_impl->tooltipSpec[self->h] = { 9, slot, anchorToInt(anchor.value_or("RIGHT")) };
+				else          g_impl->tooltipSpec.erase(self->h); })
 			.addFunction("CreateTexture",    [](FrameHandle* self) { return FrameHandle{ LuaUI::createTexture(self->h) }; })
 			.addFunction("CreateFontString", [](FrameHandle* self) { return FrameHandle{ LuaUI::createFontString(self->h) }; })
 			.addFunction("IsMouseOver",    [](FrameHandle* self) { return LuaUI::isMouseOver(self->h); })
@@ -1108,6 +1111,29 @@ void LuaEngine::bindUI()
 				return std::make_tuple(0, 0);
 			return std::make_tuple(spellId, level); })
 
+		// Action bars (global slot 1..36; the C++ bars stay the cast/cooldown/cache engine, Lua draws them).
+		.addFunction("SetActionBarsLuaView", [](bool v) { LuaUI::setActionBarsLuaView(v); })
+		.addFunction("GetActionInfo", [](int slot) {   // -> type ("spell"/"item"/nil), entry, texture
+			int type = 0, entry = 0; std::string tex;
+			if (!LuaUI::actionInfo(slot, type, entry, tex) || entry == 0)
+				return std::make_tuple(std::string(), 0, std::string());
+			return std::make_tuple(std::string(type == 1 ? "spell" : "item"), entry, tex); })
+		.addFunction("GetActionCooldown", [](int slot) {   // -> remainingMs, durationMs (0,0 = ready)
+			int rem = 0, dur = 0;
+			if (!LuaUI::actionCooldown(slot, rem, dur))
+				return std::make_tuple(0, 0);
+			return std::make_tuple(rem, dur); })
+		.addFunction("GetActionUsable", [](int slot) {   // -> usable, outOfRange, outOfMana
+			const int f = LuaUI::actionState(slot);
+			const bool has = (f & 1) != 0;
+			return std::make_tuple(has && (f & 2) == 0, (f & 4) != 0, (f & 8) != 0); })
+		.addFunction("GetActionCount",   [](int slot) { return LuaUI::actionCount(slot); })
+		.addFunction("GetActionKeybind", [](int slot) { return LuaUI::actionKeybind(slot); })
+		.addFunction("UseAction",        [](int slot) { LuaUI::useActionSlot(slot); })
+		.addFunction("PlaceAction",      [](int slot, std::string type, int entry) {
+			LuaUI::placeActionSlot(slot, type == "spell" ? 1 : 0, entry); })
+		.addFunction("ClearAction",      [](int slot) { LuaUI::clearActionSlot(slot); })
+
 		// Trade (isLocal = our side; 1-based slot; itemGuid identifies a local item for removal).
 		.addFunction("GetTradePartnerName", []() { return LuaUI::tradePartnerName(); })
 		.addFunction("GetTradeItem", [](bool isLocal, int slot) {   // -> itemId, count, itemGuid
@@ -1182,6 +1208,8 @@ void LuaEngine::bindUI()
 		"SetQuestTracked", "AbandonQuest",
 		"GetVendorNumItems", "GetVendorItem", "BuyVendorItem", "RepairGear", "VendorBuyback",
 		"GetNumSpellSlots", "GetSpellSlot",
+		"SetActionBarsLuaView", "GetActionInfo", "GetActionCooldown", "GetActionUsable", "GetActionCount",
+		"GetActionKeybind", "UseAction", "PlaceAction", "ClearAction",
 		"GetTradePartnerName", "GetTradeItem", "GetTradeGold", "IsTradeReady", "AddTradeItem", "RemoveTradeItem",
 		"SetTradeGold", "ConfirmTrade", "CancelTrade",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",
@@ -1307,6 +1335,7 @@ void LuaEngine::onFrame(float dt)
 		else if (kind == 6) LuaUI::showVendorTooltip(key, bestH, anchor);
 		else if (kind == 7) LuaUI::showSpellTooltipAt(key, bestH, anchor);   // key = spellId
 		else if (kind == 8) LuaUI::showTradeTooltip(key, bestH, anchor);     // key = slot + (isLocal?0:1000)
+		else if (kind == 9) LuaUI::showActionTooltip(key, bestH, anchor);    // key = action slot 1..36
 	}
 
 	// Hover edge-detection: fire OnEnter(self) when the cursor enters a frame's bounds and OnLeave(self)

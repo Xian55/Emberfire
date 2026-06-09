@@ -9,11 +9,14 @@
 #include "Application.h"
 #include "Connector.h"
 #include "ClientPlayer.h"
+#include "ClientUnit.h"
 #include "Abilities.h"
 #include "Inventory.h"
 #include "WorldSpellAnimation.h"
 #include "Equipment.h"
 #include "Options.h"
+#include "Keybinds.h"
+#include "Tooltip.h"
 
 #include "..\Shared\Config.h"
 #include "..\Shared\StlBuffer.h"
@@ -52,6 +55,19 @@ Toolbar::~Toolbar()
 
 void Toolbar::input()
 {
+	// Lua view: the addon owns visuals/clicks/drag. We still run the icons' input (so keybinds are detected,
+	// keyboard-global — independent of mouse) and fire only the keybound activation; everything else is skipped.
+	if (m_luaView)
+	{
+		__super::input();
+
+		if (auto useButton = popKeyboundButton())
+			if (auto gameIcon = dynamic_pointer_cast<GameIcon>(useButton))
+				useIcon(static_cast<Interface>(gameIcon->getId()));
+
+		return;
+	}
+
 	// The "bar" is not "clickable" unless an icon is held
 	if (world().isIconGrabbed())
 		updateBottomRight();
@@ -74,26 +90,8 @@ void Toolbar::input()
 
 	if (auto gameIcon = dynamic_pointer_cast<GameIcon>(useButton))
 	{
-		gameIcon->setExclaimNotice(false);
-
-		if (gameIcon->getType() == gameIcon->Type::Spell)
-		{
-			castSpell(gameIcon->getEntry());
-		}
-		else if (gameIcon->getType() == gameIcon->Type::Item)
-		{
-			auto inv = dynamic_pointer_cast<Inventory>(world().getRenderObject(World::Interface::InventoryPanel));
-			int slot = inv->getFirstItemEntrySlot(gameIcon->getEntry());
-			
-			if (slot >= 0)
-			{
-				GP_Client_UseItem packet;
-				packet.m_slot = slot;
-				packet.m_itemId = gameIcon->getEntry();
-				sConnector->sendPacket(packet.build(StlBuffer{}));
-			}
-		}
-	}	
+		useIcon(static_cast<Interface>(gameIcon->getId()));
+	}
 	else if (!__super::grabIcon() && __super::depositGrabbedIconToEmptySpace())
 	{
 		sContentMgr->playSound(SfxId::WindowTargetClose);
@@ -103,8 +101,39 @@ void Toolbar::input()
 	}
 }
 
+void Toolbar::useIcon(const Interface id)
+{
+	auto gameIcon = dynamic_pointer_cast<GameIcon>(getRenderObject(id));
+
+	if (gameIcon == nullptr || gameIcon->getEntry() == 0)
+		return;
+
+	gameIcon->setExclaimNotice(false);
+
+	if (gameIcon->getType() == GameIcon::Type::Spell)
+	{
+		castSpell(gameIcon->getEntry());
+	}
+	else if (gameIcon->getType() == GameIcon::Type::Item)
+	{
+		auto inv = dynamic_pointer_cast<Inventory>(world().getRenderObject(World::Interface::InventoryPanel));
+		int slot = inv->getFirstItemEntrySlot(gameIcon->getEntry());
+
+		if (slot >= 0)
+		{
+			GP_Client_UseItem packet;
+			packet.m_slot = slot;
+			packet.m_itemId = gameIcon->getEntry();
+			sConnector->sendPacket(packet.build(StlBuffer{}));
+		}
+	}
+}
+
 void Toolbar::render()
 {
+	if (m_luaView)
+		return;   // Lua ActionBar draws the icons; the C++ bar is data/cast only
+
 	const bool darkenAll = !world().canAct();
 	shared_ptr<ClientUnit> selectedUnit = dynamic_pointer_cast<ClientUnit>(world().getClientObject(world().getSelectedGuid()));
 	int distanceToTarget = 0;
@@ -318,6 +347,134 @@ void Toolbar::refreshTooltips()
 		itr.second->refreshTooltip();
 }
 		
+void Toolbar::assignIcon(const Interface id, const int type, const int entry)
+{
+	// Preserve the slot's keybind across the icon recreate (createBaseIcon makes a fresh GameIcon).
+	SfKeyEvent ke;
+
+	if (auto old = dynamic_pointer_cast<GameIcon>(getRenderObject(id)))
+		ke = old->getKeyEvent();
+
+	createBaseIcon(id, type, entry);
+	setButtonBind(id, ke);
+	saveCache();
+}
+
+bool Toolbar::iconInfo(const Interface id, int& type, int& entry, string& texture) const
+{
+	auto icon = dynamic_pointer_cast<GameIcon>(getRenderObject(id));
+
+	if (icon == nullptr)
+		return false;
+
+	type = icon->getType();
+	entry = icon->getEntry();
+	texture.clear();
+
+	if (entry != 0)
+	{
+		const char* table = (type == GameIcon::Type::Spell) ? "spell_template" : "item_template";
+		texture = sContentMgr->db(table).data(entry, "icon");
+	}
+
+	return true;
+}
+
+bool Toolbar::iconCooldown(const Interface id, int& remainingMs, int& durationMs) const
+{
+	auto icon = dynamic_pointer_cast<GameIcon>(getRenderObject(id));
+
+	if (icon == nullptr || icon->getEntry() == 0)
+		return false;
+
+	auto pick = [&](const int cid) -> CooldownHolder::CooldownPair
+	{
+		return cid == 0 ? CooldownHolder::CooldownPair{ 0, 0 } : world().getCooldown(cid);
+	};
+
+	// The spell's own cooldown and its category cooldown (negative key) — show whichever ends later.
+	auto a = pick(icon->getCastedSpellId());
+	auto b = pick(-icon->getCastedSpellCategoryCooldown());
+	auto cd = (b.second > a.second) ? b : a;
+
+	const __time64_t now = sApplication->timeNowMs();
+
+	if (cd.second <= now)
+		return false;
+
+	remainingMs = static_cast<int>(cd.second - now);
+	durationMs = static_cast<int>(cd.second - cd.first);
+	return true;
+}
+
+int Toolbar::iconStateFlags(const Interface id) const
+{
+	auto icon = dynamic_pointer_cast<GameIcon>(getRenderObject(id));
+
+	if (icon == nullptr || icon->getEntry() == 0)
+		return 0;
+
+	int flags = 1;   // has entry
+
+	if (!world().canAct() || (icon->getType() == GameIcon::Spell && shouldDarkenSpellId(icon->getEntry())))
+		flags |= 2;
+
+	// Out of range vs the current target (same math as render()).
+	if (icon->getType() == GameIcon::Spell && world().myself() != nullptr)
+	{
+		if (auto sel = dynamic_pointer_cast<ClientUnit>(world().getClientObject(world().getSelectedGuid())))
+		{
+			Geo2d::Vector2 me = world().myself()->computeRawScreenPosition();
+			sf::Vector2f tgt = sf::Vector2f(sel->computeRawScreenPositioni());
+			const int dist = static_cast<int>(me.getDist({ tgt.x, tgt.y }));
+
+			if (icon->getSpellRange() > 0 && dist > icon->getSpellRange())
+				flags |= 4;
+
+			if (icon->getSpellRangeMin() > 0 && dist < icon->getSpellRangeMin())
+				flags |= 4;
+		}
+	}
+
+	// Out of mana.
+	if (world().myself() != nullptr && icon->getSpellManaCost(*world().myself()) > world().myself()->getMana())
+		flags |= 8;
+
+	return flags;
+}
+
+int Toolbar::iconStackCount(const Interface id) const
+{
+	auto icon = dynamic_pointer_cast<GameIcon>(getRenderObject(id));
+
+	if (icon == nullptr || icon->getType() != GameIcon::Item)
+		return 0;
+
+	int stack = 0;
+
+	if (auto inv = dynamic_pointer_cast<Inventory>(world().getRenderObject(World::Interface::InventoryPanel)))
+		inv->getItemStack(icon->getEntry(), stack);
+
+	return stack;
+}
+
+string Toolbar::iconKeybindText(const Interface id) const
+{
+	auto icon = dynamic_pointer_cast<GameIcon>(getRenderObject(id));
+
+	if (icon == nullptr)
+		return "";
+
+	string s = sKeybinds->deduceKeybindStr(icon->getKeyEvent());
+	return s == "null" ? string() : s;
+}
+
+shared_ptr<Tooltip> Toolbar::iconTooltip(const Interface id) const
+{
+	auto icon = dynamic_pointer_cast<GameIcon>(getRenderObject(id));
+	return icon ? icon->rebuildTooltip() : nullptr;
+}
+
 shared_ptr<GameIcon> Toolbar::findIconByEntry(const int entry) const
 {
 	for (auto& itr : m_icons)

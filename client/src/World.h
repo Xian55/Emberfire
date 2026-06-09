@@ -27,6 +27,7 @@ class UnitFrame;
 class ItemIcon;
 class Toolbar;
 class MapQuester;
+class Tooltip;
 
 class World : public BuffDebuffRenderer, public CooldownHolder
 {
@@ -206,7 +207,23 @@ class World : public BuffDebuffRenderer, public CooldownHolder
 
 		shared_ptr<ClientObject> getClientObject(const int guid) const;
 
+		// ---- ActionBar facade for the Lua view: global slot 1..36 -> (Toolbar 1..3, GameIcon 1..12). Routes to
+		//      the 3 force-light (Lua-view) Toolbars which stay the data + cast + cooldown + cache engine. ----
+		void   setActionBarsLuaView(const bool v);
+		bool   actionInfo(const int slot, int& type, int& entry, string& texture);
+		bool   actionCooldown(const int slot, int& remainingMs, int& durationMs);
+		int    actionState(const int slot);
+		int    actionCount(const int slot);
+		string actionKeybind(const int slot);
+		void   useActionSlot(const int slot);
+		void   placeActionSlot(const int slot, const int type, const int entry);
+		void   clearActionSlot(const int slot);
+		shared_ptr<Tooltip> actionTooltip(const int slot);
+
 	private:
+		shared_ptr<Toolbar> actionToolbar(const int slot, int& iconId);
+
+
 		void input() final;
 		void render() final;
 		

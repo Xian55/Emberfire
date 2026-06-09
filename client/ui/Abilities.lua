@@ -59,7 +59,14 @@ for r = 1, VISIBLE do
 	nameFS:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + NAME_DX, y + NAME_DY)
 	local descFS = root:CreateFontString(); descFS:SetFont('Palatino'); descFS:SetFontSize(12); descFS:SetTextColor(111, 99, 79, 255)
 	descFS:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + DESC_DX, y + DESC_DY); descFS:SetWidth(DESC_W)
-	rows[r] = { row = rowBtn, icon = iconTex, name = nameFS, desc = descFS }
+	local rd = { row = rowBtn, icon = iconTex, name = nameFS, desc = descFS, spellId = 0 }
+	-- left-drag a spell onto an action slot: put it on the shared cursor; the ActionBar consumes the drop
+	-- (PlaceAction) or, if released on nothing, clears it. Greys the row icon while held.
+	rowBtn:SetScript('OnMouseDown', function(_, btn)
+		if btn ~= 'LeftButton' or EmberUI.HasCursorItem() or rd.spellId == 0 then return end
+		EmberUI.PickupItem(GetSpellTexture(rd.spellId), iconTex, { kind = 'spell', id = rd.spellId })
+	end)
+	rows[r] = rd
 end
 
 refresh = function()
@@ -76,6 +83,7 @@ refresh = function()
 		local row = rows[r]
 		if idx <= n then
 			local spellId = GetSpellSlot(stage, idx)
+			row.spellId = spellId
 			local tex = GetSpellTexture(spellId)
 			if tex and tex ~= '' then row.icon:SetTexture(tex) end
 			row.icon:Show()
@@ -83,6 +91,7 @@ refresh = function()
 			row.name:SetText(GetSpellName(spellId) or ''); row.name:Show()
 			row.desc:SetText(GetSpellDescription(spellId) or ''); row.desc:Show()
 		else
+			row.spellId = 0
 			row.row:SetTooltipSpell(0)
 			row.icon:Hide(); row.name:Hide(); row.desc:Hide()
 		end

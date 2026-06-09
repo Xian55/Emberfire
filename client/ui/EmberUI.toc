@@ -19,3 +19,4 @@ QuestLog.lua
 Vendor.lua
 Abilities.lua
 Trade.lua
+ActionBar.lua

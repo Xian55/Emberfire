@@ -2293,6 +2293,35 @@ namespace LuaUI
 		return a && a->spellSlotAt(stage, index, spellId, level);
 	}
 
+	// ---- action bars (3x12; route to the 3 Lua-view Toolbars via the World facade; global slot 1..36) ----
+	void setActionBarsLuaView(bool v) { if (auto* w = currentWorld()) w->setActionBarsLuaView(v); }
+	bool actionInfo(int slot, int& type, int& entry, std::string& texture)
+	{
+		auto* w = currentWorld();
+		return w && w->actionInfo(slot, type, entry, texture);
+	}
+	bool actionCooldown(int slot, int& remainingMs, int& durationMs)
+	{
+		auto* w = currentWorld();
+		return w && w->actionCooldown(slot, remainingMs, durationMs);
+	}
+	int  actionState(int slot)   { auto* w = currentWorld(); return w ? w->actionState(slot) : 0; }
+	int  actionCount(int slot)   { auto* w = currentWorld(); return w ? w->actionCount(slot) : 0; }
+	std::string actionKeybind(int slot) { auto* w = currentWorld(); return w ? w->actionKeybind(slot) : std::string(); }
+	void useActionSlot(int slot) { if (auto* w = currentWorld()) w->useActionSlot(slot); }
+	void placeActionSlot(int slot, int type, int entry) { if (auto* w = currentWorld()) w->placeActionSlot(slot, type, entry); }
+	void clearActionSlot(int slot) { if (auto* w = currentWorld()) w->clearActionSlot(slot); }
+
+	void showActionTooltip(int slot, int ownerHandle, int anchor)
+	{
+		auto* w = currentWorld();
+		if (!w) return;
+		auto tip = w->actionTooltip(slot);
+		if (!tip) return;
+		positionTooltip(tip, ownerHandle, anchor);
+		sApplication->setTooltip(tip);
+	}
+
 	// ---- trade window (reads + drives the live force-hidden TradeWindow; isLocal=our side) ----
 	static TradeWindow* tradePanel()
 	{
