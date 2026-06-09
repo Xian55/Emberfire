@@ -53,8 +53,34 @@ Abilities::Abilities(World& owner, const int id) :
 	m_viewChoices->addRenderObject(attachObj(tab2, { 243, 70 }));
 	addRenderObject(m_viewChoices);
 
+	// Off-screen scratch spell icon: configured per spell (level/bpoints) to build the list description text +
+	// the full tooltip via SpellIcon, so they match the game exactly. Not added to the render holder.
+	m_tooltipIcon = make_shared<SpellIcon>(*this, 9000, "abilities_slot");
+
 	setStage(Stage::Spellbook);
 	m_viewChoices->setChosen(Stage::Spellbook);
+}
+
+string Abilities::spellRowText(int spellId)
+{
+	GP_Server_Spellbook::SpellSlot slot;
+	if (!getSpellPoints(spellId, slot) || m_tooltipIcon == nullptr)
+		return "";
+	m_tooltipIcon->setLevel(slot.level);
+	m_tooltipIcon->setBasePoints(slot.bpoints);
+	m_tooltipIcon->changeEntry(spellId);
+	return m_tooltipIcon->deduceDescription();
+}
+
+shared_ptr<Tooltip> Abilities::buildSpellTooltip(int spellId)
+{
+	GP_Server_Spellbook::SpellSlot slot;
+	if (!getSpellPoints(spellId, slot) || m_tooltipIcon == nullptr)
+		return nullptr;
+	m_tooltipIcon->setLevel(slot.level);
+	m_tooltipIcon->setBasePoints(slot.bpoints);
+	m_tooltipIcon->changeEntry(spellId);
+	return m_tooltipIcon->buildTooltip();
 }
 
 Abilities::~Abilities()

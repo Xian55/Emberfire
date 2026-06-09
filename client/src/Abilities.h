@@ -7,6 +7,8 @@
 class GameIconList;
 class ScrollBar;
 class SelectionButtons;
+class SpellIcon;
+class Tooltip;
 
 class Abilities : public WorldPanel
 {
@@ -40,6 +42,10 @@ class Abilities : public WorldPanel
 		// --- read for the Lua spellbook view (stage 0=Miscbook, 1=Spellbook) ---
 		int  spellSlotCount(int stage) const;
 		bool spellSlotAt(int stage, int index, int& spellId, int& level) const;
+		// The C++-formatted list description + the full spell tooltip (reuse SpellIcon, level/bpoints from the
+		// stored slot, so {splvl}/base-point substitution matches the game exactly).
+		string spellRowText(int spellId);
+		shared_ptr<Tooltip> buildSpellTooltip(int spellId);
 
 		const auto& getDesiredInvestments() const { return m_desiredInvestments; }
 
@@ -62,6 +68,7 @@ class Abilities : public WorldPanel
 		shared_ptr<ScrollBar> m_scrollBar;
 		shared_ptr<GameIconList> m_gameIconList;
 		shared_ptr<SelectionButtons> m_viewChoices;
+		shared_ptr<SpellIcon> m_tooltipIcon;   // scratch, configured per spell to build list text + tooltips
 
 		map<Stage, vector<GP_Server_Spellbook::SpellSlot>> m_spells;
 };

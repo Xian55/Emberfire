@@ -1594,6 +1594,7 @@ namespace LuaUI
 	void showUnitTooltip(const std::string& token) { if (auto* u = resolveUnit(token)) u->useTooltip(); }
 
 	static void positionTooltip(const shared_ptr<Tooltip>& tip, int ownerHandle, int anchor);   // defined below
+	static Abilities* abilitiesPanel();                                                          // defined below
 
 	std::shared_ptr<Tooltip> buildSpellTip(int spellId)
 	{
@@ -1619,7 +1620,11 @@ namespace LuaUI
 	}
 	void showSpellTooltipAt(int spellId, int ownerHandle, int anchor)   // engine-asserted (book hover)
 	{
-		auto tip = buildSpellTip(spellId);
+		// Reuse the real SpellIcon tooltip (name+rank, mana/range/cast/cooldown, formatted description) via the
+		// Abilities scratch icon; fall back to the simple builder if the book isn't available.
+		auto* a = abilitiesPanel();
+		auto tip = a ? a->buildSpellTooltip(spellId) : nullptr;
+		if (!tip) tip = buildSpellTip(spellId);
 		if (!tip) return;
 		positionTooltip(tip, ownerHandle, anchor);
 		sApplication->setTooltip(tip);
@@ -1630,7 +1635,7 @@ namespace LuaUI
 
 	std::string spellTexture(int spellId) { return sContentMgr->db("spell_template").data(spellId, "icon"); }
 	std::string spellName(int spellId)    { return sContentMgr->db("spell_template").data(spellId, "name"); }
-	std::string spellDescription(int spellId) { return sContentMgr->db("spell_template").data(spellId, "aura_description"); }
+	std::string spellDescription(int spellId) { auto* a = abilitiesPanel(); return a ? a->spellRowText(spellId) : std::string(); }   // C++ list text (formSpellDescription)
 
 	int textureWidth(const std::string& name)  { auto t = sContentMgr->getTexture(name); return t ? static_cast<int>(t->getSize().x) : 0; }
 	int textureHeight(const std::string& name) { auto t = sContentMgr->getTexture(name); return t ? static_cast<int>(t->getSize().y) : 0; }

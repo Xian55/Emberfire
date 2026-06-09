@@ -12,6 +12,8 @@ class SpellIcon : public GameIcon
 
 		int getCastedSpellId() const final { return getEntry(); }
 		int getCastedSpellCategoryCooldown() const final { return m_castedSpellCategoryCooldown; }
+
+		shared_ptr<Tooltip> buildTooltip();   // build-only (set entry/level/bpoints first); for the Lua view
 	
 		int getSpellManaCost(ClientUnit& myself) const final;
 

@@ -16,6 +16,14 @@
 
 #include <assert.h>
 
+shared_ptr<Tooltip> SpellIcon::buildTooltip()
+{
+	if (getEntry() == 0)
+		return nullptr;
+	fillTooltip();
+	return getTooltip();
+}
+
 SpellIcon::SpellIcon(RenderObject& owner, const int id, const string& frame, const int entry /*= 0*/) :
 	GameIcon(owner, id, frame, entry)
 {
