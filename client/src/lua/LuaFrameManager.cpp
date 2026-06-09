@@ -1585,6 +1585,7 @@ namespace LuaUI
 
 	std::string spellTexture(int spellId) { return sContentMgr->db("spell_template").data(spellId, "icon"); }
 	std::string spellName(int spellId)    { return sContentMgr->db("spell_template").data(spellId, "name"); }
+	std::string spellDescription(int spellId) { return sContentMgr->db("spell_template").data(spellId, "aura_description"); }
 
 	int textureWidth(const std::string& name)  { auto t = sContentMgr->getTexture(name); return t ? static_cast<int>(t->getSize().x) : 0; }
 	int textureHeight(const std::string& name) { auto t = sContentMgr->getTexture(name); return t ? static_cast<int>(t->getSize().y) : 0; }

@@ -1013,6 +1013,7 @@ void LuaEngine::bindUI()
 		.addFunction("PartyMemberExists", [](int idx) { return LuaUI::partyMemberExists(idx - 1); })   // Lua 1-based
 		.addFunction("GetSpellTexture", [](int spellId) { return LuaUI::spellTexture(spellId); })
 		.addFunction("GetSpellName",    [](int spellId) { return LuaUI::spellName(spellId); })
+		.addFunction("GetSpellDescription", [](int spellId) { return LuaUI::spellDescription(spellId); })
 		.addFunction("GetTextureSize",  [](std::string name) { return std::make_tuple(LuaUI::textureWidth(name), LuaUI::textureHeight(name)); })
 
 		// Commands.
@@ -1168,7 +1169,7 @@ void LuaEngine::bindUI()
 		"UnitNameColor", "UnitFlag", "UnitIsDead", "UnitIsPlayer",
 		"UnitIsPartyLeader", "UnitHasBrokenEquipment", "UnitPortraitTexture", "UnitCastSpell",
 		"UnitCastElapsed", "UnitCastTotal", "UnitAuraCount", "UnitAura", "PartyMemberExists",
-		"GetSpellTexture", "GetSpellName", "GetTextureSize", "TargetUnit", "ClearTarget",
+		"GetSpellTexture", "GetSpellName", "GetSpellDescription", "GetTextureSize", "TargetUnit", "ClearTarget",
 		"MoveContainerItem", "UseContainerItem", "EquipContainerItem", "SellContainerItem",
 		"DestroyContainerItem", "UnequipInventoryItem", "UseOrEquipContainerItem", "MerchantRightClick",
 		"GetLootSlotCount", "GetLootSlot", "LootSlot", "LootAll", "LinkLootSlot", "CloseLoot", "IsShiftKeyDown",

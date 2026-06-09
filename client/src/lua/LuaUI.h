@@ -85,6 +85,7 @@ namespace LuaUI
 	// ---- spell DB (icon/name by spell id) ----
 	std::string spellTexture(int spellId);
 	std::string spellName(int spellId);
+	std::string spellDescription(int spellId);
 
 	// ---- texture metrics (natural pixel size of a texture, for art-accurate layout) ----
 	int textureWidth(const std::string& name);

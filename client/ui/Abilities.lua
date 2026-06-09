@@ -1,14 +1,16 @@
 -- Lua Abilities / spellbook (DISPLAY-ONLY) replacing the C++ Abilities window (force-hidden, mirrored). The
 -- live window stays the model (populated by GP_Server_Spellbook); this view reads it via GetNumSpellSlots /
--- GetSpellSlot and renders the spell icons (GetSpellTexture) with hover tooltips (SetTooltipSpell). Two tabs:
--- Spellbook (stage 1) and Misc (stage 0). Casting + drag-to-toolbar are DEFERRED (cast is via the toolbar;
--- spell-point spending is the deferred Equipment-2b spell side). Event-driven: PANEL_OPENED/CLOSED +
--- SPELLBOOK_UPDATE. NO OnUpdate. NOTE: grid positions are guesses — tune live.
+-- GetSpellSlot and renders a VERTICAL list (icon + name + description per row), matching the C++ GameIconList
+-- (6 rows, 75px tall, single column, descriptions on). Two tabs: Spellbook (stage 1) and Misc (stage 0).
+-- Casting + drag-to-toolbar + spell-point spending are DEFERRED (cast is via the toolbar). Event-driven:
+-- PANEL_OPENED/CLOSED('AbilitiesFrame') + SPELLBOOK_UPDATE. NO OnUpdate. Positions from C++ Abilities ctor.
+-- v1: description is single-line (no FontString:SetWidth/word-wrap binding yet) — may truncate; tune live.
 
-local COLS, ICON, PITCH, VISIBLE_ROWS = 6, 40, 46, 5
-local GRID_X, GRID_Y = 40, 86
-local VISIBLE = COLS * VISIBLE_ROWS
-local TAB_Y = 52
+local LIST_X, LIST_Y, ROW_H, VISIBLE = 25, 126, 75, 6
+local ICON_DX, ICON_DY, ICON = 18, 14, 48
+local NAME_DX, NAME_DY = 52, 6
+local DESC_DX, DESC_DY = 52, 32
+local TAB_Y = 70
 
 local W, H = GetTextureSize('abilities.png')
 if W <= 0 then W, H = 470, 540 end
@@ -19,7 +21,6 @@ root:SetMovable(true); root:RegisterForDrag('LeftButton')
 root:Hide()
 
 local function vis(f, v) if v then f:Show() else f:Hide() end end
-local function texSize(name, dw, dh) local w, h = GetTextureSize(name); if w <= 0 then return dw, dh end return w, h end
 
 local bg = root:CreateTexture()
 bg:SetAllPoints(root)
@@ -30,33 +31,35 @@ local scroll = 0
 local refresh   -- forward decl
 local function tabStage() return currentTab == 1 and 1 or 0 end
 
--- tabs
-local TABS = { { label = 'Spellbook', x = 40 }, { label = 'Misc', x = 150 } }
+-- tabs (C++ tab buttons at x=133/243, y=70)
+local TABS = { { label = 'Spellbook', x = 133 }, { label = 'Misc', x = 243 } }
 local tabFS = {}
 for t, def in ipairs(TABS) do
 	local b = CreateFrame('Button', nil, root)
-	b:SetSize(96, 22); b:SetPoint('TOPLEFT', root, 'TOPLEFT', def.x, TAB_Y); b:EnableMouse(true)
-	local fs = root:CreateFontString(); fs:SetFont('Ringbearer'); fs:SetFontSize(14)
-	fs:SetPoint('TOPLEFT', root, 'TOPLEFT', def.x, TAB_Y); fs:SetText(def.label)
+	b:SetSize(100, 22); b:SetPoint('TOPLEFT', root, 'TOPLEFT', def.x, TAB_Y); b:EnableMouse(true)
+	local f = root:CreateFontString(); f:SetFont('Ringbearer'); f:SetFontSize(14)
+	f:SetPoint('TOPLEFT', root, 'TOPLEFT', def.x, TAB_Y); f:SetText(def.label)
 	b:SetScript('OnClick', function() currentTab = t; scroll = 0; refresh() end)
-	tabFS[t] = fs
+	tabFS[t] = f
 end
 
--- spell icon grid
-local cells = {}
-for c = 1, VISIBLE do
-	local col = (c - 1) % COLS
-	local row = math.floor((c - 1) / COLS)
-	local b = CreateFrame('Button', nil, root)
-	b:SetSize(ICON, ICON)
-	b:SetPoint('TOPLEFT', root, 'TOPLEFT', GRID_X + col * PITCH, GRID_Y + row * PITCH)
-	b:EnableMouse(true); b:SetHoverTexture('gameicon40_hover.png')
-	cells[c] = b
+-- vertical spell-row pool: icon (left) + name + description
+local rows = {}
+for r = 1, VISIBLE do
+	local y = LIST_Y + (r - 1) * ROW_H
+	local icon = CreateFrame('Button', nil, root)
+	icon:SetSize(ICON, ICON); icon:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + ICON_DX, y + ICON_DY)
+	icon:EnableMouse(true); icon:SetHoverTexture('gameicon40_hover.png')
+	local nameFS = root:CreateFontString(); nameFS:SetFont('Ringbearer'); nameFS:SetFontSize(15); nameFS:SetTextColor(168, 155, 137, 255)
+	nameFS:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + NAME_DX, y + NAME_DY)
+	local descFS = root:CreateFontString(); descFS:SetFont('Palatino'); descFS:SetFontSize(12); descFS:SetTextColor(111, 99, 79, 255)
+	descFS:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + DESC_DX, y + DESC_DY)
+	rows[r] = { icon = icon, name = nameFS, desc = descFS }
 end
 
 refresh = function()
-	for t, fs in ipairs(tabFS) do
-		fs:SetTextColor(t == currentTab and 255 or 150, t == currentTab and 224 or 150, t == currentTab and 120 or 150, 255)
+	for t, f in ipairs(tabFS) do
+		f:SetTextColor(t == currentTab and 255 or 150, t == currentTab and 224 or 150, t == currentTab and 120 or 150, 255)
 	end
 
 	local stage = tabStage()
@@ -65,23 +68,26 @@ refresh = function()
 	if scroll > maxS then scroll = maxS end
 	if scroll < 0 then scroll = 0 end
 
-	for c = 1, VISIBLE do
-		local idx = scroll + c
-		local b = cells[c]
+	for r = 1, VISIBLE do
+		local idx = scroll + r
+		local row = rows[r]
 		if idx <= n then
 			local spellId = GetSpellSlot(stage, idx)
 			local tex = GetSpellTexture(spellId)
-			if tex and tex ~= '' then b:SetTexture(tex) end
-			b:SetTooltipSpell(spellId)
-			vis(b, true)
+			if tex and tex ~= '' then row.icon:SetTexture(tex) end
+			row.icon:SetTooltipSpell(spellId)
+			row.name:SetText(GetSpellName(spellId) or ''); row.name:Show()
+			row.desc:SetText(GetSpellDescription(spellId) or ''); row.desc:Show()
+			vis(row.icon, true)
 		else
-			b:SetTooltipSpell(0)
-			vis(b, false)
+			row.icon:SetTooltipSpell(0)
+			row.name:Hide(); row.desc:Hide()
+			vis(row.icon, false)
 		end
 	end
 end
 
-root:SetScript('OnMouseWheel', function(_, delta) scroll = scroll - delta * COLS; refresh() end)
+root:SetScript('OnMouseWheel', function(_, delta) scroll = scroll - delta; refresh() end)
 
 local shown = false
 local function setShown(v)
