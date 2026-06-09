@@ -265,6 +265,20 @@ void World::input()
 	else
 		m_spendExpButton->setHidden(true);
 
+	// The migrated Bank/Vendor are force-hidden, so DialogPanel::render's walk-away auto-close never runs for
+	// them. Replicate it here (World::input always runs): moving out of the gossip NPC's range closes them.
+	if (m_myself != nullptr && m_myself->hasSpline())
+	{
+		if (auto gossipNpc = getClientObject(getGossipGuid()))
+		{
+			if (m_myself->getWorldPosition().getDist(gossipNpc->getWorldPosition()) >= 5)
+			{
+				if (isPanelOpen(Interface::BankPanel))      closePanel(Interface::BankPanel);
+				if (isPanelOpen(Interface::VendorNpcPanel)) closePanel(Interface::VendorNpcPanel);
+			}
+		}
+	}
+
 	if (mouseInWorld() && getGrabbedIcon() == nullptr)
 	{
 		// Note that the mouse being in the world doesn't mean it's not moused over an object which is why this is done after the map is input
