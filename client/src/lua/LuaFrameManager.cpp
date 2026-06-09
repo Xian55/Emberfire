@@ -30,6 +30,8 @@
 #include "QuestOffer.h"
 #include "QuestComplete.h"
 #include "Minimap.h"
+#include "CharacterSelection.h"
+#include "..\..\Shared\CharacterDefines.h"
 #include "Connector.h"
 #include "ContextMenu.h"
 #include "ConfirmMessageBox.h"
@@ -2369,6 +2371,71 @@ namespace LuaUI
 		if (!tip) return;
 		positionTooltip(tip, ownerHandle, anchor);
 		sApplication->setTooltip(tip);
+	}
+
+	// ---- character select / create screens ----
+	static CharacterSelection* charSelectScreen()
+	{
+		auto* g = currentGame();
+		return g ? dynamic_cast<CharacterSelection*>(g->getRenderObject(Game::RoCharacterSelection).get()) : nullptr;
+	}
+	int characterCount() { auto* s = charSelectScreen(); return s ? s->characterCount() : 0; }
+	bool characterAt(int idx, std::string& name, int& classId, int& level, int& portrait, int& gender)
+	{
+		auto* s = charSelectScreen();
+		CharacterSelection::Character c;
+		if (!s || !s->characterAt(idx, c)) return false;
+		name = c.name;
+		classId = static_cast<int>(c.classId);
+		level = c.level;
+		portrait = c.portrait;
+		gender = c.gender;
+		return true;
+	}
+	void enterCharacterSlot(int idx)  { if (auto* s = charSelectScreen()) s->enterCharacter(idx); }
+	void deleteCharacterSlot(int idx) { if (auto* s = charSelectScreen()) s->deleteCharacter(idx); }
+	void gotoCharCreate() { if (auto* g = currentGame()) g->setStage(Game::RoCharacterCreation); }
+	void gotoCharSelect()
+	{
+		auto* g = currentGame();
+		if (!g) return;
+		sConnector->sendPacket(GP_Client_CharacterList{}.build(StlBuffer{}));   // re-request the list
+		g->setStage(Game::RoCharacterSelection);
+		sApplication->spawnTimedPopup("Loading", 2.0f);
+	}
+	std::string createCharacter(const std::string& name, int classId, int gender, int portrait)
+	{
+		// Local validation first (the server checks too) -- same flow as the C++ Create button.
+		if (auto error = CharacterFunctions::invalidNameError(name))
+			return CharacterFunctions::nameErrorStr(error);
+
+		GP_Client_CharCreate packet;
+		packet.m_gender = gender;
+		packet.m_portrait = portrait;
+		packet.m_name = CharacterFunctions::formatName(name);
+		packet.m_classId = classId;
+		sConnector->sendPacket(packet.build(StlBuffer{}));
+		sApplication->spawnTimedPopup("Loading", 300.0f);
+		return std::string();
+	}
+	int portraitCount(int gender)
+	{
+		return gender == PlayerDefines::Gender::Male ? CharacterDefines::Portraits::NumMale
+		                                             : CharacterDefines::Portraits::NumFemale;
+	}
+	void portraitInfo(int id, int gender, std::string& texture, int& offsetY)
+	{
+		auto spr = sContentMgr->spawnPlayerPortrait(id, gender);
+		texture.clear();
+		offsetY = 0;
+		if (!spr) return;
+		texture = spr->getTextureName();
+		offsetY = sContentMgr->getPortraitOffset(*spr);
+	}
+	void classInfo(int classId, std::string& name, int& rgb)
+	{
+		name = PlayerFunctions::className(static_cast<PlayerDefines::Classes>(classId));
+		rgb = static_cast<int>(PlayerFunctions::classColor(static_cast<PlayerDefines::Classes>(classId)) >> 8);   // 0xRRGGBBAA -> 0xRRGGBB
 	}
 
 	// ---- minimap + HUD chrome ----

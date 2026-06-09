@@ -235,6 +235,19 @@ namespace LuaUI
 	bool containerItemTargetsItem(int slot);            // true if using it targets another item (gem/orb)
 	void useContainerItemOnItem(int sourceSlot, int targetSlot);   // apply a target-item consumable to a bag item
 
+	// ---- character select / create screens (the C++ stage screens are force-hidden) ----
+	int  characterCount();
+	bool characterAt(int idx, std::string& name, int& classId, int& level, int& portrait, int& gender);
+	void enterCharacterSlot(int idx);     // EnterWorld + the pending-self stash (the Lua screen confirms first)
+	void deleteCharacterSlot(int idx);    // DeleteCharacter (confirmed Lua-side)
+	void gotoCharCreate();                // the Create button (stage switch)
+	void gotoCharSelect();                // the Cancel/back flow (re-request the list + stage switch)
+	// "" = sent; otherwise the local name-validation error to show
+	std::string createCharacter(const std::string& name, int classId, int gender, int portrait);
+	int  portraitCount(int gender);
+	void portraitInfo(int id, int gender, std::string& texture, int& offsetY);   // sheet name + crop Y
+	void classInfo(int classId, std::string& name, int& rgb);                    // display name + packed color
+
 	// ---- minimap + HUD chrome (frame art/labels/buttons in Lua; the GPU map composite stays C++) ----
 	void setHudLuaView(bool v);              // flips the Minimap + chrome headless in one call
 	std::string minimapZone();               // lowercased zone label

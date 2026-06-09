@@ -58,6 +58,13 @@ class CharacterSelection :	public RenderObjectHolder
 		void registerCharacter(const string& name, const PlayerDefines::Classes classId, const int level, const int guid, const int portrait, const int gender);
 		void clearCharacters();
 
+		// ---- Lua view (the C++ screen is force-hidden; input/render never run): list reads + the direct
+		//      enter/delete flows (the Lua screen does its own confirm dialogs). ----
+		int  characterCount() const { return static_cast<int>(m_characters.size()); }
+		bool characterAt(const int idx, Character& out) const;
+		void enterCharacter(const int idx);    // GP_Client_EnterWorld + the s_pendingSelf stash + Loading
+		void deleteCharacter(const int idx);   // GP_Client_DeleteCharacter + Loading
+
 	protected:
 		void notifyCtxMenuClicked(const int id, const string& lineClicked) final;
 
@@ -69,6 +76,8 @@ class CharacterSelection :	public RenderObjectHolder
 
 		void updatePageTxt();
 		void updateButtons();
+		void sendEnterWorld(const Character& c);
+		void maybeAutoEnter();
 		void setButton(const ButtonData& buttondata, const Character& chardata);
 		void initButton(const ButtonData& buttondata, const sf::Vector2i& offset);
 		void pickCharacter(const int slot);

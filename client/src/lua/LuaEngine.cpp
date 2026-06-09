@@ -1144,6 +1144,29 @@ void LuaEngine::bindUI()
 			LuaUI::placeActionSlot(slot, type == "spell" ? 1 : 0, entry); })
 		.addFunction("ClearAction",      [](int slot) { LuaUI::clearActionSlot(slot); })
 
+		// Character select / create screens (1-based slot; gender 0=female 1=male per PlayerDefines).
+		.addFunction("GetNumCharacters", []() { return LuaUI::characterCount(); })
+		.addFunction("GetCharacterInfo", [](int idx) {   // -> name, classId, level, portrait, gender
+			std::string name; int classId = 0, level = 0, portrait = 0, gender = 0;
+			if (!LuaUI::characterAt(idx - 1, name, classId, level, portrait, gender))
+				return std::make_tuple(std::string(), 0, 0, 0, 0);
+			return std::make_tuple(name, classId, level, portrait, gender); })
+		.addFunction("EnterWorldWithCharacter", [](int idx) { LuaUI::enterCharacterSlot(idx - 1); })
+		.addFunction("DeleteCharacter",  [](int idx) { LuaUI::deleteCharacterSlot(idx - 1); })
+		.addFunction("GotoCharCreate",   []() { LuaUI::gotoCharCreate(); })
+		.addFunction("GotoCharSelect",   []() { LuaUI::gotoCharSelect(); })
+		.addFunction("CreateCharacter",  [](std::string name, int classId, int gender, int portrait) {
+			return LuaUI::createCharacter(name, classId, gender, portrait); })
+		.addFunction("GetNumPortraits",  [](int gender) { return LuaUI::portraitCount(gender); })
+		.addFunction("GetPortraitInfo",  [](int id, int gender) {   // -> texture, cropOffsetY
+			std::string tex; int off = 0;
+			LuaUI::portraitInfo(id, gender, tex, off);
+			return std::make_tuple(tex, off); })
+		.addFunction("GetClassInfo",     [](int classId) {   // -> name, r, g, b
+			std::string name; int rgb = 0;
+			LuaUI::classInfo(classId, name, rgb);
+			return std::make_tuple(name, (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255); })
+
 		// Minimap + HUD chrome (frame art/labels/buttons in Lua; the GPU map composite stays C++).
 		.addFunction("SetHudLuaView",      [](bool v) { LuaUI::setHudLuaView(v); })
 		.addFunction("GetMinimapZone",     []() { return LuaUI::minimapZone(); })
@@ -1307,6 +1330,9 @@ void LuaEngine::bindUI()
 		"OpenQuestLog", "LaunchSpendExp", "QueryWaypoints", "IsStandingOnWaypoint",
 		"SetHudLuaView", "GetMinimapZone", "GetMinimapChannel", "HasMailLoot", "RecoverMailLoot",
 		"GetNumChatChannels", "GetChatChannelInfo", "ChangeChatChannel", "ToggleHudPanel",
+		"GetNumCharacters", "GetCharacterInfo", "EnterWorldWithCharacter", "DeleteCharacter",
+		"GotoCharCreate", "GotoCharSelect", "CreateCharacter", "GetNumPortraits", "GetPortraitInfo",
+		"GetClassInfo",
 		"GetTradePartnerName", "GetTradeItem", "GetTradeGold", "IsTradeReady", "AddTradeItem", "RemoveTradeItem",
 		"SetTradeGold", "ConfirmTrade", "CancelTrade",
 		"IsContainerItemUsable", "ContainerItemTargetsItem", "UseContainerItemOnItem",

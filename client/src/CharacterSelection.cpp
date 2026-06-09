@@ -224,24 +224,7 @@ void CharacterSelection::input()
 			case ConfirmMessageBox::ConfirmCode_SelectCharacter:
 			{
 				if (confirmBox->getResult() == ConfirmMessageBox::ConfirmBox_Yes)
-				{
-					GP_Client_EnterWorld packet;
-					packet.m_playerGuid = m_chosenCharacter.guid;
-					sConnector->sendPacket(packet.build(StlBuffer{}));
-					World::s_enterStartClock = std::clock();   // entry-timing anchor
-
-					// Stash the entering character so World::setController can spawn the
-					// ClientPlayer (NewWorld carries pos+vars but not class/gender/portrait).
-					World::s_pendingSelf = {};
-					World::s_pendingSelf.guid     = m_chosenCharacter.guid;
-					World::s_pendingSelf.classId  = static_cast<int>(m_chosenCharacter.classId);
-					World::s_pendingSelf.gender   = m_chosenCharacter.gender;
-					World::s_pendingSelf.portrait = m_chosenCharacter.portrait;
-					World::s_pendingSelf.name     = m_chosenCharacter.name;
-
-					sApplication->spawnTimedPopup("Loading", 300.0f);
-				}
-
+					sendEnterWorld(m_chosenCharacter);
 				break;
 			}
 			case ConfirmMessageBox::ConfirmCode_DeleteCharacter:
@@ -260,34 +243,80 @@ void CharacterSelection::input()
 	}
 }
 
+void CharacterSelection::sendEnterWorld(const Character& c)
+{
+	GP_Client_EnterWorld packet;
+	packet.m_playerGuid = c.guid;
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+	World::s_enterStartClock = std::clock();   // entry-timing anchor
+
+	// Stash the entering character so World::setController can spawn the
+	// ClientPlayer (NewWorld carries pos+vars but not class/gender/portrait).
+	World::s_pendingSelf = {};
+	World::s_pendingSelf.guid     = c.guid;
+	World::s_pendingSelf.classId  = static_cast<int>(c.classId);
+	World::s_pendingSelf.gender   = c.gender;
+	World::s_pendingSelf.portrait = c.portrait;
+	World::s_pendingSelf.name     = c.name;
+
+	sApplication->spawnTimedPopup("Loading", 300.0f);
+}
+
+bool CharacterSelection::characterAt(const int idx, Character& out) const
+{
+	if (idx < 0 || idx >= characterCount())
+		return false;
+	out = m_characters[idx];
+	return true;
+}
+
+void CharacterSelection::enterCharacter(const int idx)
+{
+	if (idx >= 0 && idx < characterCount())
+		sendEnterWorld(m_characters[idx]);
+}
+
+void CharacterSelection::deleteCharacter(const int idx)
+{
+	if (idx < 0 || idx >= characterCount())
+		return;
+
+	GP_Client_DeleteCharacter packet;
+	packet.m_playerGuid = m_characters[idx].guid;
+	sConnector->sendPacket(packet.build(StlBuffer{}));
+	sApplication->spawnTimedPopup("Loading", 3.0f);
+}
+
 void CharacterSelection::updatePageTxt()
 {
 	int page = 1 + (m_scrollOffset / 3);
 	m_pageTxt->setOriginalString("PAGE " + to_string(page));
 }
 
-void CharacterSelection::render()
+void CharacterSelection::maybeAutoEnter()
 {
 	// Dev auto-login: [Debug] AutoLogin enters the first character (or AutoLoginChar by name) once.
-	if (!m_autoEntered && !m_characters.empty() && sConfig->getInt("Debug", "AutoLogin", 0))
-	{
-		m_autoEntered = true;
-		const std::string want = sConfig->getString("Debug", "AutoLoginChar", "");
-		m_chosenCharacter = m_characters[0];
-		for (auto& c : m_characters) if (!want.empty() && c.name == want) { m_chosenCharacter = c; break; }
+	// Lives in the DATA path (registerCharacter) rather than render() so it keeps working while the
+	// screen is force-hidden under the Lua view.
+	if (m_autoEntered || m_characters.empty() || !sConfig->getInt("Debug", "AutoLogin", 0))
+		return;
 
-		GP_Client_EnterWorld packet;
-		packet.m_playerGuid = m_chosenCharacter.guid;
-		sConnector->sendPacket(packet.build(StlBuffer{}));
-		World::s_enterStartClock = std::clock();   // entry-timing anchor
-		World::s_pendingSelf = {};
-		World::s_pendingSelf.guid     = m_chosenCharacter.guid;
-		World::s_pendingSelf.classId  = static_cast<int>(m_chosenCharacter.classId);
-		World::s_pendingSelf.gender   = m_chosenCharacter.gender;
-		World::s_pendingSelf.portrait = m_chosenCharacter.portrait;
-		World::s_pendingSelf.name     = m_chosenCharacter.name;
-		sApplication->spawnTimedPopup("Loading", 300.0f);
-	}
+	const std::string want = sConfig->getString("Debug", "AutoLoginChar", "");
+	m_chosenCharacter = m_characters[0];
+
+	bool found = want.empty();
+	for (auto& c : m_characters) if (!want.empty() && c.name == want) { m_chosenCharacter = c; found = true; break; }
+
+	if (!found)
+		return;   // the wanted character may arrive in a later registerCharacter call
+
+	m_autoEntered = true;
+	sendEnterWorld(m_chosenCharacter);
+}
+
+void CharacterSelection::render()
+{
+	maybeAutoEnter();   // also runs from registerCharacter; harmless here for the non-Lua path
 
 	m_topLeftCorner = { static_cast<int>(sApplication->sWf() - m_backgroundGui->getGlobalBounds().width) / 2, static_cast<int>(sApplication->sHf() - m_backgroundGui->getGlobalBounds().height) / 2 };
 	m_bottomRightCorner = m_topLeftCorner + sf::Vector2i(m_backgroundGui->vbounds());
@@ -312,6 +341,7 @@ void CharacterSelection::registerCharacter(const string& name, const PlayerDefin
 	c.gender = gender;
 	m_characters.push_back(c);
 	updateButtons();
+	maybeAutoEnter();   // dev auto-login (data path -- works while force-hidden under the Lua view)
 }
 
 void CharacterSelection::clearCharacters()
