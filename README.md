@@ -7,7 +7,17 @@ and protocol-capture tooling.
 > Personal, **LAN-only** project. Not affiliated with or endorsed by the original developers, and not for
 > redistribution. The bundled game runtime (binaries, content, maps, DB) is **not** in this repo.
 
-## Layout
+## Lua-driven UI & addons
+
+The biggest quality-of-life change over the vanilla Dreadmyst client: the user interface has been
+migrated from hardcoded C++ to **Lua**. The default UI (HUD, unit frames, login/character screens,
+minimap chrome, dialogs) ships as plain Lua scripts in `client/ui/`, and the client exposes a
+**World of Warcraft-style addon API** — `CreateFrame`, `SetPoint`, `SetScript`, `RegisterEvent`,
+SavedVariables, `.toc` files, `/reload` — so the user experience can be customized or extended with
+WoW-syntax-like addons dropped into an `addons/` folder, no recompile needed.
+
+Addon code runs in a **sandboxed Lua 5.5** environment (whitelisted libraries, no `io`/`os`/file
+access, instruction-count watchdog), so a misbehaving addon can't hang or escape the client.
 
 ```
 shared/   reconstructed wire protocol + game defines (header-only, emberfire::shared)
