@@ -487,7 +487,27 @@ string Toolbar::iconKeybindText(const Interface id) const
 shared_ptr<Tooltip> Toolbar::iconTooltip(const Interface id) const
 {
 	auto icon = dynamic_pointer_cast<GameIcon>(getRenderObject(id));
-	return icon ? icon->rebuildTooltip() : nullptr;
+
+	if (!icon)
+		return nullptr;
+
+	// In Lua-view Toolbar::render() is skipped, and that's where updateInvSpbookCheck() normally copies the
+	// spellbook's per-character effect points onto the icon. Without them m_effectPoints stays {0,0} and
+	// formSpellDescription leaves $E1min/$E1max/... unsubstituted. Refresh them on demand so the (on-hover)
+	// tooltip resolves. Cheap: only when the tip is actually built, and only for spells.
+	if (icon->getType() == GameIcon::Spell)
+	{
+		auto abilities = dynamic_pointer_cast<Abilities>(world().getRenderObject(World::Interface::AbilitiesPanel));
+		GP_Server_Spellbook::SpellSlot slot;
+
+		if (abilities && abilities->getSpellPoints(icon->getEntry(), slot))
+		{
+			icon->setBasePoints(slot.bpoints);
+			icon->setLevel(slot.level);
+		}
+	}
+
+	return icon->rebuildTooltip();
 }
 
 shared_ptr<GameIcon> Toolbar::findIconByEntry(const int entry) const
