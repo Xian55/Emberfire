@@ -1,6 +1,6 @@
 -- Lua character-creation screen, replacing the C++ CharacterCreation (force-hidden). Layout mirrors
 -- CharacterCreation.cpp on the centered main_creation.png: class row (4x create_class at 44+60i,465),
--- gender pair (805/879,465), portrait circle at screen center (the C++ renderAsCircle -> SetTextureCircle)
+-- gender pair (805/879,465), portrait circle at screen center (the C++ renderAsCircle -> SetCircular)
 -- with prev/next arrows (350/670,350), name prompt (380,610), Create (447,686), Cancel/back at the left
 -- edge. CreateCharacter validates the name engine-side and returns an error string to display. Class
 -- descriptions (the C++ hover tooltips) show as a text block for the SELECTED class instead.
@@ -82,7 +82,7 @@ end
 local portraitTex = screen:CreateTexture()
 portraitTex:SetSize(210, 210)
 portraitTex:SetPoint('TOPLEFT', math.floor(sw / 2) - 105, math.floor(sh / 2) - 105)
-portraitTex:SetTextureCircle(105)
+portraitTex:SetCircular(105)
 
 local function navArrow(tex, x, d)
 	local b = CreateFrame('Button', nil, panel)
