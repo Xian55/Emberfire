@@ -36,6 +36,17 @@ if (Test-Path $uiSrc) {
     if (-not (Test-Path $uiDst)) { New-Item -ItemType Junction -Path $uiDst -Target $uiSrc | Out-Null }
 }
 
+# In-repo UI art (client/ui/art) -> run/content-ember as a JUNCTION. ContentMgr scans this overlay for zips
+# and getTexture() falls back to loose PNGs here, so the 9-slice/chrome art loads without touching the
+# pristine game content/ (a junction to the external game dir). Live for /reload.
+$artSrc = Join-Path $root 'client\ui\art'
+$artDst = Join-Path $run 'content-ember'
+if (Test-Path $artSrc) {
+    $existingArt = Get-Item $artDst -ErrorAction SilentlyContinue
+    if ($existingArt -and $existingArt.LinkType -ne 'Junction') { Remove-Item $artDst -Recurse -Force }
+    if (-not (Test-Path $artDst)) { New-Item -ItemType Junction -Path $artDst -Target $artSrc | Out-Null }
+}
+
 # Bundled example addons (client/addons) -> run/addons. Seed each only if missing, so player edits/removals
 # and their own addons are never clobbered. The client loads addons/ from run/ (cwd).
 $addonSrc = Join-Path $root 'client\addons'

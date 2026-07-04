@@ -873,6 +873,10 @@ void ContentMgr::documentZips()
 
 	vector<string> allFiles;
 	Util::getFileList("content", allFiles);
+	// Overlay: in-repo UI art lives outside the pristine game content/ (a junction to F:\Dreadmyst).
+	// Scan a sibling content-ember/ so any *.zip there is indexed too. Loose PNGs there are handled by
+	// getTexture()'s loose-file fallback instead (no repack needed).
+	Util::getFileList("content-ember", allFiles);
 
 	for (auto& str : allFiles)
 	{
@@ -952,6 +956,26 @@ shared_ptr<sf::Texture> ContentMgr::getTexture(const string& filename)
 		else
 		{
 			blog(Logger::LOG_ERROR, "Unable to load texture %s from memory.", filename.c_str());
+		}
+	}
+	else
+	{
+		// Not in any content zip — try a loose file in the in-repo UI overlay (content-ember/).
+		// New UI slice/chrome art ships as loose PNGs there: version-controlled, no repack, and
+		// hot-reloadable. Same smoothing opt-in + cache as the zip path; unresolved names stay null.
+		auto loose = make_shared<sf::Texture>();
+
+		if (m_smoothTextures.find(filename) != m_smoothTextures.end())
+			loose->setSmooth(true);
+
+		if (loose->loadFromFile("content-ember//" + filename))
+		{
+			texture = loose;
+
+			lock_guard<mutex> grd(m_mutex);
+
+			if (m_resourcesImages.find(filename) == m_resourcesImages.end())
+				m_resourcesImages[filename] = texture;
 		}
 	}
 
