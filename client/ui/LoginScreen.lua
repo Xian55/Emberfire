@@ -19,7 +19,7 @@ bg:SetPoint('TOPLEFT', 0, 0); bg:SetSize(sw, sh)   -- stretch to the render size
 -- Login GUI panel (the framed art). Children anchor to its top-left, same as the C++ holder.
 local panel = CreateFrame('Frame', 'EmberUI_LoginPanel', screen)
 panel:SetSize(699, 606); panel:SetPoint('TOPLEFT', px, py)
-local art = panel:CreateTexture(); art:SetTexture('main_login.png'); art:SetPoint('TOPLEFT', 0, 0)
+local art = panel:CreateTexture(); art:SetTexture('main_login.png'); art:SetAllPoints(panel)   -- fill the (scaled) panel so the frame art tracks the fields at any UI scale
 
 -- Account field: Palatino 20, RGBA(220,194,171) — these are the LuaEditBox defaults, so no overrides needed.
 local user = CreateFrame('EditBox', nil, panel)

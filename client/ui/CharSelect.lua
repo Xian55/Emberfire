@@ -17,7 +17,7 @@ bg:SetPoint('TOPLEFT', 0, 0); bg:SetSize(sw, sh)
 
 local panel = CreateFrame('Frame', nil, screen)
 panel:SetSize(gw, gh); panel:SetPoint('TOPLEFT', math.floor((sw - gw) / 2), math.floor((sh - gh) / 2))
-local art = panel:CreateTexture(); art:SetTexture('main_selection.png'); art:SetPoint('TOPLEFT', 0, 0)
+local art = panel:CreateTexture(); art:SetTexture('main_selection.png'); art:SetAllPoints(panel)   -- fill the (scaled) panel so the frame art tracks the slots at any UI scale
 
 local scroll = 0
 local refresh   -- forward decl
@@ -50,7 +50,7 @@ for i = 1, 3 do
 	name:SetPoint('TOPLEFT', panel, 'TOPLEFT', SLOT_X + 88, y + 17)
 
 	local sub = panel:CreateFontString()
-	sub:SetFont('Cambria'); sub:SetFontSize(15); sub:SetTextColor(98, 81, 68, 255)
+	sub:SetFont('Cambria'); sub:SetFontSize(15); EmberUI.SetColor(sub, EmberUI.Color.Muted)
 	sub:SetPoint('TOPLEFT', panel, 'TOPLEFT', SLOT_X + 88, y + 45)
 
 	local slot = { btn = btn, portrait = portrait, name = name, sub = sub }
@@ -73,7 +73,7 @@ for i = 1, 3 do
 end
 
 local pageFS = panel:CreateFontString()
-pageFS:SetFont('Palatino'); pageFS:SetFontSize(18); pageFS:SetTextColor(136, 117, 102, 255)
+pageFS:SetFont('Palatino'); pageFS:SetFontSize(18); EmberUI.SetColor(pageFS, EmberUI.Color.Muted)
 pageFS:SetPoint('TOPLEFT', panel, 'TOPLEFT', 190, 415)
 
 local function navArrow(tex, x, d)

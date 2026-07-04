@@ -24,7 +24,7 @@ bg:SetPoint('TOPLEFT', 0, 0); bg:SetSize(sw, sh)
 
 local panel = CreateFrame('Frame', nil, screen)
 panel:SetSize(gw, gh); panel:SetPoint('TOPLEFT', math.floor((sw - gw) / 2), math.floor((sh - gh) / 2))
-local art = panel:CreateTexture(); art:SetTexture('main_creation.png'); art:SetPoint('TOPLEFT', 0, 0)
+local art = panel:CreateTexture(); art:SetTexture('main_creation.png'); art:SetAllPoints(panel)   -- fill the (scaled) panel so the frame art tracks the controls at any UI scale
 
 local selClass = 1        -- Paladin default (the C++ default)
 local gender = GENDER_MALE
