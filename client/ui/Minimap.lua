@@ -17,10 +17,16 @@ zone:SetFont('Ringbearer'); zone:SetFontSize(18); zone:SetTextColor(201, 179, 14
 local channel = root:CreateFontString()
 channel:SetFont('Ringbearer'); channel:SetFontSize(18); channel:SetTextColor(201, 179, 149, 255)
 
+-- The (invisible, content-less) root frame's corner doesn't resolve to its SetPoint spot, so anchoring the
+-- labels/buttons to it left them (and their hit rects) stuck at the screen origin while the C++ map circle
+-- drew top-right. Position everything at ABSOLUTE screen coords derived from the same (sw-260,15) origin.
+local BASE_X = function() return GetScreenWidth() - 260 end
+local BASE_Y = 15
+
 -- centered labels: no text-width metric in Lua, so anchor near-center with a rough half-width offset
 local function centerLabel(fs, text, y)
 	fs:ClearAllPoints()
-	fs:SetPoint('TOPLEFT', root, 'TOPLEFT', math.floor(fw / 2) - math.floor(#text * 9 / 2), y)
+	fs:SetPoint('TOPLEFT', BASE_X() + math.floor(fw / 2) - math.floor(#text * 9 / 2), BASE_Y + y)
 	fs:SetText(text)
 end
 
@@ -28,7 +34,7 @@ local mapBtn = CreateFrame('Button', nil, root)
 mapBtn:SetTexture('minimap_button_idle.png'); mapBtn:SetHoverTexture('minimap_button_hover.png')
 local mw, mh = GetTextureSize('minimap_button_idle.png')
 mapBtn:SetSize(mw > 0 and mw or 32, mh > 0 and mh or 32)
-mapBtn:SetPoint('TOPLEFT', root, 'TOPLEFT', 101, 254)
+mapBtn:SetPoint('TOPLEFT', BASE_X() + 101, BASE_Y + 254)   -- re-anchored absolutely at WORLD_SHOWN
 mapBtn:EnableMouse(true)
 mapBtn:SetScript('OnClick', function()
 	local n = GetNumChatChannels()
@@ -49,7 +55,7 @@ local pouch = CreateFrame('Button', nil, root)
 pouch:SetTexture('gold_pouch_idle.png'); pouch:SetHoverTexture('gold_pouch_hover.png')
 local pw, ph = GetTextureSize('gold_pouch_idle.png')
 pouch:SetSize(pw > 0 and pw or 32, ph > 0 and ph or 32)
-pouch:SetPoint('TOPLEFT', root, 'TOPLEFT', -5, 240)
+pouch:SetPoint('TOPLEFT', BASE_X() - 5, BASE_Y + 240)
 pouch:EnableMouse(true)
 pouch:SetScript('OnClick', function() RecoverMailLoot() end)
 pouch:Hide()
@@ -74,6 +80,9 @@ stage:SetScript('OnEvent', function(_, event)
 		local sw = GetScreenWidth()
 		root:ClearAllPoints()
 		root:SetPoint('TOPLEFT', sw - 260, 15)   -- the C++ spot (the map circle is drawn relative to it)
+		-- re-anchor the buttons absolutely for the current screen size (labels re-anchor each poll tick)
+		mapBtn:ClearAllPoints(); mapBtn:SetPoint('TOPLEFT', (sw - 260) + 101, 15 + 254)
+		pouch:ClearAllPoints();  pouch:SetPoint('TOPLEFT', (sw - 260) - 5,  15 + 240)
 		inWorld = true
 		acc = 1
 		root:Show()
