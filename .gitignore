@@ -57,3 +57,6 @@ dump_client/
 *.swp
 .DS_Store
 Thumbs.db
+
+
+setup-terminal.ps1
