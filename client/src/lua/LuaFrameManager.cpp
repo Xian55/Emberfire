@@ -1901,23 +1901,33 @@ namespace LuaUI
 			return;
 		auto* m = LuaFrameManager::instance();
 		auto* o = (m && ownerHandle) ? m->lookup(ownerHandle) : nullptr;
+		const int w = tip->getWidth(), h = tip->getHeight();
+		int x, y;
 		if (anchor == 0 || !o)   // cursor (or no owner to anchor to)
 		{
 			const auto mp = sApplication->mousePos();
-			tip->moveTo({ mp.x + 16, mp.y + 16 });
-			return;
+			x = mp.x + 16; y = mp.y + 16;
 		}
-		const sf::Vector2i tl = o->getTopLeftCornerRef();
-		const sf::Vector2i sz = m->frameSize(ownerHandle);
-		const int w = tip->getWidth(), h = tip->getHeight();
-		int x = tl.x, y = tl.y;
-		switch (anchor)
+		else
 		{
-			case 1: x = tl.x + sz.x + 8; y = tl.y;            break;   // right of the frame
-			case 2: x = tl.x - w - 8;    y = tl.y;            break;   // left
-			case 3: x = tl.x;            y = tl.y - h - 8;    break;   // above
-			case 4: x = tl.x;            y = tl.y + sz.y + 8; break;   // below
+			const sf::Vector2i tl = o->getTopLeftCornerRef();
+			const sf::Vector2i sz = m->frameSize(ownerHandle);
+			x = tl.x; y = tl.y;
+			switch (anchor)
+			{
+				case 1: x = tl.x + sz.x + 8; y = tl.y;            break;   // right of the frame
+				case 2: x = tl.x - w - 8;    y = tl.y;            break;   // left
+				case 3: x = tl.x;            y = tl.y - h - 8;    break;   // above
+				case 4: x = tl.x;            y = tl.y + sz.y + 8; break;   // below
+			}
 		}
+		// Keep the tooltip fully on-screen: action-bar / ability icons sit at the screen edges, so an
+		// anchor that runs off the right or bottom would clip. Pin the box back inside the viewport.
+		const int sw = sApplication->sW(), sh = sApplication->sH();
+		if (x + w > sw) x = sw - w;
+		if (y + h > sh) y = sh - h;
+		if (x < 0) x = 0;
+		if (y < 0) y = 0;
 		tip->moveTo({ x, y });
 	}
 
