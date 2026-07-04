@@ -42,6 +42,16 @@ ExpandableWindow::~ExpandableWindow()
 
 }
 
+void ExpandableWindow::setChromeScale(const float s)
+{
+	// All nine slices scale uniformly; getCenterWidth/Height + the render math read the (now scaled)
+	// getGlobalBounds(), so corners stay square and edges/center stretch to fit.
+	for (auto* spr : { &m_spriteTopRight, &m_spriteTopAcross, &m_spriteTopLeft,
+	                   &m_spriteBottomRight, &m_spriteBottomAcross, &m_spriteBottomLeft,
+	                   &m_spriteLeftUp, &m_spriteRightUp, &m_spriteCenter })
+		(*spr)->setScale(s, s);
+}
+
 void ExpandableWindow::input()
 {
 	MouseableNode bottomCornerNode;

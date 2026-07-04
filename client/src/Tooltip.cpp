@@ -4,6 +4,7 @@
 #include "ContentMgr.h"
 #include "Text.h"
 #include "TooltipGlyph.h"
+#include "Application.h"
 
 Tooltip::Tooltip(RenderObject& owner, const sf::Vector2i topLeftCorner) :
 	ExpandableWindow(owner, 0,
@@ -18,9 +19,11 @@ Tooltip::Tooltip(RenderObject& owner, const sf::Vector2i topLeftCorner) :
 		"tooltip_center.png"),
 	m_width(0),
 	m_height(0),
-	m_textOffset({ 16, 16 })
+	// padding scales with the UI so the text isn't cramped against the (also-scaled) chrome
+	m_textOffset({ (int)(16 * sApplication->uiScale()), (int)(16 * sApplication->uiScale()) })
 {
 	getTopLeftCornerRef() = topLeftCorner;
+	setChromeScale(sApplication->uiScale());   // grow the 9-slice border to match the scaled text
 }
 
 Tooltip::~Tooltip()
@@ -88,8 +91,10 @@ void Tooltip::addGlyph(const shared_ptr<TooltipGlyph> glyph)
 
 int Tooltip::addLine(const string& fontname, const int characterSize, const string& str, const sf::Color color, const bool incrementHeight /*= true*/)
 {
-	auto text = make_unique<TextBox>(sContentMgr->getFont(fontname), characterSize);
-	text->getTextRef().setShadowOffset(m_shadowOffset);
+	const float s = sApplication->uiScale();
+	int cs = (int)(characterSize * s + 0.5f); if (cs < 1) cs = 1;
+	auto text = make_unique<TextBox>(sContentMgr->getFont(fontname), cs);
+	text->getTextRef().setShadowOffset((int)(m_shadowOffset * s));
 
 	if (color != sf::Color::White)
 		text->setColor(color);
@@ -107,12 +112,14 @@ int Tooltip::addLine(const string& fontname, const int characterSize, const stri
 		}
 	}
 
-	text->setData(thisLinePosition.x, thisLinePosition.y, str, m_maxWidth, TextBox::AlignLeft);
+	const int maxW  = (int)(m_maxWidth * s);
+	const int allow = (int)(m_allowMoreWidthIfLastLineIsUnderThisValue * s);
+	text->setData(thisLinePosition.x, thisLinePosition.y, str, maxW, TextBox::AlignLeft);
 
-	if (m_allowMoreWidthIfLastLineIsUnderThisValue != 0 && text->getLastLineWidth() < m_allowMoreWidthIfLastLineIsUnderThisValue && text->getNumLines() > 1)
+	if (allow != 0 && text->getLastLineWidth() < allow && text->getNumLines() > 1)
 	{
 		text->clear();
-		text->setData(thisLinePosition.x, thisLinePosition.y, str, m_maxWidth + m_allowMoreWidthIfLastLineIsUnderThisValue + 10, TextBox::AlignLeft);
+		text->setData(thisLinePosition.x, thisLinePosition.y, str, maxW + allow + (int)(10 * s), TextBox::AlignLeft);
 	}
 	
 	int thisWidth = text->getWidth();

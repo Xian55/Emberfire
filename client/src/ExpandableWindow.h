@@ -23,6 +23,10 @@ class ExpandableWindow : public RenderObject
 
 		void setKeepInScreen(const bool v) { m_keepInScreen = v; }
 
+		// Uniformly scale the 9-slice chrome (corners + edges). render() reads getGlobalBounds() everywhere,
+		// so a uniform sprite scale keeps the frame self-consistent — used to grow tooltips with the UI scale.
+		void setChromeScale(const float s);
+
 		// The space between one corner and the other, that's why we multiply width/height by 2
 		int getCenterWidth() const;
 		int getCenterHeight() const;
