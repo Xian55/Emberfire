@@ -27,6 +27,20 @@ public:
     void setInt(const char* section, const char* key, int value) { m_data[section][key] = std::to_string(value); save(); }
     void setString(const char* section, const char* key, const char* value) { m_data[section][key] = value ? value : ""; save(); }
 
+    // Remove every key in `section` whose name starts with `prefix`, then rewrite the file. Used to reset
+    // saved UI state (e.g. eraseKeys("UI","uf_") clears stale unit-frame positions). No-op if absent.
+    void eraseKeys(const char* section, const char* prefix) {
+        auto s = m_data.find(section);
+        if (s == m_data.end()) return;
+        const std::string p = prefix ? prefix : "";
+        bool changed = false;
+        for (auto it = s->second.begin(); it != s->second.end(); ) {
+            if (it->first.rfind(p, 0) == 0) { it = s->second.erase(it); changed = true; }
+            else ++it;
+        }
+        if (changed) save();
+    }
+
     // Options cache: map an int id -> (section,key) for fast repeated lookups (Application.cpp).
     void registerCache(int id, const char* section, const char* key) { m_cache[id] = { section, key }; }
     int  getCache(int id) {

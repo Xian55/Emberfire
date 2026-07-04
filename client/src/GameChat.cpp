@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "GameChat.h"
+#include "..\Shared\Config.h"
 #include "SpriteRo.h"
 #include "ContentMgr.h"
 #include "Application.h"
@@ -621,6 +622,16 @@ void GameChat::printHelp()
 
 bool GameChat::processServerCommand(string enteredTxt)
 {
+	if (enteredTxt.find("/resetui") == 0 || enteredTxt.find("/resetframes") == 0)
+	{
+		// Factory-reset moved UI frames: drop saved unit-frame positions so the reload restores the
+		// on-screen layout defaults. Fixes frames dragged (or migrated) off-screen.
+		sConfig->eraseKeys("UI", "uf_");
+		sLua->requestReload();
+		recvMsg("UI frame positions reset to default.", "", ChatDefines::Channels::System);
+		return true;
+	}
+
 	if (enteredTxt.find("/reloadui") == 0 || enteredTxt.find("/reload") == 0)
 	{
 		sLua->requestReload();
@@ -928,7 +939,7 @@ sf::Color GameChat::getChatColor(const ChatDefines::Channels c)
 		case ChatDefines::Channels::System: return sf::Color(0xffd700FF);
 		case ChatDefines::Channels::SystemCenter: return getChatColor(ChatDefines::Channels::System);
 		case ChatDefines::Channels::AllChat: return sf::Color(0x9fefe7FF);
-		case ChatDefines::Channels::ExpPurple: return sf::Color(88, 88, 185, 255);
+		case ChatDefines::Channels::ExpPurple: return sf::Color(150, 150, 235, 255);
 		case ChatDefines::Channels::RedWarning: return sf::Color::Red;
 	}
 

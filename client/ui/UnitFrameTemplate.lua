@@ -12,8 +12,8 @@
 --     show    = { name=, castbar=, elite=, leader=, repair= },
 --   }
 
-local TXT_COL  = { 147, 129, 114 }   -- bar pct/detail text (UnitFrame.cpp)
-local LVL_COL  = { 132, 116, 89 }
+local TXT_COL  = EmberUI.Color.Detail   -- bar pct/detail text
+local LVL_COL  = EmberUI.Color.Title    -- level number (bright for the badge)
 local AURA_MAX = 8
 
 -- Mirror helpers: a point reflects around the frame width; a box also subtracts its own width.
@@ -237,6 +237,12 @@ function EmberUI.CreateUnitFrame(cfg)
 	-- persisted position (config-backed) overrides the layout default, so a moved frame survives reload/restart
 	local sx = GetUISetting('uf_' .. cfg.token .. '_x', cfg.x)
 	local sy = GetUISetting('uf_' .. cfg.token .. '_y', cfg.y)
+	-- Clamp a stale/off-screen saved position back on-screen (design space). Guards against a frame stranded
+	-- off-screen by a scale or resolution change (or a position saved by an older, unscaled build). /resetui
+	-- clears the saved values entirely; this makes even a bad value recover on the next load.
+	local sw, sh = GetScreenWidth(), GetScreenHeight()
+	if sw > 0 then sx = math.max(0, math.min(sx, sw - fw)) end
+	if sh > 0 then sy = math.max(0, math.min(sy, sh - fh)) end
 	f:SetPoint('TOPLEFT', sx, sy)
 	local bgArt = f:CreateTexture(); bgArt:SetTexture(art.frame); bgArt:SetAllPoints(f)
 
