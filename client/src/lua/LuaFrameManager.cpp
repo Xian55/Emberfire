@@ -47,6 +47,18 @@
 #include <climits>
 #include <algorithm>
 
+// UI scale helpers. The Lua UI is authored in "design pixels"; every value crossing Lua->screen is
+// multiplied by uiScale, every value crossing screen->Lua (cursor / screen size) is divided by it. These are
+// applied only at the LuaUI:: namespace boundary + FontString ctor defaults, so internally-derived values
+// (e.g. the two-point stretch that calls the member setSize) are never double-scaled. See uiScale() in Application.
+namespace
+{
+	inline float ui_scale() { return sApplication->uiScale(); }
+	// round half away from zero so negative offsets (e.g. BOTTOMRIGHT -3,-2) don't drift toward 0
+	inline int   ui_up(const float v)   { const float s = v * sApplication->uiScale(); return (int)(s + (s < 0.f ? -0.5f : 0.5f)); }
+	inline int   ui_down(const int v)   { const float s = (float)v / sApplication->uiScale(); return (int)(s + (s < 0.f ? -0.5f : 0.5f)); }
+}
+
 // ---------------------------------------------------------------- LuaFrame
 
 LuaFrame::LuaFrame(RenderObject& owner, const int id) : RenderObjectHolder(&owner, id)
@@ -153,7 +165,7 @@ LuaFontString::LuaFontString(RenderObject& owner, const int id) : RenderObject(&
 {
 	setMouseable(false);
 	m_text = make_unique<Text>(sContentMgr->getFont(FontId::Helvetica));
-	m_text->setCharacterSize(16);
+	m_text->setCharacterSize(ui_up(16.f));   // scale the default too (FontStrings that never call SetFontSize)
 	m_text->setFillColor(sf::Color::White);
 	m_text->setOutlineColor(sf::Color::Black);
 	m_text->setOutlineThickness(1.f);
@@ -181,14 +193,14 @@ void LuaFontString::setColor(const int r, const int g, const int b, const int a)
 	                    static_cast<sf::Uint8>(b), static_cast<sf::Uint8>(a));
 	m_text->setFillColor(m_color);
 	// fade the outline with the fill so the text fades cleanly
-	m_text->setOutlineColor(sf::Color(0, 0, 0, static_cast<sf::Uint8>(a / 2)));
+	m_text->setOutlineColor(sf::Color(0, 0, 0, static_cast<sf::Uint8>(a)));
 }
 
 void LuaFontString::setAlpha(const int a)
 {
 	m_color.a = static_cast<sf::Uint8>(a);
 	m_text->setFillColor(m_color);
-	m_text->setOutlineColor(sf::Color(0, 0, 0, static_cast<sf::Uint8>(a / 2)));
+	m_text->setOutlineColor(sf::Color(0, 0, 0, static_cast<sf::Uint8>(a)));
 }
 
 static Assets::FontId fontIdFromName(const std::string& n)
@@ -1391,7 +1403,7 @@ namespace LuaUI
 	void  setHorizontalScroll(int handle, float v) { if (auto* m = LuaFrameManager::instance()) m->setHorizontalScroll(handle, v); }
 	float horizontalScroll(int handle)             { auto* m = LuaFrameManager::instance(); return m ? m->horizontalScroll(handle) : 0.f; }
 	float horizontalScrollRange(int handle)        { auto* m = LuaFrameManager::instance(); return m ? m->horizontalScrollRange(handle) : 0.f; }
-	void  setScrollWheelStep(int handle, float px) { if (auto* m = LuaFrameManager::instance()) m->setScrollWheelStep(handle, px); }
+	void  setScrollWheelStep(int handle, float px) { if (auto* m = LuaFrameManager::instance()) m->setScrollWheelStep(handle, px * ui_scale()); }
 
 	int createEditBox(int parentHandle)
 	{
@@ -1414,8 +1426,8 @@ namespace LuaUI
 	void setEditBoxPassword(int handle, bool masked) { if (auto* m = LuaFrameManager::instance()) m->setEditBoxPassword(handle, masked); }
 	void setEditBoxMaxLen(int handle, int n)         { if (auto* m = LuaFrameManager::instance()) m->setEditBoxMaxLen(handle, n); }
 	void setEditBoxNumeric(int handle, bool v)       { if (auto* m = LuaFrameManager::instance()) m->setEditBoxNumeric(handle, v); }
-	void setEditBoxFontSize(int handle, int n)       { if (auto* m = LuaFrameManager::instance()) m->setEditBoxFontSize(handle, n); }
-	void setFontStringWidth(int handle, int w)       { if (auto* m = LuaFrameManager::instance()) m->setFontStringWidth(handle, w); }
+	void setEditBoxFontSize(int handle, int n)       { if (auto* m = LuaFrameManager::instance()) m->setEditBoxFontSize(handle, ui_up((float)n)); }   // SetFontSize (fontstring + editbox)
+	void setFontStringWidth(int handle, int w)       { if (auto* m = LuaFrameManager::instance()) m->setFontStringWidth(handle, ui_up((float)w)); }   // wrap width tracks font growth
 	void setEditBoxColor(int handle, int r, int g, int b, int a) { if (auto* m = LuaFrameManager::instance()) m->setEditBoxColor(handle, r, g, b, a); }
 	void setVertexColor(int handle, int r, int g, int b, int a)  { if (auto* m = LuaFrameManager::instance()) m->setVertexColor(handle, r, g, b, a); }
 	void setFont(int handle, const std::string& fontName)        { if (auto* m = LuaFrameManager::instance()) m->setFont(handle, fontName); }
@@ -1427,7 +1439,7 @@ namespace LuaUI
 	void setPoint(int handle, int point, int relHandle, int relPoint, float xOfs, float yOfs)
 	{
 		if (auto* m = LuaFrameManager::instance())
-			m->setPoint(handle, point, relHandle, relPoint, xOfs, yOfs);
+			m->setPoint(handle, point, relHandle, relPoint, (float)ui_up(xOfs), (float)ui_up(yOfs));   // scale anchor offsets
 	}
 
 	void setAllPoints(int handle, int relHandle) { if (auto* m = LuaFrameManager::instance()) m->setAllPoints(handle, relHandle); }
@@ -1436,7 +1448,7 @@ namespace LuaUI
 	void setSize(int handle, float w, float h)
 	{
 		if (auto* m = LuaFrameManager::instance())
-			m->setSize(handle, w, h);
+			m->setSize(handle, w * ui_scale(), h * ui_scale());   // Lua-origin size -> screen px
 	}
 
 	void setText(int handle, const std::string& text)
@@ -2866,11 +2878,11 @@ namespace LuaUI
 		return sConfig->getString("UI", "DefaultLogin", "");
 	}
 
-	int screenWidth()  { return sApplication->sW(); }
-	int screenHeight() { return sApplication->sH(); }
+	int screenWidth()  { return ui_down(sApplication->sW()); }   // report screen size in design px
+	int screenHeight() { return ui_down(sApplication->sH()); }
 
-	int cursorX() { return sApplication->mousePos().x; }
-	int cursorY() { return sApplication->mousePos().y; }
+	int cursorX() { return ui_down(sApplication->mousePos().x); }   // cursor in design px so SetPoint round-trips
+	int cursorY() { return ui_down(sApplication->mousePos().y); }
 
 	bool isInWorld() { auto* w = currentWorld(); return w && w->myself(); }
 
@@ -2889,10 +2901,10 @@ namespace LuaUI
 	float statusBarValue(int handle)                 { auto* m = LuaFrameManager::instance(); return m ? m->statusBarValue(handle) : 0.f; }
 	float statusBarMin(int handle)                   { auto* m = LuaFrameManager::instance(); return m ? m->statusBarMin(handle) : 0.f; }
 	float statusBarMax(int handle)                   { auto* m = LuaFrameManager::instance(); return m ? m->statusBarMax(handle) : 0.f; }
-	int   frameWidth(int handle)                     { auto* m = LuaFrameManager::instance(); return m ? m->frameSize(handle).x : 0; }
-	int   frameHeight(int handle)                    { auto* m = LuaFrameManager::instance(); return m ? m->frameSize(handle).y : 0; }
-	int   frameLeft(int handle)                      { auto* m = LuaFrameManager::instance(); auto* o = m ? m->lookup(handle) : nullptr; return o ? o->getTopLeftCornerRef().x : 0; }
-	int   frameTop(int handle)                       { auto* m = LuaFrameManager::instance(); auto* o = m ? m->lookup(handle) : nullptr; return o ? o->getTopLeftCornerRef().y : 0; }
+	int   frameWidth(int handle)                     { auto* m = LuaFrameManager::instance(); return m ? ui_down(m->frameSize(handle).x) : 0; }   // design px (GetWidth / OnSizeChanged)
+	int   frameHeight(int handle)                    { auto* m = LuaFrameManager::instance(); return m ? ui_down(m->frameSize(handle).y) : 0; }
+	int   frameLeft(int handle)                      { auto* m = LuaFrameManager::instance(); auto* o = m ? m->lookup(handle) : nullptr; return o ? ui_down(o->getTopLeftCornerRef().x) : 0; }
+	int   frameTop(int handle)                       { auto* m = LuaFrameManager::instance(); auto* o = m ? m->lookup(handle) : nullptr; return o ? ui_down(o->getTopLeftCornerRef().y) : 0; }
 	int   parentOf(int handle)                       { auto* m = LuaFrameManager::instance(); return m ? m->parentOf(handle) : 0; }
 	void  setName(int handle, const std::string& n)  { if (auto* m = LuaFrameManager::instance()) m->setName(handle, n); }
 	std::string frameName(int handle)                { auto* m = LuaFrameManager::instance(); return m ? m->frameName(handle) : std::string(); }
@@ -2900,7 +2912,7 @@ namespace LuaUI
 	std::string objectType(int handle)               { auto* m = LuaFrameManager::instance(); return m ? m->objectType(handle) : std::string(); }
 	void  setAlpha(int handle, float a)              { if (auto* m = LuaFrameManager::instance()) m->setAlpha(handle, a); }
 	void  setTexCoord(int handle, float l, float r, float t, float b) { if (auto* m = LuaFrameManager::instance()) m->setTexCoord(handle, l, r, t, b); }
-	void  setTextureCircle(int handle, int radius) { auto* m = LuaFrameManager::instance(); if (auto t = dynamic_cast<LuaTexture*>(m ? m->lookup(handle) : nullptr)) t->setCircle(radius); }
+	void  setTextureCircle(int handle, int radius) { auto* m = LuaFrameManager::instance(); if (auto t = dynamic_cast<LuaTexture*>(m ? m->lookup(handle) : nullptr)) t->setCircle(ui_up((float)radius)); }
 
 	void setDebugBounds(bool v) { if (v) LuaFrameManager::debugDumpBounds(); }
 

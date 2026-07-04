@@ -84,6 +84,13 @@ class Application : public RenderObjectHolder
 		float sWf() const;
 		float sHf() const;
 
+		// Global UI zoom. The Lua UI is authored in "design pixels" and the C++ HUD in reference pixels;
+		// both multiply their sizes/offsets by this on the way to the screen (and divide screen->design
+		// reads like cursor/screen size by it). 1.0 = native. Driven by [UI] UIScalePct (0 = Auto).
+		float uiScale() const { return m_uiScale; }
+		void setUiScalePct(const int pct);          // persist [UI] UIScalePct, recompute, relayout live
+		void applyUiScaleFromConfig();              // (re)read [UI] UIScalePct for the current window height
+
 		auto& getWindow() { return m_window; }
 		auto& canvas() { return *m_registeredCanvas; }
 
@@ -140,6 +147,7 @@ class Application : public RenderObjectHolder
 		bool m_promptKeysOnly;
 		bool m_originalDPI = false;
 		bool m_isFullscreen = false;
+		float m_uiScale = 1.f;
 		bool m_audioDeviceChanged = false;
 		bool m_audioChangedThisTick = false;
 		bool m_isDevMode = false;

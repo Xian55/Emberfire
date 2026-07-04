@@ -726,6 +726,9 @@ void Application::onWindowsResize(const sf::Event& e)
 	m_baseRenderTexture.setView(sf::View(sf::FloatRect(0.f, 0.f, (float)renderW, (float)renderH)));
 	m_window.setView(sf::View(sf::FloatRect(0.f, 0.f, (float)windowW, (float)windowH)));
 
+	// Note: UI scale is resolved at window (re)creation and on the Options dropdown, NOT on live edge-drag —
+	// recomputing here would desync the C++ HUD (reads uiScale live) from the baked Lua sizes mid-drag.
+
 	sConfig->setInt("Window", "Width", windowW);
 	sConfig->setInt("Window", "Height", windowH);
 }
@@ -802,6 +805,8 @@ void Application::createSfmlWindow()
 	m_baseRenderTexture.setView(sf::View(sf::FloatRect(0.f, 0.f, (float)renderW, (float)renderH)));
 	m_window.setView(sf::View(sf::FloatRect(0.f, 0.f, (float)Width, (float)Height)));
 
+	applyUiScaleFromConfig();   // resolve UI scale for the new window height (Auto tracks resolution)
+
 	sKeybindHack->hook(m_window);
 
 	m_window.getSystemHandle();
@@ -811,6 +816,32 @@ void Application::createSfmlWindow()
 	m_window.setIcon(image.getSize().x, image.getSize().y, image.getPixelsPtr());
 
 	loadingSplash();
+}
+
+// Auto UI scale from window height. Reference design height is 900 (so even 1080p scales up a little — the
+// complaint is that native 1080p is already too small). Rounded to 5%, never below 100% (never shrink), 250% cap.
+static float autoUiScale(const int height)
+{
+	int pct = (int)(((float)height / 900.f) * 100.f / 5.f + 0.5f) * 5;   // 1080->120, 1440->160, 2160->240
+	if (pct < 100) pct = 100;
+	if (pct > 250) pct = 250;
+	return pct / 100.f;
+}
+
+void Application::applyUiScaleFromConfig()
+{
+	const int pct = sConfig->getInt("UI", "UIScalePct", 0);   // 0 = Auto
+	const int height = (int)m_window.getSize().y;
+	m_uiScale = (pct <= 0) ? autoUiScale(height) : (pct / 100.f);
+}
+
+void Application::setUiScalePct(const int pct)
+{
+	sConfig->setInt("UI", "UIScalePct", pct);
+	applyUiScaleFromConfig();
+	// Re-run the Lua UI so every SetSize/SetFontSize/SetPoint re-emits at the new scale. The C++ HUD
+	// (World::updateGuiPositions) re-lays out on its own next frame because uiScale is in its relayout guard.
+	sLua->reloadAddons();
 }
 
 void Application::setFullscreenBorderless(const bool val)

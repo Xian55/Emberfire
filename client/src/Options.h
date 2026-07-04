@@ -40,6 +40,8 @@ class Options : public RenderObjectHolder
 			System_WindowModeCtx,
 			System_Resolution,
 			System_ResolutionCtx,
+			System_UIScale,
+			System_UIScaleCtx,
 
 			Keybinds_List_1_A,
 			Keybinds_List_1_B,
@@ -79,6 +81,8 @@ class Options : public RenderObjectHolder
 		
 		unique_ptr<Text> m_windowModeTxt;
 		unique_ptr<Text> m_resolutionTxt;
+		unique_ptr<Text> m_uiScaleTxt;
+		unique_ptr<Text> m_uiScaleCaption;
 
 		shared_ptr<Sprite> m_bgSprite;
 		shared_ptr<SelectionButtons> m_viewChoices;

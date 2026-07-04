@@ -49,6 +49,20 @@ Options::Options(RenderObjectHolder& owner, const int id) :
 	m_resolutionTxt->setCharacterSize(14);
 	m_resolutionTxt->setColorIfNot(sf::Color(78, 63, 52, 255));
 	m_resolutionTxt->setOriginalString(to_string(sConfig->getInt("Window", "Width", 1280)) + "x" + to_string(sConfig->getInt("Window", "Height", 720)));
+
+	m_uiScaleTxt = make_unique<Text>(sContentMgr->getFont(FontId::Palatino));
+	m_uiScaleTxt->setCharacterSize(14);
+	m_uiScaleTxt->setColorIfNot(sf::Color(78, 63, 52, 255));
+	{
+		const int pct = sConfig->getInt("UI", "UIScalePct", 0);
+		m_uiScaleTxt->setOriginalString(pct <= 0 ? "Auto" : (to_string(pct) + "%"));   // 0 = Auto (from resolution)
+	}
+
+	// The System art only bakes captions for the two existing rows; UI Scale is a new row, so draw its caption too.
+	m_uiScaleCaption = make_unique<Text>(sContentMgr->getFont(FontId::Palatino));
+	m_uiScaleCaption->setCharacterSize(14);
+	m_uiScaleCaption->setColorIfNot(sf::Color(78, 63, 52, 255));
+	m_uiScaleCaption->setOriginalString("UI Scale");
 }
 
 Options::~Options()
@@ -118,7 +132,16 @@ void Options::input()
 			}
 			break;
 		}
-		case System_Resolution:
+		case System_UIScale:
+			{
+				if (auto owner = dynamic_cast<RenderObjectHolder*>(getOwner()))
+				{
+					owner->registerContextMenu(Interface::System_UIScaleCtx, getId(), sApplication->mousePos(),
+						{ "Auto", "100%", "125%", "150%", "175%", "200%", "250%" });
+				}
+				break;
+			}
+			case System_Resolution:
 		{
 			if (auto owner = dynamic_cast<RenderObjectHolder*>(getOwner()))
 			{
@@ -290,6 +313,8 @@ void Options::render()
 
 		m_windowModeTxt->draw(m_topLeftCorner.x + 120, m_topLeftCorner.y + 195);
 		m_resolutionTxt->draw(m_topLeftCorner.x + 120, m_topLeftCorner.y + 243);
+		m_uiScaleCaption->draw(m_topLeftCorner.x + 30, m_topLeftCorner.y + 283);
+		m_uiScaleTxt->draw(m_topLeftCorner.x + 120, m_topLeftCorner.y + 291);
 	}
 }
 
@@ -369,6 +394,7 @@ void Options::setStage(const Stage stage)
 
 			attachAddObj(make_shared<Button>(*this, "options_wmode", Interface::System_WindowMode), sf::Vector2i(91, 184));
 			attachAddObj(make_shared<Button>(*this, "options_wmode", Interface::System_Resolution), sf::Vector2i(91, 232));
+				attachAddObj(make_shared<Button>(*this, "options_wmode", Interface::System_UIScale), sf::Vector2i(91, 280));
 
 			auto sfxVolumeBar = make_shared<ScrollBar>(*this, "side_scroll_up", "side_scroll_down", ScrollBar::ScrollLeftRight, "side_scroll_box", Interface::System_SfxVolumeBar);
 			sfxVolumeBar->getScrollDownButton()->setPos(sf::Vector2i(100, 328) + m_topLeftCorner);
@@ -519,5 +545,11 @@ void Options::notifyCtxMenuClicked(const int id, const string& lineClicked) /*fi
 				m_resolutionTxt->setOriginalString(lineClicked);
 			}
 		}
+	}
+	else if (id == Interface::System_UIScaleCtx)
+	{
+		const int pct = (lineClicked == "Auto") ? 0 : atoi(lineClicked.c_str());   // atoi stops at '%'
+		sApplication->setUiScalePct(pct);   // persists [UI] UIScalePct, recomputes, live-reloads the Lua UI
+		m_uiScaleTxt->setOriginalString(lineClicked);
 	}
 }
