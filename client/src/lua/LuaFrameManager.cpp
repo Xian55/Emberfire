@@ -316,6 +316,20 @@ void LuaButton::render()
 	const sf::Vector2f pos{ static_cast<float>(m_topLeftCorner.x), static_cast<float>(m_topLeftCorner.y) };
 	const bool hovered = MouseableNode::isMousedOver(true);
 
+	// Base art is ALWAYS drawn and scaled to the button rect. Previously the idle sprite rendered at its
+	// natural size while the hover sprite scaled to the rect, so any button whose SetSize differed from the
+	// art size visibly jumped on hover; and the hover sprite REPLACED the base, so a slot/backdrop texture
+	// vanished while hovered. Now: base (scaled) -> tint -> hover overlay, all at the rect. Idle is dimmed a
+	// touch as the hover affordance.
+	if (m_sprite)
+	{
+		const auto lb = m_sprite->getLocalBounds();
+		if (m_w > 0 && m_h > 0 && lb.width > 0 && lb.height > 0)
+			m_sprite->setScale(static_cast<float>(m_w) / lb.width, static_cast<float>(m_h) / lb.height);
+		m_sprite->setColor(hovered ? sf::Color(255, 255, 255) : sf::Color(225, 225, 225));
+		m_sprite->render(pos);
+	}
+
 	if (hovered && m_hoverColor.a > 0)
 	{
 		// Asset-free hover: a solid tinted rect sized to the button (context-menu rows, list rows).
@@ -327,18 +341,12 @@ void LuaButton::render()
 
 	if (hovered && m_hoverSprite)
 	{
-		// Scale the hover art to the button's rect — a natural-size overlay (e.g. the 40px gameicon40_hover
-		// slot outline on a 19px context-menu row) otherwise bleeds onto the neighboring rows.
+		// Designer hover art as an OVERLAY on top of the base (e.g. the gameicon40 slot edge highlight),
+		// scaled to the button rect so it lines up regardless of the art's natural size.
 		const auto lb = m_hoverSprite->getLocalBounds();
 		if (m_w > 0 && m_h > 0 && lb.width > 0 && lb.height > 0)
 			m_hoverSprite->setScale(static_cast<float>(m_w) / lb.width, static_cast<float>(m_h) / lb.height);
-		m_hoverSprite->render(pos);   // designer-provided hover art (e.g. login_hover.png)
-	}
-	else if (m_sprite)
-	{
-		// Subtle hover affordance: full-bright when pointed at, slightly dimmed otherwise.
-		m_sprite->setColor(hovered ? sf::Color(255, 255, 255) : sf::Color(225, 225, 225));
-		m_sprite->render(pos);
+		m_hoverSprite->render(pos);
 	}
 
 	RenderObjectHolder::render();   // draw children (bars, fontstrings, textures) on top of the bg
