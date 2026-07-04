@@ -9,16 +9,11 @@
 local PANEL_X, PANEL_Y = 365, 20
 local OPT_Y0, OPT_H, MAX_OPTS = 330, 22, 8
 
-local W, H = GetTextureSize('dialog.png')
-if W <= 0 then W, H = 440, 560 end
-local root = CreateFrame('Frame', 'EmberDialogNpc', nil)
-root:SetSize(W, H)
+local W, H = 428, 568
+local win = EmberUI.CreateWindow{ name = 'EmberDialogNpc', width = W, height = H, movable = false }
+local root = win.frame
 root:SetPoint('TOPLEFT', PANEL_X, PANEL_Y)
 root:Hide()
-
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('dialog.png')
 
 local title = root:CreateFontString()
 title:SetFont('Palatino'); title:SetFontSize(16); EmberUI.SetColor(title, EmberUI.Color.Title)

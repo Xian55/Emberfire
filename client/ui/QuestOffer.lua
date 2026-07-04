@@ -1,51 +1,49 @@
--- Lua quest-offer dialog, replacing the C++ QuestOffer visuals (force-hidden, mirrored). The C++ panel is
--- populated (setForQuest) BEFORE PANEL_OPENED fires, so this view reads GetQuestOfferInfo + the shared
--- rewards block and drives AcceptQuestOffer / DeclineQuestOffer. Positions from the C++ ctor (panel 365,20;
--- title 78,95; desc 55,135; rewards 95,420; accept 145,500); objectives use a fixed Y (C++ derives it from
--- the description height) -- tune live.
+-- Lua quest-offer dialog, rebuilt on the shared 9-slice window frame (EmberUI.CreateWindow) instead of the
+-- baked quest.png background. The frame + header rule are now vector + tiny slices, so the panel stays crisp
+-- at any UI scale and quest.png is retired. The C++ QuestOffer visuals stay force-hidden/mirrored; this view
+-- reads GetQuestOfferInfo + the shared rewards block and drives AcceptQuestOffer / DeclineQuestOffer.
+-- Pixel positions are starting points -- tune live via /reload + screenshot (same convention as the other panels).
 
 local PANEL_X, PANEL_Y = 365, 20
+local W, H = 440, 560
 
-local W, H = GetTextureSize('quest.png')
-if W <= 0 then W, H = 440, 560 end
-local root = CreateFrame('Frame', 'EmberQuestOffer', nil)
-root:SetSize(W, H)
+local win = EmberUI.CreateWindow{ name = 'EmberQuestOffer', width = W, height = H, movable = false }
+local root = win.frame
 root:SetPoint('TOPLEFT', PANEL_X, PANEL_Y)
 root:Hide()
 
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('quest.png')
-
+-- Header: the quest title (dynamic) + a rule under it, replacing the baked title banner.
 local title = root:CreateFontString()
-title:SetFont('Palatino'); title:SetFontSize(16); EmberUI.SetColor(title, EmberUI.Color.Title)
-title:SetPoint('TOPLEFT', root, 'TOPLEFT', 78, 95)
+title:SetFont('Ringbearer'); title:SetFontSize(18); EmberUI.SetColor(title, EmberUI.Color.Title)
+title:SetPoint('TOPLEFT', root, 'TOPLEFT', 28, 22); title:SetWidth(W - 56)
+win.AddDivider(52, 24, W - 48)
 
 local desc = root:CreateFontString()
 desc:SetFont('Palatino'); desc:SetFontSize(14); EmberUI.SetColor(desc, EmberUI.Color.Body)
-desc:SetPoint('TOPLEFT', root, 'TOPLEFT', 55, 135); desc:SetWidth(330)
+desc:SetPoint('TOPLEFT', root, 'TOPLEFT', 28, 68); desc:SetWidth(W - 56)
 
 local objBanner = root:CreateFontString()
-objBanner:SetFont('Palatino'); objBanner:SetFontSize(15); EmberUI.SetColor(objBanner, EmberUI.Color.Title)
-objBanner:SetPoint('TOPLEFT', root, 'TOPLEFT', 55, 310)
+objBanner:SetFont('Ringbearer'); objBanner:SetFontSize(15); EmberUI.SetColor(objBanner, EmberUI.Color.Title)
+objBanner:SetPoint('TOPLEFT', root, 'TOPLEFT', 28, 300)
 objBanner:SetText('Objectives')
 
 local obj = root:CreateFontString()
 obj:SetFont('Palatino'); obj:SetFontSize(12); EmberUI.SetColor(obj, EmberUI.Color.Body)
-obj:SetPoint('TOPLEFT', root, 'TOPLEFT', 55, 335); obj:SetWidth(330)
+obj:SetPoint('TOPLEFT', root, 'TOPLEFT', 28, 324); obj:SetWidth(W - 56)
 
-local rewards = EmberUI.CreateQuestRewards(root, 60, 420)
+local rewards = EmberUI.CreateQuestRewards(root, 34, 410)
 
--- Accept (label printed on the art; highlight/click region at the C++ spot)
+-- Accept: reuse the generic highlight sprite pair + a label (unchanged behaviour).
 local accept = CreateFrame('Button', nil, root)
 accept:SetTexture('generic_highlight_idle.png'); accept:SetHoverTexture('generic_highlight_hover.png')
 local bw, bh = GetTextureSize('generic_highlight_idle.png')
-accept:SetSize(bw > 0 and bw or 130, bh > 0 and bh or 28)
-accept:SetPoint('TOPLEFT', root, 'TOPLEFT', 145, 500); accept:EnableMouse(true)
+local abw, abh = (bw > 0 and bw or 130), (bh > 0 and bh or 28)
+accept:SetSize(abw, abh)
+accept:SetPoint('TOPLEFT', root, 'TOPLEFT', (W - abw) / 2, H - 54); accept:EnableMouse(true)
 accept:SetScript('OnClick', function() AcceptQuestOffer() end)
 local acceptFS = root:CreateFontString()
 acceptFS:SetFont('Palatino'); acceptFS:SetFontSize(14); acceptFS:SetTextColor(189, 166, 145, 255)
-acceptFS:SetPoint('TOPLEFT', root, 'TOPLEFT', 145 + 42, 500 + 6)
+acceptFS:SetPoint('TOPLEFT', accept, 'TOPLEFT', 42, 6)
 acceptFS:SetText('Accept')
 
 local function refresh()
@@ -81,4 +79,4 @@ for _, e in ipairs({ Events.WORLD_SHOWN, Events.PANEL_OPENED, Events.PANEL_CLOSE
 	stage:RegisterEvent(e)
 end
 
-print('EmberUI quest offer loaded')
+print('EmberUI quest offer loaded (9-slice)')

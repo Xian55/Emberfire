@@ -8,20 +8,14 @@ local LIST_X, LIST_Y, LIST_ROWH, LIST_VISIBLE = 28, 72, 22, 10
 local DETAIL_X, TITLE_Y, DESC_Y, OBJ_Y = 250, 64, 96, 300
 local DETAIL_W = 230
 
-local W, H = GetTextureSize('questlog.png')
-if W <= 0 then W, H = 500, 540 end
-local root = CreateFrame('Frame', 'EmberQuestLog', nil)
-root:SetSize(W, H)
+local W, H = 645, 585
+local win = EmberUI.CreateWindow{ name = 'EmberQuestLog', width = W, height = H, title = 'Quest Log' }
+local root = win.frame
 root:SetPoint('CENTER')
-root:SetMovable(true); root:RegisterForDrag('LeftButton')
 root:Hide()
 
 local function vis(f, v) if v then f:Show() else f:Hide() end end
 local function texSize(name, dw, dh) local w, h = GetTextureSize(name); if w <= 0 then return dw, dh end return w, h end
-
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('questlog.png')
 
 -- right-side details
 local detTitle = root:CreateFontString()

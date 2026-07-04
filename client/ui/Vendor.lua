@@ -10,12 +10,10 @@ local ICON_X = { 33, 226 }
 local NAME_DX, COST_DX, CELL_Y0, CELL_PITCH, ICON = 50, 64, 83, 66, 38
 local MONEY_X, MONEY_Y = 325, 519
 
-local W, H = GetTextureSize('vendor.png')
-if W <= 0 then W, H = 365, 545 end
-local root = CreateFrame('Frame', 'EmberVendor', nil)
-root:SetSize(W, H)
+local W, H = 428, 568
+local win = EmberUI.CreateWindow{ name = 'EmberVendor', width = W, height = H, title = 'Merchant' }
+local root = win.frame
 root:SetPoint('CENTER')
-root:SetMovable(true); root:RegisterForDrag('LeftButton')
 root:Hide()
 
 local function vis(f, v) if v then f:Show() else f:Hide() end end
@@ -24,10 +22,6 @@ local function commas(n)
 	local s = tostring(n)
 	return (s:reverse():gsub('(%d%d%d)', '%1,'):reverse():gsub('^,', ''))
 end
-
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('vendor.png')
 
 local moneyFS = root:CreateFontString()
 moneyFS:SetFont('Palatino'); moneyFS:SetFontSize(14); moneyFS:SetTextColor(255, 215, 0, 255)

@@ -13,13 +13,12 @@ local COLS, SIZE, PITCH = 7, 40, 45
 local OX, OY = 27, 75
 local NUM = GetContainerNumSlots()
 
--- Movable backdrop window sized to the real art (inventory.png is the C++ bag art — a confirmed asset).
-local W, H = GetTextureSize('inventory.png')
-if W <= 0 then W, H = 300, 420 end
-local root = CreateFrame('Frame', 'EmberInventory', nil)
-root:SetSize(W, H)
+-- 9-slice window (retires inventory.png; item cells skinned via EmberUI._slotBg). Grid offsets below are
+-- unchanged -- they were tuned to the real bag dims, so the frame swap keeps every slot in place.
+local W, H = 364, 436
+local win = EmberUI.CreateWindow{ name = 'EmberInventory', width = W, height = H, title = 'Inventory' }
+local root = win.frame
 root:SetPoint('CENTER')
-root:SetMovable(true); root:RegisterForDrag('LeftButton')   -- drag the window by its empty backdrop
 root:Hide()
 
 -- Forward-declared so the handlers created below (before the loop + refresh) capture the right upvalues.
@@ -33,10 +32,6 @@ root:SetScript('OnMouseUp', function(_, btn)
 		dragFrom = nil; applyFrom = nil; EmberUI.ClearCursor(); if refresh then refresh() end
 	end
 end)
-
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('inventory.png')
 
 -- Money readout (gold, with thousands commas) at the C++ panel's money spot.
 local function commas(n)

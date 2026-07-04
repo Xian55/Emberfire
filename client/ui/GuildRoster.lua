@@ -13,20 +13,14 @@ local MOTD_X, MOTD_Y = 40, 475
 local ONLINE_X, ONLINE_Y = 311, 427
 local TICK_X, TICK_Y = 155, 425
 
-local W, H = GetTextureSize('guildroster.png')
-if W <= 0 then W, H = 430, 540 end
-local root = CreateFrame('Frame', 'EmberGuildRoster', nil)
-root:SetSize(W, H)
+local W, H = 457, 615
+local win = EmberUI.CreateWindow{ name = 'EmberGuildRoster', width = W, height = H, title = 'Guild' }
+local root = win.frame
 root:SetPoint('CENTER')
-root:SetMovable(true); root:RegisterForDrag('LeftButton')
 root:Hide()
 
 local function vis(f, v) if v then f:Show() else f:Hide() end end
 local function texSize(name, dw, dh) local w, h = GetTextureSize(name); if w <= 0 then return dw, dh end return w, h end
-
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('guildroster.png')
 
 local titleFS = root:CreateFontString()
 titleFS:SetFont('Fontin'); titleFS:SetFontSize(16); titleFS:SetTextColor(223, 168, 2, 255)

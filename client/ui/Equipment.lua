@@ -22,12 +22,10 @@ local PROG_X, PROG_Y, EXP_Y = 165, 250, 312   -- Progression/Experience values (
 local SPEND_PLUS_DX, SPEND_MINUS_DX, SPEND_DY = 40, 62, -3
 local COST_LBL_X, COST_LBL_Y, COST_X, COST_Y = 165, 332, 191, 354
 
-local W, H = GetTextureSize('equipment.png')
-if W <= 0 then W, H = 520, 560 end
-local root = CreateFrame('Frame', 'EmberEquipment', nil)
-root:SetSize(W, H)
+local W, H = 603, 571
+local win = EmberUI.CreateWindow{ name = 'EmberEquipment', width = W, height = H }
+local root = win.frame
 root:SetPoint('CENTER')
-root:SetMovable(true); root:RegisterForDrag('LeftButton')
 root:Hide()
 
 local refresh, refreshStats, applySpendChrome, enterSpend, exitSpend   -- forward decls
@@ -52,10 +50,6 @@ root:SetScript('OnMouseUp', function(_, btn)
 	if btn == 'LeftButton' and EmberUI.HasCursorItem() then EmberUI.ClearCursor(); if refresh then refresh() end end
 end)
 
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('equipment.png')
-
 local nameFS = root:CreateFontString()
 nameFS:SetFont('FrizBold'); nameFS:SetFontSize(16); EmberUI.SetColor(nameFS, EmberUI.Color.Title)
 nameFS:SetPoint('TOPLEFT', root, 'TOPLEFT', 120, 113)
@@ -63,7 +57,14 @@ local subFS = root:CreateFontString()
 subFS:SetFont('Palatino'); subFS:SetFontSize(13); EmberUI.SetColor(subFS, EmberUI.Color.Muted)
 subFS:SetPoint('TOPLEFT', root, 'TOPLEFT', 120, 135)
 
--- Progression / Experience values next to the printed labels (middle column).
+-- Progression / Experience: the labels were baked into equipment.png; now drawn as Lua FontStrings above
+-- each value (middle column). Tune the label offset live.
+local function progLabel(text, x, y)
+	local l = root:CreateFontString(); l:SetFont('Ringbearer'); l:SetFontSize(12); EmberUI.SetColor(l, EmberUI.Color.Muted)
+	l:SetPoint('TOPLEFT', root, 'TOPLEFT', x, y - 16); l:SetText(text)
+end
+progLabel('Progression', PROG_X, PROG_Y)
+progLabel('Experience', PROG_X, EXP_Y)
 local progVal = root:CreateFontString()
 progVal:SetFont('Palatino'); progVal:SetFontSize(13); EmberUI.SetColor(progVal, EmberUI.Color.Detail)
 progVal:SetPoint('TOPLEFT', root, 'TOPLEFT', PROG_X, PROG_Y)
@@ -107,17 +108,13 @@ for idx, def in ipairs(SLOTS) do
 	slots[idx] = s
 end
 
--- ---- stat tabs + active-tab indicator ----
--- The tab names are printed on equipment.png (can't recolour), and overlaying the active name doubled it.
--- So mark the active tab with a bright caret to its LEFT. Tune TAB_MARK_DX/DY.
-local TAB_MARK_DX, TAB_MARK_DY = -14, 0
+-- ---- stat tabs (GENERAL / COMBAT / SKILLS) ----
+-- Now real Lua labels (baked equipment.png retired), so the active tab recolors instead of needing a caret.
 local currentTab = 1
-local activeMarker = root:CreateFontString()
-activeMarker:SetFont('Trebuchet'); activeMarker:SetFontSize(14); activeMarker:SetTextColor(255, 224, 150, 255)
-activeMarker:SetText('>')
+local tabFS = {}
 local function setTab(t)
 	currentTab = t
-	activeMarker:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[t] + TAB_MARK_DX, TAB_Y + TAB_MARK_DY)
+	for i = 1, 3 do EmberUI.SetColor(tabFS[i], i == t and EmberUI.Color.Title or EmberUI.Color.Muted) end
 	refreshStats()
 end
 for t = 1, 3 do
@@ -126,6 +123,9 @@ for t = 1, 3 do
 	b:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[t], TAB_Y)
 	b:EnableMouse(true)
 	b:SetScript('OnClick', function() setTab(t) end)
+	local fs = root:CreateFontString(); fs:SetFont('Ringbearer'); fs:SetFontSize(14)
+	fs:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[t], TAB_Y + 4); fs:SetText(TAB_NAMES[t])
+	tabFS[t] = fs
 end
 
 -- ---- stat row pool (label + value). Rows + their data come from C++ (GetStatRow). ----

@@ -12,12 +12,10 @@ local NAME_LX, NAME_RX, NAME_Y = 100, 290, 64
 local GOLD_LX, GOLD_RX, GOLD_Y = 45, 251, 470
 local READY_LX, READY_RX, READY_Y = 33, 226, 120
 
-local W, H = GetTextureSize('trade.png')
-if W <= 0 then W, H = 365, 545 end
-local root = CreateFrame('Frame', 'EmberTrade', nil)
-root:SetSize(W, H)
+local W, H = 428, 567
+local win = EmberUI.CreateWindow{ name = 'EmberTrade', width = W, height = H, title = 'Trade' }
+local root = win.frame
 root:SetPoint('CENTER')
-root:SetMovable(true); root:RegisterForDrag('LeftButton')
 root:Hide()
 
 local function vis(f, v) if v then f:Show() else f:Hide() end end
@@ -26,10 +24,6 @@ local function commas(n)
 	local s = tostring(n)
 	return (s:reverse():gsub('(%d%d%d)', '%1,'):reverse():gsub('^,', ''))
 end
-
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('trade.png')
 
 local function fs(font, size, r, g, b, x, y)
 	local f = root:CreateFontString(); f:SetFont(font); f:SetFontSize(size); f:SetTextColor(r, g, b, 255)

@@ -12,17 +12,11 @@ local VISIBLE = 4                            -- visible rows (C++ numVerticalEle
 local TAKE_ALL_X, TAKE_ALL_Y = 37, 217
 local UP_X, UP_Y, DOWN_X, DOWN_Y = 183, 40, 183, 230
 
-local W, H = GetTextureSize('loot_window.png')
-if W <= 0 then W, H = 210, 290 end
-local root = CreateFrame('Frame', 'EmberLoot', nil)
-root:SetSize(W, H)
+local W, H = 214, 280
+local win = EmberUI.CreateWindow{ name = 'EmberLoot', width = W, height = H, title = 'Loot' }
+local root = win.frame
 root:SetPoint('CENTER')
-root:SetMovable(true); root:RegisterForDrag('LeftButton')
 root:Hide()
-
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('loot_window.png')
 
 -- shared idioms (same as the other windows)
 local function commas(n)
@@ -66,6 +60,10 @@ end
 
 local takeAll = mkButton('generic_highlight_idle.png', 'generic_highlight_hover.png', TAKE_ALL_X, TAKE_ALL_Y,
 	function() LootAll() end)
+-- label the Take-All bar (mkButton draws only the highlight art, so without this it reads as an empty bar)
+local takeAllFS = root:CreateFontString()
+takeAllFS:SetFont('Arial'); takeAllFS:SetFontSize(13); takeAllFS:SetTextColor(255, 255, 255, 255)
+takeAllFS:SetPoint('TOPLEFT', root, 'TOPLEFT', TAKE_ALL_X + 46, TAKE_ALL_Y + 12); takeAllFS:SetText('Take All')
 local closeBtn = mkButton('panel_close_small_idle.png', 'panel_close_small_hover.png', W - 22, 10,
 	function() CloseLoot() end)
 local upBtn = mkButton('up_arrow_idle.png', 'up_arrow_hover.png', UP_X, UP_Y,

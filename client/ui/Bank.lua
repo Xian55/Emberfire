@@ -10,12 +10,10 @@ local COLS, SIZE, PITCH = 7, 40, 45
 local OX, OY = 27, 75
 local NUM = GetBankNumSlots()
 
-local W, H = GetTextureSize('bank.png')
-if W <= 0 then W, H = 330, 420 end
-local root = CreateFrame('Frame', 'EmberBank', nil)
-root:SetSize(W, H)
+local W, H = 364, 436
+local win = EmberUI.CreateWindow{ name = 'EmberBank', width = W, height = H, title = 'Bank' }
+local root = win.frame
 root:SetPoint('CENTER')
-root:SetMovable(true); root:RegisterForDrag('LeftButton')
 root:Hide()
 
 local function vis(f, v) if v then f:Show() else f:Hide() end end
@@ -28,10 +26,6 @@ local slots = {}
 root:SetScript('OnMouseUp', function(_, btn)
 	if btn == 'LeftButton' and EmberUI.HasCursorItem() then EmberUI.ClearCursor(); if refresh then refresh() end end
 end)
-
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('bank.png')
 
 for i = 1, NUM do
 	local col  = (i - 1) % COLS

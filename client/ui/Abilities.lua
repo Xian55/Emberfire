@@ -12,35 +12,31 @@ local NAME_DX, NAME_DY = 75, 14
 local DESC_DX, DESC_DY = 75, 38
 local TAB_Y = 70
 
-local W, H = GetTextureSize('abilities.png')
-if W <= 0 then W, H = 470, 540 end
-local root = CreateFrame('Frame', 'EmberAbilities', nil)
-root:SetSize(W, H)
+local W, H = 474, 592
+local win = EmberUI.CreateWindow{ name = 'EmberAbilities', width = W, height = H }
+local root = win.frame
 root:SetPoint('CENTER')
-root:SetMovable(true); root:RegisterForDrag('LeftButton')
 root:Hide()
 
 local function vis(f, v) if v then f:Show() else f:Hide() end end
-
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('abilities.png')
 
 local currentTab = 1   -- 1 = Spellbook (stage 1), 2 = Misc (stage 0)
 local scroll = 0
 local refresh   -- forward decl
 local function tabStage() return currentTab == 1 and 1 or 0 end
 
--- tabs: the labels "SPELLBOOK" / "MISC ACTIONS" are printed on abilities.png, so just put invisible click
--- regions over them + a bright caret marking the active tab (don't draw our own labels = no doubling).
+-- tabs: SPELLBOOK / MISC ACTIONS are now real Lua labels (baked abilities.png retired), so the active tab
+-- recolors instead of needing a caret overlay. A click region sits under each label.
 local TAB_X = { 133, 243 }
-local activeMarker = root:CreateFontString()
-activeMarker:SetFont('Trebuchet'); activeMarker:SetFontSize(14); activeMarker:SetTextColor(255, 224, 150, 255)
-activeMarker:SetText('>')
+local TAB_NAMES = { 'SPELLBOOK', 'MISC ACTIONS' }
+local tabFS = {}
 for t = 1, 2 do
 	local b = CreateFrame('Button', nil, root)
-	b:SetSize(100, 24); b:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[t], TAB_Y); b:EnableMouse(true)
+	b:SetSize(120, 24); b:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[t], TAB_Y); b:EnableMouse(true)
 	b:SetScript('OnClick', function() currentTab = t; scroll = 0; refresh() end)
+	local fs = root:CreateFontString(); fs:SetFont('Ringbearer'); fs:SetFontSize(14)
+	fs:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[t], TAB_Y + 3); fs:SetText(TAB_NAMES[t])
+	tabFS[t] = fs
 end
 
 -- vertical spell-row pool: a row-spanning hit area (so hovering ANYWHERE on the row shows the tooltip) + a
@@ -70,7 +66,7 @@ for r = 1, VISIBLE do
 end
 
 refresh = function()
-	activeMarker:SetPoint('TOPLEFT', root, 'TOPLEFT', TAB_X[currentTab] - 14, TAB_Y + 2)
+	for t = 1, 2 do EmberUI.SetColor(tabFS[t], t == currentTab and EmberUI.Color.Title or EmberUI.Color.Muted) end
 
 	local stage = tabStage()
 	local n = GetNumSpellSlots(stage)

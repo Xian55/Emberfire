@@ -6,16 +6,11 @@
 
 local PANEL_X, PANEL_Y = 365, 20
 
-local W, H = GetTextureSize('questcomplete.png')
-if W <= 0 then W, H = 440, 560 end
-local root = CreateFrame('Frame', 'EmberQuestComplete', nil)
-root:SetSize(W, H)
+local W, H = 428, 568
+local win = EmberUI.CreateWindow{ name = 'EmberQuestComplete', width = W, height = H, title = 'Quest Reward', movable = false }
+local root = win.frame
 root:SetPoint('TOPLEFT', PANEL_X, PANEL_Y)
 root:Hide()
-
-local bg = root:CreateTexture()
-bg:SetAllPoints(root)
-bg:SetTexture('questcomplete.png')
 
 local title = root:CreateFontString()
 title:SetFont('Palatino'); title:SetFontSize(16); EmberUI.SetColor(title, EmberUI.Color.Title)
