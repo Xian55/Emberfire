@@ -29,6 +29,109 @@ function EmberUI.SetColor(fs, c, a)
 	fs:SetTextColor(c[1], c[2], c[3], a or 255)
 end
 
+-- ---------------------------------------------------------------------------------------------------
+-- 9-slice window chrome. Replaces per-panel baked background PNGs (equipment.png, bank.png, ...) with a
+-- shared, resolution-independent frame built from tiny slices (content-ember/window_*.png): the border
+-- stays crisp at any UI scale, only the interior stretches. Mirrors the C++ ExpandableWindow slice math
+-- (corners 1:1, edges stretched on one axis, center on both) but composed from Lua CreateTexture regions
+-- since LuaTexture:SetSize already stretches a sprite. See EmberUI.CreateWindow.
+-- ---------------------------------------------------------------------------------------------------
+
+-- Slice asset set + corner size (design pixels). Corner art is square; edges tile along their long axis.
+-- Loaded via the content-ember overlay (loose PNGs), so these names resolve without a content-zip repack.
+EmberUI.Slice = {
+	corner = 20,
+	tl = 'window_tl.png', t = 'window_t.png', tr = 'window_tr.png',
+	l  = 'window_l.png',  c = 'window_c.png', r  = 'window_r.png',
+	bl = 'window_bl.png', b = 'window_b.png', br = 'window_br.png',
+	divider   = 'window_divider.png',
+	closeIdle = 'window_close_idle.png', closeHover = 'window_close_hover.png',
+}
+
+-- Slot-cell skin for item buttons. The baked panel PNGs used to draw the empty-cell frames behind the item
+-- grids; on the plain 9-slice frames that art is gone, so CreateItemButton paints this recessed cell instead.
+-- (LuaButton draws its base texture at natural size, so this is authored at the common 40px slot size.)
+EmberUI._slotBg = 'slot40.png'
+
+-- Build the 9-slice backdrop as children of `frame` (w x h design pixels). Created first so it draws
+-- behind later content. All regions are TOPLEFT-anchored offsets from the frame.
+local function buildBackdrop(frame, w, h)
+	local S = EmberUI.Slice
+	local k = S.corner
+	local cw, ch = w - 2 * k, h - 2 * k
+	local function region(tex, x, y, rw, rh)
+		local t = frame:CreateTexture()
+		t:SetTexture(tex)
+		t:SetPoint('TOPLEFT', frame, 'TOPLEFT', x, y)
+		t:SetSize(rw, rh)
+		return t
+	end
+	region(S.tl, 0,     0,     k,  k );  region(S.t, k,     0,     cw, k );  region(S.tr, w - k, 0,     k,  k )
+	region(S.l,  0,     k,     k,  ch);  region(S.c, k,     k,     cw, ch);  region(S.r,  w - k, k,     k,  ch)
+	region(S.bl, 0,     h - k, k,  k );  region(S.b, k,     h - k, cw, k );  region(S.br, w - k, h - k, k,  k )
+end
+
+-- CreateWindow(opts) -> window table. opts:
+--   name?    global frame name              parent?    parent frame (default top-level)
+--   width, height   (design pixels, required)
+--   title?   header text                    titleFont? (default 'Ringbearer')   titleSize? (default 16)
+--   closable?  add a top-right close button  onClose?  fn (default: hide the frame)
+--   movable?   drag the frame (default true) inset?    content padding from the edge (default corner size)
+-- Returns { frame, content, title?, close?, SetTitle(str), AddDivider(y[,x,len]), Show(), Hide() }.
+-- `frame` is the root (parent your widgets here, or anchor against `content` for the inset region).
+function EmberUI.CreateWindow(opts)
+	local w, h = opts.width, opts.height
+	local root = CreateFrame('Frame', opts.name, opts.parent)
+	root:SetSize(w, h)
+	if opts.movable ~= false then root:SetMovable(true); root:RegisterForDrag('LeftButton') end
+
+	buildBackdrop(root, w, h)
+
+	local inset = opts.inset or EmberUI.Slice.corner
+	local content = CreateFrame('Frame', nil, root)
+	content:SetPoint('TOPLEFT', root, 'TOPLEFT', inset, inset)
+	content:SetSize(w - 2 * inset, h - 2 * inset)
+
+	local win = { frame = root, content = content }
+
+	if opts.title then
+		local fs = root:CreateFontString()
+		fs:SetFont(opts.titleFont or 'Ringbearer'); fs:SetFontSize(opts.titleSize or 16)
+		EmberUI.SetColor(fs, EmberUI.Color.Title)
+		fs:SetPoint('TOPLEFT', root, 'TOPLEFT', inset + 2, 6)
+		fs:SetText(opts.title)
+		win.title = fs
+	end
+
+	function win.SetTitle(str) if win.title then win.title:SetText(str) end end
+
+	if opts.closable then
+		local btn = CreateFrame('Button', nil, root)
+		btn:SetTexture(EmberUI.Slice.closeIdle); btn:SetHoverTexture(EmberUI.Slice.closeHover)
+		btn:SetSize(20, 20)
+		btn:SetPoint('TOPLEFT', root, 'TOPLEFT', w - 24, 6)
+		btn:EnableMouse(true)
+		btn:SetScript('OnClick', function()
+			if opts.onClose then opts.onClose() else root:Hide() end
+		end)
+		win.close = btn
+	end
+
+	-- AddDivider(y[, x, len]): a 2px horizontal rule at design-y from the frame top; default full inner width.
+	function win.AddDivider(y, x, len)
+		local d = root:CreateTexture()
+		d:SetTexture(EmberUI.Slice.divider)
+		d:SetPoint('TOPLEFT', root, 'TOPLEFT', x or inset, y)
+		d:SetSize(len or (w - 2 * inset), 2)
+		return d
+	end
+
+	function win.Show() root:Show() end
+	function win.Hide() root:Hide() end
+
+	return win
+end
+
 -- bind(widget, setterName, getterFn, token, eventName): call widget:<setter>(getter(token)) on the event + now.
 function EmberUI.bind(widget, setter, getter, token, event)
 	local d = CreateFrame('Frame', nil, nil)
