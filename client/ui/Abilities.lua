@@ -55,9 +55,9 @@ for r = 1, VISIBLE do
 	rowBtn:SetSize(ROW_W, ROW_H); rowBtn:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X, y); rowBtn:EnableMouse(true)
 	local iconTex = rowBtn:CreateTexture()
 	iconTex:SetSize(ICON, ICON); iconTex:SetPoint('TOPLEFT', rowBtn, 'TOPLEFT', ICON_DX, ICON_DY)
-	local nameFS = root:CreateFontString(); nameFS:SetFont('Ringbearer'); nameFS:SetFontSize(15); nameFS:SetTextColor(168, 155, 137, 255)
+	local nameFS = root:CreateFontString(); nameFS:SetFont('Ringbearer'); nameFS:SetFontSize(15); EmberUI.SetColor(nameFS, EmberUI.Color.Title)
 	nameFS:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + NAME_DX, y + NAME_DY)
-	local descFS = root:CreateFontString(); descFS:SetFont('Palatino'); descFS:SetFontSize(12); descFS:SetTextColor(111, 99, 79, 255)
+	local descFS = root:CreateFontString(); descFS:SetFont('Palatino'); descFS:SetFontSize(12); EmberUI.SetColor(descFS, EmberUI.Color.Body)
 	descFS:SetPoint('TOPLEFT', root, 'TOPLEFT', LIST_X + DESC_DX, y + DESC_DY); descFS:SetWidth(DESC_W)
 	local rd = { row = rowBtn, icon = iconTex, name = nameFS, desc = descFS, spellId = 0 }
 	-- left-drag a spell onto an action slot: put it on the shared cursor; the ActionBar consumes the drop

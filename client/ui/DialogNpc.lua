@@ -21,15 +21,15 @@ bg:SetAllPoints(root)
 bg:SetTexture('dialog.png')
 
 local title = root:CreateFontString()
-title:SetFont('Palatino'); title:SetFontSize(16); title:SetTextColor(189, 166, 145, 255)
+title:SetFont('Palatino'); title:SetFontSize(16); EmberUI.SetColor(title, EmberUI.Color.Title)
 title:SetPoint('TOPLEFT', root, 'TOPLEFT', 90, 95)
 
 local desc = root:CreateFontString()
-desc:SetFont('Palatino'); desc:SetFontSize(14); desc:SetTextColor(142, 119, 98, 255)
+desc:SetFont('Palatino'); desc:SetFontSize(14); EmberUI.SetColor(desc, EmberUI.Color.Body)
 desc:SetPoint('TOPLEFT', root, 'TOPLEFT', 55, 135); desc:SetWidth(330)
 
 local optTitle = root:CreateFontString()
-optTitle:SetFont('Palatino'); optTitle:SetFontSize(15); optTitle:SetTextColor(189, 166, 145, 255)
+optTitle:SetFont('Palatino'); optTitle:SetFontSize(15); EmberUI.SetColor(optTitle, EmberUI.Color.Title)
 optTitle:SetPoint('TOPLEFT', root, 'TOPLEFT', 55, OPT_Y0 - 28)
 optTitle:SetText('Options:')
 

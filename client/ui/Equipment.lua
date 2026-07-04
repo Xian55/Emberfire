@@ -57,18 +57,18 @@ bg:SetAllPoints(root)
 bg:SetTexture('equipment.png')
 
 local nameFS = root:CreateFontString()
-nameFS:SetFont('FrizBold'); nameFS:SetFontSize(16); nameFS:SetTextColor(183, 148, 110, 255)
+nameFS:SetFont('FrizBold'); nameFS:SetFontSize(16); EmberUI.SetColor(nameFS, EmberUI.Color.Title)
 nameFS:SetPoint('TOPLEFT', root, 'TOPLEFT', 120, 113)
 local subFS = root:CreateFontString()
-subFS:SetFont('Palatino'); subFS:SetFontSize(13); subFS:SetTextColor(150, 130, 110, 255)
+subFS:SetFont('Palatino'); subFS:SetFontSize(13); EmberUI.SetColor(subFS, EmberUI.Color.Muted)
 subFS:SetPoint('TOPLEFT', root, 'TOPLEFT', 120, 135)
 
 -- Progression / Experience values next to the printed labels (middle column).
 local progVal = root:CreateFontString()
-progVal:SetFont('Palatino'); progVal:SetFontSize(13); progVal:SetTextColor(148, 133, 116, 255)
+progVal:SetFont('Palatino'); progVal:SetFontSize(13); EmberUI.SetColor(progVal, EmberUI.Color.Detail)
 progVal:SetPoint('TOPLEFT', root, 'TOPLEFT', PROG_X, PROG_Y)
 local expVal = root:CreateFontString()
-expVal:SetFont('Palatino'); expVal:SetFontSize(13); expVal:SetTextColor(148, 133, 116, 255)
+expVal:SetFont('Palatino'); expVal:SetFontSize(13); EmberUI.SetColor(expVal, EmberUI.Color.Detail)
 expVal:SetPoint('TOPLEFT', root, 'TOPLEFT', PROG_X, EXP_Y)
 
 -- ---- gear slots (tooltip registered; hover highlight is built into the Button) ----

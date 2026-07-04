@@ -18,20 +18,20 @@ bg:SetAllPoints(root)
 bg:SetTexture('quest.png')
 
 local title = root:CreateFontString()
-title:SetFont('Palatino'); title:SetFontSize(16); title:SetTextColor(189, 166, 145, 255)
+title:SetFont('Palatino'); title:SetFontSize(16); EmberUI.SetColor(title, EmberUI.Color.Title)
 title:SetPoint('TOPLEFT', root, 'TOPLEFT', 78, 95)
 
 local desc = root:CreateFontString()
-desc:SetFont('Palatino'); desc:SetFontSize(14); desc:SetTextColor(142, 119, 98, 255)
+desc:SetFont('Palatino'); desc:SetFontSize(14); EmberUI.SetColor(desc, EmberUI.Color.Body)
 desc:SetPoint('TOPLEFT', root, 'TOPLEFT', 55, 135); desc:SetWidth(330)
 
 local objBanner = root:CreateFontString()
-objBanner:SetFont('Palatino'); objBanner:SetFontSize(15); objBanner:SetTextColor(189, 166, 145, 255)
+objBanner:SetFont('Palatino'); objBanner:SetFontSize(15); EmberUI.SetColor(objBanner, EmberUI.Color.Title)
 objBanner:SetPoint('TOPLEFT', root, 'TOPLEFT', 55, 310)
 objBanner:SetText('Objectives')
 
 local obj = root:CreateFontString()
-obj:SetFont('Palatino'); obj:SetFontSize(12); obj:SetTextColor(142, 119, 98, 255)
+obj:SetFont('Palatino'); obj:SetFontSize(12); EmberUI.SetColor(obj, EmberUI.Color.Body)
 obj:SetPoint('TOPLEFT', root, 'TOPLEFT', 55, 335); obj:SetWidth(330)
 
 local rewards = EmberUI.CreateQuestRewards(root, 60, 420)

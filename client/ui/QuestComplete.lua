@@ -18,15 +18,15 @@ bg:SetAllPoints(root)
 bg:SetTexture('questcomplete.png')
 
 local title = root:CreateFontString()
-title:SetFont('Palatino'); title:SetFontSize(16); title:SetTextColor(189, 166, 145, 255)
+title:SetFont('Palatino'); title:SetFontSize(16); EmberUI.SetColor(title, EmberUI.Color.Title)
 title:SetPoint('TOPLEFT', root, 'TOPLEFT', 78, 95)
 
 local desc = root:CreateFontString()
-desc:SetFont('Palatino'); desc:SetFontSize(14); desc:SetTextColor(142, 119, 98, 255)
+desc:SetFont('Palatino'); desc:SetFontSize(14); EmberUI.SetColor(desc, EmberUI.Color.Body)
 desc:SetPoint('TOPLEFT', root, 'TOPLEFT', 55, 135); desc:SetWidth(330)
 
 local chooseHint = root:CreateFontString()
-chooseHint:SetFont('Palatino'); chooseHint:SetFontSize(13); chooseHint:SetTextColor(189, 166, 145, 255)
+chooseHint:SetFont('Palatino'); chooseHint:SetFontSize(13); EmberUI.SetColor(chooseHint, EmberUI.Color.Title)
 chooseHint:SetPoint('TOPLEFT', root, 'TOPLEFT', 55, 395)
 chooseHint:SetText('Choose your reward:')
 

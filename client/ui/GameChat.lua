@@ -177,7 +177,7 @@ refresh = function()
 	local t = tabs[activeTab]
 	for ti = 1, #tabs do
 		if ti == activeTab then tabFS[ti]:SetTextColor(255, 224, 150, 255)
-		else tabFS[ti]:SetTextColor(160, 150, 130, 255) end
+		else EmberUI.SetColor(tabFS[ti], EmberUI.Color.Muted) end
 	end
 
 	-- visible = { {text, r,g,b, idx(real, chat only), hasLink}, ... } oldest->newest, post-filter

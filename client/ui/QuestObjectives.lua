@@ -30,7 +30,7 @@ for i = 1, MAX_TRACKED do
 	local title = root:CreateFontString()
 	title:SetFont('PalatinoBold'); title:SetFontSize(18)
 	local obj = root:CreateFontString()
-	obj:SetFont('PalatinoBold'); obj:SetFontSize(15); obj:SetTextColor(182, 173, 139, 255)
+	obj:SetFont('PalatinoBold'); obj:SetFontSize(15); EmberUI.SetColor(obj, EmberUI.Color.Title)
 	obj:SetWidth(260)
 	local row = { btn = titleBtn, title = title, obj = obj }
 	titleBtn:SetScript('OnClick', function()

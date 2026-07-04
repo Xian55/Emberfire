@@ -62,8 +62,8 @@ Equipment::Equipment(World& owner, const int id) :
 	m_viewChoices->addRenderObject(attachObj(m_tab3, { 384, 70 }));
 	addRenderObject(m_viewChoices);
 
-	m_labelColor = sf::Color(95, 82, 72, 255);
-	m_labelShadow = sf::Color(0, 0, 0, 38);
+	m_labelColor = sf::Color(206, 186, 160, 255);
+	m_labelShadow = sf::Color(0, 0, 0, 140);
 	m_levelupCostLabel = sContentMgr->spawnSprite("levelup_cost_label.png");
 	m_levelupBaseNotice = sContentMgr->spawnSprite("equipment_baseinvest_msg.png");
 	m_levelupBaseNotice->setHotspotEasy(true, true);
@@ -965,7 +965,7 @@ void Equipment::updatePlayer(shared_ptr<ClientPlayer> plr)
 	
 	string nameupper = plr->getName();
 	transform(nameupper.begin(), nameupper.end(), nameupper.begin(), ::toupper);
-	dynamic_pointer_cast<TextBoxRo>(getRenderObject(Interface::NameLabel))->setString(nameupper, sf::Color(183, 148, 110, 255));
+	dynamic_pointer_cast<TextBoxRo>(getRenderObject(Interface::NameLabel))->setString(nameupper, sf::Color(214, 192, 150, 255));
 	
 	string subname;
 	string rankName = sContentMgr->db("player_exp_levels").data(plr->getLevel(), "name");
@@ -975,7 +975,7 @@ void Equipment::updatePlayer(shared_ptr<ClientPlayer> plr)
 	else
 		subname = "Level " + to_string(plr->getLevel()) + " " + PlayerFunctions::className(plr->getClass()) + " (" + rankName + ")";
 
-	dynamic_pointer_cast<TextBoxRo>(getRenderObject(Interface::SubnameLabel))->setString(subname, sf::Color(95, 81, 70, 255));
+	dynamic_pointer_cast<TextBoxRo>(getRenderObject(Interface::SubnameLabel))->setString(subname, sf::Color(180, 164, 140, 255));
 }
 
 UnitDefines::EquipSlot Equipment::convertInterface(const Interface id)

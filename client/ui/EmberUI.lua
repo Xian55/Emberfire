@@ -9,6 +9,26 @@ EmberUI = EmberUI or {}
 -- visibility on this, since the frame manager is now persistent across the login/character screens.
 EmberUI.inWorld = false
 
+-- Shared text palette. Single source of truth for parchment-panel text colors so contrast stays consistent
+-- and future re-tuning is one edit. The old inline values sat in the ~95-150 luminance band (too dark on the
+-- tan/parchment art); these are lifted to ~180-215 while keeping the warm hue. Sites reference by role:
+--   Title  = panel headers / item & character names        Body   = long description / body copy
+--   Detail = stat values, bar % / secondary detail text    Muted  = subtitles, inactive tabs, hints
+EmberUI.Color = {
+	Title  = { 214, 192, 150 },
+	Body   = { 206, 186, 160 },
+	Detail = { 200, 182, 150 },
+	Muted  = { 180, 164, 140 },
+	Gold   = { 255, 215, 0 },
+	White  = { 255, 255, 255 },
+	Warn   = { 230, 90, 90 },
+}
+
+-- SetColor(fontString, roleTable[, alpha]): apply an EmberUI.Color entry to a FontString (alpha default 255).
+function EmberUI.SetColor(fs, c, a)
+	fs:SetTextColor(c[1], c[2], c[3], a or 255)
+end
+
 -- bind(widget, setterName, getterFn, token, eventName): call widget:<setter>(getter(token)) on the event + now.
 function EmberUI.bind(widget, setter, getter, token, event)
 	local d = CreateFrame('Frame', nil, nil)
@@ -172,7 +192,7 @@ function EmberUI.CreateQuestRewards(parent, x, y)
 	local obj = { choice = nil, slots = {} }
 
 	local text = parent:CreateFontString()
-	text:SetFont('Palatino'); text:SetFontSize(14); text:SetTextColor(139, 116, 95, 255)
+	text:SetFont('Palatino'); text:SetFontSize(14); EmberUI.SetColor(text, EmberUI.Color.Body)
 	text:SetPoint('TOPLEFT', parent, 'TOPLEFT', x, y); text:SetWidth(220)
 
 	-- two rows of 4 item buttons: row 1 = choices, row 2 = mandatory
