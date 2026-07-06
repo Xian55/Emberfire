@@ -52,7 +52,8 @@
     X(CHAT_MSG)                   \
     X(CHAT_OPEN)                  \
     X(DIALOG_NPC_UPDATE)          \
-    X(PLAYER_LEVEL_UP)
+    X(PLAYER_LEVEL_UP)            \
+    X(EDIT_MODE_TOGGLE)
 
 namespace LuaEvents
 {

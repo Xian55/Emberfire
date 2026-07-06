@@ -624,11 +624,19 @@ bool GameChat::processServerCommand(string enteredTxt)
 {
 	if (enteredTxt.find("/resetui") == 0 || enteredTxt.find("/resetframes") == 0)
 	{
-		// Factory-reset moved UI frames: drop saved unit-frame positions so the reload restores the
-		// on-screen layout defaults. Fixes frames dragged (or migrated) off-screen.
+		// Factory-reset moved UI frames: drop saved unit-frame positions AND the layout-editor anchors/offsets
+		// so the reload restores the on-screen layout defaults. Fixes frames dragged (or migrated) off-screen.
 		sConfig->eraseKeys("UI", "uf_");
+		sConfig->eraseKeys("UI", "lay_");
 		sLua->requestReload();
 		recvMsg("UI frame positions reset to default.", "", ChatDefines::Channels::System);
+		return true;
+	}
+
+	if (enteredTxt.find("/editui") == 0 || enteredTxt.find("/editframes") == 0)
+	{
+		// Toggle the Lua layout editor (LayoutEditor.lua listens for EDIT_MODE_TOGGLE).
+		sLua->fire(LuaEvents::EDIT_MODE_TOGGLE, "");
 		return true;
 	}
 
