@@ -205,6 +205,160 @@ function EmberUI.Layout.CenterText(fs, parent, dx, dy)
 	return fs
 end
 
+-- ---------------------------------------------------------------------------------------------------
+-- Layout registry -- the movable-element model behind the LOTRO-style layout editor (LayoutEditor.lua).
+-- Each editable HUD element registers once with a stable id; its screen ANCHOR (one of the 9 points) +
+-- (x,y) offset persist account-wide via SaveUISetting (keys lay_<id>_a/_x/_y, plus _det for a detachable
+-- cast bar). Modules call Place(id) wherever they used to hardcode a root SetPoint (including their
+-- WORLD_SHOWN re-anchor), so a saved layout and live editor edits both win over the old baked coords.
+-- ---------------------------------------------------------------------------------------------------
+
+-- 9 anchor points, index 0..8 (matches the engine's pointToInt ordering used by SetPoint).
+EmberUI.Layout.ANCHORS = { 'TOPLEFT', 'TOP', 'TOPRIGHT', 'LEFT', 'CENTER', 'RIGHT', 'BOTTOMLEFT', 'BOTTOM', 'BOTTOMRIGHT' }
+local ANCHORS = EmberUI.Layout.ANCHORS
+local ANCHOR_IDX = {}
+for i, n in ipairs(ANCHORS) do ANCHOR_IDX[n] = i - 1 end   -- name -> 0-based index
+EmberUI.Layout.ANCHOR_IDX = ANCHOR_IDX
+
+EmberUI.Layout._registry = {}
+EmberUI.Layout._order = {}   -- registration order, so the editor iterates deterministically
+
+-- Where an anchor point sits within a box of size (w,h): TL={0,0}, CENTER={w/2,h/2}, BR={w,h}.
+local function anchorWithin(name, w, h)
+	local ax, ay = 0, 0
+	if name == 'TOP' or name == 'CENTER' or name == 'BOTTOM' then ax = w / 2
+	elseif name == 'TOPRIGHT' or name == 'RIGHT' or name == 'BOTTOMRIGHT' then ax = w end
+	if name == 'LEFT' or name == 'CENTER' or name == 'RIGHT' then ay = h / 2
+	elseif name == 'BOTTOMLEFT' or name == 'BOTTOM' or name == 'BOTTOMRIGHT' then ay = h end
+	return ax, ay
+end
+EmberUI.Layout.AnchorWithin = anchorWithin
+
+-- Apply an element's current state to the engine. Screen-relative (3-arg SetPoint) unless a relTo frame is
+-- set AND the element is not detached -- i.e. a cast bar attached to its unit frame, which then tracks it.
+function EmberUI.Layout.Place(id)
+	local e = EmberUI.Layout._registry[id]
+	if not e then return end
+	e.frame:ClearAllPoints()
+	if e.relTo and not e.det then
+		e.frame:SetPoint(e.anchor, e.relTo, e.anchor, e.x, e.y)   -- attached: same point on the relTo frame
+	else
+		e.frame:SetPoint(e.anchor, e.x, e.y)                      -- screen-relative
+	end
+end
+
+-- Register (or re-register) an editable element. opts = { label, anchor, x, y, relTo?, detachable? }.
+-- Reads any saved anchor/offset (falls back to opts), records the defaults for Reset, then Places.
+function EmberUI.Layout.Register(id, frame, opts)
+	local defA = ANCHOR_IDX[opts.anchor or 'TOPLEFT'] or 0
+	local defX, defY = math.floor(opts.x or 0), math.floor(opts.y or 0)
+	local a = GetUISetting('lay_' .. id .. '_a', defA)
+	if a < 0 or a > 8 then a = defA end
+	local e = {
+		id = id, frame = frame, label = opts.label or id,
+		anchor = ANCHORS[a + 1] or 'TOPLEFT',
+		x = GetUISetting('lay_' .. id .. '_x', defX),
+		y = GetUISetting('lay_' .. id .. '_y', defY),
+		defA = defA, defX = defX, defY = defY,
+		relTo = opts.relTo, detachable = opts.detachable or false,
+		det = opts.detachable and (GetUISetting('lay_' .. id .. '_det', 0) ~= 0) or false,
+	}
+	if not EmberUI.Layout._registry[id] then EmberUI.Layout._order[#EmberUI.Layout._order + 1] = id end
+	EmberUI.Layout._registry[id] = e
+	EmberUI.Layout.Place(id)
+	return e
+end
+
+-- Persist + apply. `anchor` may be a name or a 0-based index; `det` (optional) only matters for detachable ids.
+function EmberUI.Layout.Set(id, anchor, x, y, det)
+	local e = EmberUI.Layout._registry[id]
+	if not e then return end
+	if type(anchor) == 'number' then anchor = ANCHORS[anchor + 1] end
+	if anchor then e.anchor = anchor end
+	if x then e.x = math.floor(x) end                 -- 0 is truthy in Lua, so x=0 still applies
+	if y then e.y = math.floor(y) end
+	if det ~= nil and e.detachable then e.det = det and true or false end
+	SaveUISetting('lay_' .. id .. '_a', ANCHOR_IDX[e.anchor] or 0)
+	SaveUISetting('lay_' .. id .. '_x', e.x)
+	SaveUISetting('lay_' .. id .. '_y', e.y)
+	if e.detachable then SaveUISetting('lay_' .. id .. '_det', e.det and 1 or 0) end
+	EmberUI.Layout.Place(id)
+end
+
+-- The raw registry entry for an id (for the editor to read anchor/x/y/det/label/frame). Do not mutate directly.
+function EmberUI.Layout.Get(id) return EmberUI.Layout._registry[id] end
+
+-- Set offset + apply WITHOUT persisting -- for live editor drag (Set() persists on drop).
+function EmberUI.Layout.Move(id, x, y)
+	local e = EmberUI.Layout._registry[id]
+	if not e then return end
+	e.x = math.floor(x); e.y = math.floor(y)
+	EmberUI.Layout.Place(id)
+end
+
+-- Current on-screen top-left of a registered element (design px), for children that lay out off it.
+function EmberUI.Layout.Resolve(id)
+	local e = EmberUI.Layout._registry[id]
+	if not e then return 0, 0 end
+	return e.frame:GetLeft(), e.frame:GetTop()
+end
+
+-- Reference box (left,top,w,h) an element is anchored against: the relTo frame while attached, else the screen.
+local function referenceBox(e)
+	if e.relTo and not e.det then
+		return e.relTo:GetLeft(), e.relTo:GetTop(), e.relTo:GetWidth(), e.relTo:GetHeight()
+	end
+	return 0, 0, GetScreenWidth(), GetScreenHeight()
+end
+
+-- Recompute (x,y) so the element does NOT visually move when its anchor (or attach state) changes -- LOTRO
+-- keep-in-place. Offset = (element's anchor point) - (reference's matching anchor point), in screen space.
+local function rebase(e, newAnchor, newDet)
+	local left, top = e.frame:GetLeft(), e.frame:GetTop()
+	local w, h = e.frame:GetWidth(), e.frame:GetHeight()
+	local ex, ey = anchorWithin(newAnchor, w, h)
+	local savedDet = e.det
+	if newDet ~= nil then e.det = newDet end            -- referenceBox reads e.det
+	local rleft, rtop, rw, rh = referenceBox(e)
+	e.det = savedDet
+	local rx, ry = anchorWithin(newAnchor, rw, rh)
+	return (left + ex) - (rleft + rx), (top + ey) - (rtop + ry)
+end
+
+-- Change anchor, keeping the element in place. `newAnchor` = name or index.
+function EmberUI.Layout.RebaseAnchor(id, newAnchor)
+	local e = EmberUI.Layout._registry[id]
+	if not e then return end
+	if type(newAnchor) == 'number' then newAnchor = ANCHORS[newAnchor + 1] end
+	local nx, ny = rebase(e, newAnchor, nil)
+	EmberUI.Layout.Set(id, newAnchor, nx, ny)
+end
+
+-- Detach / re-attach a detachable element (cast bar), keeping it in place across the reference swap.
+function EmberUI.Layout.SetDetached(id, det)
+	local e = EmberUI.Layout._registry[id]
+	if not e or not e.detachable then return end
+	det = det and true or false
+	local nx, ny = rebase(e, e.anchor, det)
+	EmberUI.Layout.Set(id, e.anchor, nx, ny, det)
+end
+
+-- Persist the element's CURRENT on-screen position as an offset under its current anchor. Used after a raw
+-- engine drag (unit-frame Lock/Unlock) so the drop is captured without discarding the chosen anchor.
+function EmberUI.Layout.CapturePosition(id)
+	local e = EmberUI.Layout._registry[id]
+	if not e then return end
+	local nx, ny = rebase(e, e.anchor, nil)
+	EmberUI.Layout.Set(id, e.anchor, nx, ny)
+end
+
+-- Restore an element to its registered defaults (also re-attaches a detachable one).
+function EmberUI.Layout.Reset(id)
+	local e = EmberUI.Layout._registry[id]
+	if not e then return end
+	EmberUI.Layout.Set(id, e.defA, e.defX, e.defY, false)
+end
+
 -- bind(widget, setterName, getterFn, token, eventName): call widget:<setter>(getter(token)) on the event + now.
 function EmberUI.bind(widget, setter, getter, token, event)
 	local d = CreateFrame('Frame', nil, nil)
