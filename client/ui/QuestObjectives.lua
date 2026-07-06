@@ -18,6 +18,11 @@ bg:SetPoint('TOPLEFT', root, 'TOPLEFT', -30, 0)
 local bgW, bgH = GetTextureSize('objectives_bg.png')
 if bgW > 0 then bg:SetSize(bgW, bgH) end
 
+-- Movable via the layout editor. Default = top-right (reproduces the old `sw - bgW - 25` origin as a TOPRIGHT
+-- anchor: root right edge = left + 330, so offset x = 335 - bgW). refresh() re-Places instead of hardcoding.
+local bgw = (bgW > 0) and bgW or 330
+EmberUI.Layout.Register('objectives', root, { label = 'Objectives Tracker', anchor = 'TOPRIGHT', x = 335 - bgw, y = 340 })
+
 local banner = root:CreateFontString()
 banner:SetFont('Ringbearer'); banner:SetFontSize(18); banner:SetTextColor(217, 194, 152, 255)
 banner:SetPoint('TOPLEFT', root, 'TOPLEFT', 50, 15)
@@ -55,9 +60,7 @@ local function countLines(s)
 end
 
 local function refresh()
-	local sw = GetScreenWidth()
-	root:ClearAllPoints()
-	root:SetPoint('TOPLEFT', sw - (bgW > 0 and bgW or 330) - 25 + 30, 340)   -- C++: x = sw - bgW - 25 (bg at -30)
+	EmberUI.Layout.Place('objectives')   -- saved anchor/offset (editor-movable); default = top-right
 
 	local shownCount = 0
 	local y = 45

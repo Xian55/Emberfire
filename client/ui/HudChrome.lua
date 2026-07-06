@@ -25,6 +25,11 @@ base:SetSize(bw, bh)
 base:SetPoint('TOPLEFT', root, 'TOPLEFT', 0, 0)
 root:SetSize(bw, bh)
 
+-- The toolbar is one movable editor element. Its root's TOPLEFT is the sprite origin the ActionBar buttons
+-- and the 6 interface buttons are all measured from, so moving it moves the whole cluster as one.
+EmberUI._hudChrome = root   -- ActionBar.lua anchors its buttons to this
+EmberUI.Layout.Register('actionbar', root, { label = 'Action Bar', anchor = 'BOTTOM', x = 0, y = 0 })
+
 for _, def in ipairs(BUTTONS) do
 	local b = CreateFrame('Button', nil, root)
 	b:SetTexture(def.tex .. '_idle.png'); b:SetHoverTexture(def.tex .. '_hover.png')
@@ -39,9 +44,7 @@ local stage = CreateFrame('Frame', nil, nil)
 stage:SetScript('OnEvent', function(_, event)
 	if event == Events.WORLD_SHOWN then
 		SetHudLuaView(true)   -- idempotent (Minimap.lua calls it too)
-		local sw, sh = GetScreenWidth(), GetScreenHeight()
-		root:ClearAllPoints()
-		root:SetPoint('TOPLEFT', math.floor(sw / 2 - bw / 2), sh - bh)   -- the C++ toolbarSpritePos
+		EmberUI.Layout.Place('actionbar')   -- saved anchor/offset (editor-movable); default = bottom-center
 		root:Show()
 	else
 		root:Hide()

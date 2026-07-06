@@ -35,6 +35,7 @@ if W <= 0 then W, H = 500, 180 end
 local root = CreateFrame('Frame', 'EmberGameChat', nil)
 root:SetSize(W, H)
 root:EnableMouse(true)   -- consume wheel over the chat area
+EmberUI.Layout.Register('chat', root, { label = 'Chat', anchor = 'BOTTOMLEFT', x = 0, y = H - 250 })   -- movable in the layout editor
 root:Hide()
 
 local bg = root:CreateTexture()
@@ -244,9 +245,7 @@ local function setShown(v)
 	if v == shown then return end
 	shown = v
 	if v then
-		local sw, sh = GetScreenWidth(), GetScreenHeight()
-		root:ClearAllPoints()
-		root:SetPoint('TOPLEFT', math.max(0, math.floor(sw / 2) - 1100), sh - 250)   -- C++ updateGeometry pos
+		EmberUI.Layout.Place('chat')   -- saved anchor/offset (editor-movable); default = bottom-left
 		root:Show(); refreshPrefix(); refresh()
 	else
 		root:Hide(); closeInput()

@@ -16,6 +16,9 @@ local TXT_COL  = EmberUI.Color.Detail   -- bar pct/detail text
 local LVL_COL  = EmberUI.Color.Title    -- level number (bright for the badge)
 local AURA_MAX = 8
 
+-- friendly names shown for each unit frame in the layout editor
+local UF_LABEL = { player = 'Player Frame', target = 'Target Frame', party1 = 'Party 1', party2 = 'Party 2', party3 = 'Party 3' }
+
 -- Mirror helpers: a point reflects around the frame width; a box also subtracts its own width.
 local function mpoint(fw, x, mirror) return mirror and (fw - x) or x end
 local function mbox(fw, x, w, mirror) return mirror and (fw - x - w) or x end
@@ -125,9 +128,12 @@ local function buildAuras(f, fw, L, mirror, st)
 end
 
 local function buildCastBar(f, L, st)
-	local cf = CreateFrame('Frame', nil, f)
+	local token = st.token
+	-- Top-level (NOT a child of f): with no SetParent binding in the engine, a top-level frame is the only way
+	-- the cast bar can DETACH to its own screen spot. Attached = the layout system anchors it to f's handle.
+	local cf = CreateFrame('Frame', 'EmberUI_' .. token .. 'CastBar', nil)
 	local cw, ch = GetTextureSize('castbar.png'); if cw <= 0 then cw, ch = 256, 32 end
-	cf:SetSize(cw, ch); cf:SetPoint('TOPLEFT', L.castOffset[1], L.castOffset[2])
+	cf:SetSize(cw, ch)
 	local bg = cf:CreateTexture(); bg:SetTexture('castbar.png'); bg:SetAllPoints(cf)
 	local fill = CreateFrame('StatusBar', nil, cf)
 	fill:SetStatusBarTexture('castbar_fill.png')
@@ -136,6 +142,11 @@ local function buildCastBar(f, L, st)
 	local ic = cf:CreateTexture(); ic:SetSize(ch - 4, ch - 4); ic:SetPoint('TOPLEFT', 4, 2)
 	local nm = cf:CreateFontString(); nm:SetFont('Palatino'); nm:SetFontSize(12); nm:SetTextColor(255, 255, 255, 255); nm:SetPoint('TOPLEFT', 32, 6)
 	cf:Hide()
+	-- detachable layout element; default attached to the unit frame at the old castOffset
+	EmberUI.Layout.Register('castbar_' .. token, cf, {
+		label = 'Cast Bar (' .. token .. ')', detachable = true, relTo = f,
+		anchor = 'TOPLEFT', x = L.castOffset[1], y = L.castOffset[2],
+	})
 	st.cast = { frame = cf, fill = fill, icon = ic, name = nm }
 end
 
@@ -143,7 +154,7 @@ end
 
 local function makeRefresh(token, st, show)
 	return function()
-		if not UnitExists(token) then st.frame:Hide(); return end
+		if not UnitExists(token) then st.frame:Hide(); if st.cast then st.cast.frame:Hide() end; return end   -- cast bar is top-level now, hide it too
 		st.frame:Show()
 
 		st.hpPct:SetText(math.min(100, math.floor((UnitHealth(token) * 100) / math.max(1, UnitHealthMax(token)) + 0.5)) .. '%')
@@ -217,10 +228,9 @@ local function wireScripts(token, st)
 			UnitContextMenu(token, st.movable and (st.locked and 'Unlock' or 'Lock') or '')
 		end
 	end)
-	-- while unlocked, the engine moves the frame on drag; persist where it lands
-	st.frame:SetScript('OnDragStop', function(self)
-		SaveUISetting('uf_' .. token .. '_x', self:GetLeft())
-		SaveUISetting('uf_' .. token .. '_y', self:GetTop())
+	-- while unlocked, the engine moves the frame on drag; persist the drop under the frame's current anchor
+	st.frame:SetScript('OnDragStop', function()
+		EmberUI.Layout.CapturePosition(token)
 	end)
 	-- hover swaps pct -> cur/max (same centered spot, so they never overlap)
 	st.frame:SetScript('OnEnter', function() st.hovering = true;  st.hpPct:Hide(); st.mpPct:Hide(); st.hpTxt:Show(); st.mpTxt:Show() end)
@@ -234,16 +244,9 @@ function EmberUI.CreateUnitFrame(cfg)
 
 	local f = CreateFrame('Button', 'EmberUI_' .. cfg.token .. 'Frame', nil)
 	f:SetSize(fw, fh); f:EnableMouse(true)
-	-- persisted position (config-backed) overrides the layout default, so a moved frame survives reload/restart
-	local sx = GetUISetting('uf_' .. cfg.token .. '_x', cfg.x)
-	local sy = GetUISetting('uf_' .. cfg.token .. '_y', cfg.y)
-	-- Clamp a stale/off-screen saved position back on-screen (design space). Guards against a frame stranded
-	-- off-screen by a scale or resolution change (or a position saved by an older, unscaled build). /resetui
-	-- clears the saved values entirely; this makes even a bad value recover on the next load.
-	local sw, sh = GetScreenWidth(), GetScreenHeight()
-	if sw > 0 then sx = math.max(0, math.min(sx, sw - fw)) end
-	if sh > 0 then sy = math.max(0, math.min(sy, sh - fh)) end
-	f:SetPoint('TOPLEFT', sx, sy)
+	-- Position via the layout registry: a saved anchor/offset (editor-movable, config-backed) overrides the
+	-- layout default, so a moved frame survives reload/restart. /resetui clears it back to the default here.
+	EmberUI.Layout.Register(cfg.token, f, { label = UF_LABEL[cfg.token] or cfg.token, anchor = 'TOPLEFT', x = cfg.x, y = cfg.y })
 	local bgArt = f:CreateTexture(); bgArt:SetTexture(art.frame); bgArt:SetAllPoints(f)
 
 	local st = { token = cfg.token, frame = f, locked = true, movable = (cfg.show and cfg.show.movable) or false }
@@ -269,8 +272,7 @@ function EmberUI.SetFrameLocked(token, locked)
 	st.locked = locked
 	if locked then
 		st.frame:SetMovable(false)
-		SaveUISetting('uf_' .. token .. '_x', st.frame:GetLeft())
-		SaveUISetting('uf_' .. token .. '_y', st.frame:GetTop())
+		EmberUI.Layout.CapturePosition(token)   -- persist the final position under the frame's current anchor
 	else
 		st.frame:SetMovable(true)
 		st.frame:RegisterForDrag('LeftButton')

@@ -124,19 +124,17 @@ end
 
 for g = 1, NUM do makeButton(g) end
 
--- ---- layout: place each button at the exact C++ screen pixel (centered, bottom-anchored) ----
+-- ---- layout: anchor each button to the toolbar origin (EmberUI._hudChrome), so the whole bar tracks the
+-- toolbar when the layout editor moves it -- frame-relative anchors re-solve every frame, so no re-run needed.
+-- (BAR_OFF is measured from the toolbar sprite origin, which is exactly the chrome root's TOPLEFT.)
 local function relayout()
-	local sw, sh = GetScreenWidth(), GetScreenHeight()
-	local bw, bh = GetTextureSize('toolbar_base.png')
-	if bw <= 0 then bw, bh = 980, 94 end
-	local spx, spy = math.floor(sw / 2 - bw / 2), sh - bh
+	local anchor = EmberUI._hudChrome
+	if not anchor then return end   -- HudChrome loads after us; the toolbar root exists by WORLD_SHOWN
 	for g = 1, NUM do
 		local bar = math.floor((g - 1) / PER_BAR)
 		local col = (g - 1) % PER_BAR
-		local x = spx + BAR_OFF[bar + 1][1] + col * SPACING
-		local y = spy + BAR_OFF[bar + 1][2]
 		buttons[g].frame:ClearAllPoints()
-		buttons[g].frame:SetPoint('TOPLEFT', x, y)
+		buttons[g].frame:SetPoint('TOPLEFT', anchor, 'TOPLEFT', BAR_OFF[bar + 1][1] + col * SPACING, BAR_OFF[bar + 1][2])
 	end
 end
 

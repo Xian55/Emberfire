@@ -4,7 +4,8 @@
 local W = math.floor(GetScreenWidth() * 0.225)   -- 22.5% of screen width, centered at the bottom
 
 local f = CreateFrame('Frame', 'EmberUI_XPBar', nil)
-f:SetSize(W, 14); f:SetPoint('BOTTOM', 0, 0)   -- flush to screen bottom, centered
+f:SetSize(W, 14)
+EmberUI.Layout.Register('xpbar', f, { label = 'XP Bar', anchor = 'BOTTOM', x = 0, y = 0 })   -- flush bottom, centered; movable in the layout editor
 f:Hide()   -- hidden until WORLD_SHOWN
 
 local bar = CreateFrame('StatusBar', nil, f)

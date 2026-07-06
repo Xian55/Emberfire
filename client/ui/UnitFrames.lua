@@ -88,6 +88,9 @@ d:SetScript('OnUpdate', function(_, dt) if EmberUI.inWorld then acc = acc + dt; 
 -- Stage lifecycle: retire the C++ frames in-world, gate the Lua HUD on PLAYER_LOGIN, hide on glue screens.
 local function hideAll()
 	EmberUI.PlayerFrame.frame:Hide(); EmberUI.TargetFrame.frame:Hide()
+	-- cast bars are top-level frames now (not children), so hide them explicitly on leaving the world
+	if EmberUI.PlayerFrame.cast then EmberUI.PlayerFrame.cast.frame:Hide() end
+	if EmberUI.TargetFrame.cast then EmberUI.TargetFrame.cast.frame:Hide() end
 	for i = 1, 3 do EmberUI.PartyFrames[i].frame:Hide() end
 end
 
