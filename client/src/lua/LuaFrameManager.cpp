@@ -238,34 +238,35 @@ void LuaFontString::render()
 		return;
 	}
 
-	// Word-wrap m_raw into lines that fit m_maxWidth, stacked downward. Re-measured each frame (cheap for the
-	// few wrapped strings we use). m_text is reused as the measuring/drawing pen.
+	// Word-wrap m_raw into lines that fit m_maxWidth, stacked downward. Hard newlines ('\n') force a break:
+	// quest/description text carries them, and without this the '\n' rode inside a "word" so SFML drew its own
+	// extra line at the SAME pen y -- piling every wrapped line on top of the next. Re-measured each frame
+	// (cheap for the few wrapped strings we use). m_text is reused as the measuring/drawing pen.
 	const int lineH = static_cast<int>(m_text->getCharacterSize()) + 3;
 	int y = m_topLeftCorner.y;
 	std::string line;
 	auto widthOf = [&](const std::string& s) { m_text->setString(s); return m_text->getGlobalBounds().width; };
+	auto emit    = [&]() { m_text->setString(line); m_text->draw(m_topLeftCorner.x, y); y += lineH; line.clear(); };
 
 	std::size_t pos = 0;
 	while (pos < m_raw.size())
 	{
-		const std::size_t sp = m_raw.find(' ', pos);
+		// Token ends at the earliest space OR newline; remember which separator so '\n' can force a break.
+		const std::size_t sp = m_raw.find_first_of(" \n", pos);
 		std::string word = m_raw.substr(pos, sp == std::string::npos ? std::string::npos : sp - pos);
+		const char sep = (sp == std::string::npos) ? '\0' : m_raw[sp];
 		pos = (sp == std::string::npos) ? m_raw.size() : sp + 1;
-		if (word.empty())
-			continue;
 
-		std::string cand = line.empty() ? word : line + ' ' + word;
-		if (widthOf(cand) <= static_cast<float>(m_maxWidth))
+		if (!word.empty())
 		{
-			line = cand;
+			std::string cand = line.empty() ? word : line + ' ' + word;
+			if (widthOf(cand) <= static_cast<float>(m_maxWidth))
+				line = cand;
+			else { if (!line.empty()) emit(); line = word; }   // wrap; an over-long word still starts fresh
 		}
-		else
-		{
-			if (!line.empty()) { m_text->setString(line); m_text->draw(m_topLeftCorner.x, y); y += lineH; }
-			line = word;
-		}
+		if (sep == '\n') { if (!line.empty()) emit(); else y += lineH; }   // hard break (blank line advances too)
 	}
-	if (!line.empty()) { m_text->setString(line); m_text->draw(m_topLeftCorner.x, y); }
+	if (!line.empty()) emit();
 }
 
 // ---------------------------------------------------------------- LuaButton

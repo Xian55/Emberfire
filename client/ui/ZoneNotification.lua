@@ -2,15 +2,19 @@
 -- keeps the zone detection + music/minimap logic and fires ZONE_CHANGED("name|type|r|g|b"); this draws the
 -- banner with a fade-in -> hold -> fade-out animation (mirrors the original).
 
-local sw = GetScreenWidth()
 local FRAME_W, FRAME_H = 699, 130
-local fx = math.floor(sw / 2 - FRAME_W / 2)
 
 local banner = CreateFrame('Frame', 'EmberUI_ZoneNotif', nil)
-banner:SetSize(FRAME_W, FRAME_H); banner:SetPoint('TOPLEFT', fx, 250); banner:Hide()
+-- Anchor the banner's TOP-center to the screen's TOP-center: horizontally centered at ANY screen width, and
+-- re-solved by the engine if the window resizes. (Was: a fx cached from GetScreenWidth() at load time -- if
+-- the screen size wasn't final yet the banner mis-centered, dragging the title off-center with it.)
+banner:SetSize(FRAME_W, FRAME_H); banner:SetPoint('TOP', 0, 250); banner:Hide()
 banner:SetFrameLevel(90)   -- above the HUD, below popups/loading
 
-local art = banner:CreateTexture(); art:SetTexture('zone_notifaction.png'); art:SetPoint('TOPLEFT', 0, 0)
+-- Art fills the banner box exactly, so the frame art and the centered title/caption share one coordinate
+-- space regardless of the PNG's native size (natural-size art anchored at TOPLEFT could sit off-center).
+local art = banner:CreateTexture(); art:SetTexture('zone_notifaction.png')
+art:SetPoint('TOPLEFT', 0, 0); art:SetSize(FRAME_W, FRAME_H)
 local title   = banner:CreateFontString(); title:SetFont('Ringbearer'); title:SetFontSize(36)
 local caption = banner:CreateFontString(); caption:SetFont('Palatino');  caption:SetFontSize(18)
 

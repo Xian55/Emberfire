@@ -12,6 +12,7 @@
 local COLS, SIZE, PITCH = 7, 40, 45
 local OX, OY = 27, 75
 local NUM = GetContainerNumSlots()
+local cell = EmberUI.Layout.Grid{ cols = COLS, pitch = PITCH, x = OX, y = OY }   -- i -> cell top-left
 
 -- 9-slice window (retires inventory.png; item cells skinned via EmberUI._slotBg). Grid offsets below are
 -- unchanged -- they were tuned to the real bag dims, so the frame swap keeps every slot in place.
@@ -49,10 +50,9 @@ local function refreshMoney() money:SetText(commas(GetMoney())) end
 -- Item drag-swap: record the pressed slot, act on the released slot (no physical frame move). Each slot
 -- registers its item tooltip via SetTooltipItem; the engine re-asserts it while hovered (no poll here).
 for i = 1, NUM do
-	local col  = (i - 1) % COLS
-	local rowi = math.floor((i - 1) / COLS)
 	local s = EmberUI.CreateItemButton(root, i, SIZE)
-	s.frame:SetPoint('TOPLEFT', root, 'TOPLEFT', OX + col * PITCH, OY + rowi * PITCH)
+	local gx, gy = cell(i)
+	s.frame:SetPoint('TOPLEFT', root, 'TOPLEFT', gx, gy)
 	s.frame:EnableMouse(true)
 	s.frame:SetTooltipItem(i)   -- engine re-asserts the item tooltip while this slot is hovered
 	-- Press to pick up (grey the slot + put the icon on the cursor), release over a slot to drop/move.

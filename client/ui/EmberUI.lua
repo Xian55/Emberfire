@@ -55,6 +55,12 @@ EmberUI._slotBg = 'slot40.png'
 
 -- Build the 9-slice backdrop as children of `frame` (w x h design pixels). Created first so it draws
 -- behind later content. All regions are TOPLEFT-anchored offsets from the frame.
+--
+-- Seam handling: the 1px border line is baked into the edge/corner art. uiScale rounds a region's POSITION
+-- (ui_up) but not its SIZE, so an edge that merely abuts a corner drifts +/-1px at the shared seam -- the
+-- line then doubles ("crossing") or gaps ("missing pixels") depending on the window's exact dimensions.
+-- Fix: draw center + each edge at FULL span so an edge is one continuous stretched sprite with no interior
+-- seam, then lay the opaque corners on top LAST to cap the ends crisply. No abutting seam => no drift.
 local function buildBackdrop(frame, w, h)
 	local S = EmberUI.Slice
 	local k = S.corner
@@ -66,9 +72,13 @@ local function buildBackdrop(frame, w, h)
 		t:SetSize(rw, rh)
 		return t
 	end
-	region(S.tl, 0,     0,     k,  k );  region(S.t, k,     0,     cw, k );  region(S.tr, w - k, 0,     k,  k )
-	region(S.l,  0,     k,     k,  ch);  region(S.c, k,     k,     cw, ch);  region(S.r,  w - k, k,     k,  ch)
-	region(S.bl, 0,     h - k, k,  k );  region(S.b, k,     h - k, cw, k );  region(S.br, w - k, h - k, k,  k )
+	-- center, then the four edges spanning the full width/height (running UNDER the corner zones)...
+	region(S.c, k,     k,     cw, ch)
+	region(S.t, 0,     0,     w,  k );  region(S.b, 0, h - k, w, k )   -- top/bottom edges, full width
+	region(S.l, 0,     0,     k,  h );  region(S.r, w - k, 0,  k, h )  -- left/right edges, full height
+	-- ...then the opaque corners on top, capping each edge end with the crisp L-junction.
+	region(S.tl, 0,     0,     k,  k );  region(S.tr, w - k, 0,     k, k)
+	region(S.bl, 0,     h - k, k,  k );  region(S.br, w - k, h - k, k, k)
 end
 
 -- CreateWindow(opts) -> window table. opts:
@@ -130,6 +140,69 @@ function EmberUI.CreateWindow(opts)
 	function win.Hide() root:Hide() end
 
 	return win
+end
+
+-- ---------------------------------------------------------------------------------------------------
+-- EmberUI.Layout -- lightweight, WoW-style anchor layout for the Lua UI. Positions resolve once at build
+-- time via SetPoint; because the anchors are PARENT-RELATIVE the engine still re-solves them every frame,
+-- so children track a moved/resized window for free. There is no per-frame relayout pass and no immediate-
+-- mode rebuild -- this stays inside the retained, event-driven model. It replaces hand-computed pixel
+-- offsets (the source of the seam / overlap / off-center bugs) with named row/column/grid math in ONE place.
+-- ---------------------------------------------------------------------------------------------------
+EmberUI.Layout = {}
+
+-- Accept either a raw frame handle (userdata) or a wrapper table exposing `.frame` (CreateItemButton, etc.).
+local function frameOf(region)
+	if type(region) == 'table' then return region.frame or region end
+	return region
+end
+
+-- Grid(opts) -> function(i) -> x, y : the top-left of the i-th cell (1-based, row-major) in a `cols`-wide
+-- grid. opts: cols (required); size|pitch (cell pitch); x, y (origin, default 0,0); pitchY (default pitch).
+-- Kills the duplicated `(col*pitch, row*pitch)` math in Inventory / Equipment / quest-reward grids.
+function EmberUI.Layout.Grid(opts)
+	local cols   = opts.cols
+	local pitch  = opts.pitch or opts.size or 0
+	local pitchY = opts.pitchY or pitch
+	local ox, oy = opts.x or 0, opts.y or 0
+	return function(i)
+		local c = (i - 1) % cols
+		local r = math.floor((i - 1) / cols)
+		return ox + c * pitch, oy + r * pitchY
+	end
+end
+
+-- Stack(parent, opts) -> stack : anchor regions one after another along an axis, advancing by each item's
+-- extent + gap. dir = 'y' (default, top-to-bottom) or 'x' (left-to-right). opts: x, y (origin); gap; step
+-- (default extent when :Add omits one). Returns { Add(region[, extent]) -> region, Reset([x,y]),
+-- Cursor() -> x,y }. Removes per-row `Y0 + (i-1)*ROWH` offsets (quest list, stat rows, prog labels).
+function EmberUI.Layout.Stack(parent, opts)
+	opts = opts or {}
+	local horiz = opts.dir == 'x'
+	local x0, y0 = opts.x or 0, opts.y or 0
+	local gap, step = opts.gap or 0, opts.step or 0
+	local st = { _x = x0, _y = y0 }
+	function st.Add(region, extent)
+		frameOf(region):SetPoint('TOPLEFT', parent, 'TOPLEFT', st._x, st._y)
+		local adv = (extent or step) + gap
+		if horiz then st._x = st._x + adv else st._y = st._y + adv end
+		return region
+	end
+	function st.Reset(x, y) st._x = x or x0; st._y = y or y0 end
+	function st.Cursor() return st._x, st._y end
+	return st
+end
+
+-- Row / Column: Stack presets for the horizontal / vertical axes.
+function EmberUI.Layout.Row(parent, opts)    opts = opts or {}; opts.dir = 'x'; return EmberUI.Layout.Stack(parent, opts) end
+function EmberUI.Layout.Column(parent, opts) opts = opts or {}; opts.dir = 'y'; return EmberUI.Layout.Stack(parent, opts) end
+
+-- CenterText(fs, parent[, dx, dy]): center a FontString in `parent` via the engine's width-aware CENTER
+-- anchor, so callers stop hand-picking an x that only lines up for one string length (the off-center
+-- zone-title class of bug). dx/dy nudge from the center.
+function EmberUI.Layout.CenterText(fs, parent, dx, dy)
+	fs:SetPoint('CENTER', parent, 'CENTER', dx or 0, dy or 0)
+	return fs
 end
 
 -- bind(widget, setterName, getterFn, token, eventName): call widget:<setter>(getter(token)) on the event + now.
